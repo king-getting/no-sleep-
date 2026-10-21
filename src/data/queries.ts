@@ -1,20 +1,33 @@
-import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
+import { db } from '@/data/store/db';
+import { ensureSeeded } from '@/data/store/profile';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, ExamItem, SleepLog, TimeBlock } from '@/types/contract';
 
 /**
  * 领域查询：Agent 与报告组装共用的只读查询。
- * 课表当前来自 mock 模块（等价于「已导入的课表 JSON」），落库后只改这里。
+ * 课表 / 考试存于本地 IndexedDB（A3 起），手动录入与教务 adapter 共用同一存储。
  */
 
-export function todayCourses(now: Date): Course[] {
-  const dow = dayOfWeek(now);
-  return MOCK_COURSES.filter((c) => c.dayOfWeek === dow).sort((a, b) => a.startMin - b.startMin);
+// ── 取数（异步，读库）────────────────────────────────────────
+
+export async function todayCourses(now: Date): Promise<Course[]> {
+  return coursesOfDay(dayOfWeek(now));
 }
 
-export function coursesOfDay(dow: 1 | 2 | 3 | 4 | 5 | 6 | 7): Course[] {
-  return MOCK_COURSES.filter((c) => c.dayOfWeek === dow).sort((a, b) => a.startMin - b.startMin);
+export async function coursesOfDay(dow: 1 | 2 | 3 | 4 | 5 | 6 | 7): Promise<Course[]> {
+  await ensureSeeded();
+  return db.courses.where('dayOfWeek').equals(dow).sortBy('startMin');
 }
+
+export async function upcomingExams(now: Date, withinDays = 14): Promise<ExamItem[]> {
+  await ensureSeeded();
+  const horizon = now.getTime() + withinDays * 24 * 3600_000;
+  return (await db.exams.toArray())
+    .filter((e) => new Date(e.at).getTime() <= horizon)
+    .sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// ── 纯函数（同步，操作已取到的数据）──────────────────────────
 
 /** 时间块切分：上课 / 整块空档（≥120min） / 碎片（<120min） */
 export function computeTimeBlocks(courses: Course[], dayStart = 7 * 60, dayEnd = 23 * 60): TimeBlock[] {
@@ -39,13 +52,6 @@ export function computeTimeBlocks(courses: Course[], dayStart = 7 * 60, dayEnd =
     });
   }
   return blocks;
-}
-
-export function upcomingExams(now: Date, withinDays = 14): ExamItem[] {
-  const horizon = now.getTime() + withinDays * 24 * 3600_000;
-  return buildMockExams(now)
-    .filter((e) => new Date(e.at).getTime() <= horizon)
-    .sort((a, b) => a.at.localeCompare(b.at));
 }
 
 /** 早八：8:00 及以前开始上课 */
@@ -76,6 +82,17 @@ export function avgSleepHours(logs: SleepLog[], lastN: number): number {
   return slice.reduce((s, l) => s + l.hours, 0) / slice.length;
 }
 
+export function describeBlocks(blocks: TimeBlock[]): string {
+  const free = blocks.filter((b) => b.kind === 'free');
+  const frag = blocks.filter((b) => b.kind === 'fragment');
+  const parts: string[] = [];
+  if (free.length > 0) parts.push(`整块空档 ${free.length} 段（${free.map((b) => `${fmtMin(b.startMin)}–${fmtMin(b.endMin)}`).join('、')}）`);
+  if (frag.length > 0) parts.push(`碎片 ${frag.length} 段`);
+  return parts.length > 0 ? parts.join('；') : '今天没有空档';
+}
+
+// ── 组合查询（异步）──────────────────────────────────────────
+
 const MIN_BLOCK_MIN = 120;
 
 function blockDate(base: Date, dayOffset: number, min: number): Date {
@@ -86,11 +103,11 @@ function blockDate(base: Date, dayOffset: number, min: number): Date {
 }
 
 /** 从 now 起算、截止 deadline 之前，是否还有 ≥2h 的整块空档（看今明两天） */
-export function hasFreeBlockBefore(now: Date, deadline: Date): boolean {
+export async function hasFreeBlockBefore(now: Date, deadline: Date): Promise<boolean> {
   const dow = dayOfWeek(now);
   for (const offset of [0, 1]) {
     const d = ((((dow - 1 + offset) % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7);
-    for (const b of computeTimeBlocks(coursesOfDay(d))) {
+    for (const b of computeTimeBlocks(await coursesOfDay(d))) {
       if (b.kind !== 'free') continue;
       const start = blockDate(now, offset, b.startMin);
       const end = blockDate(now, offset, b.endMin);
@@ -105,18 +122,9 @@ export function hasFreeBlockBefore(now: Date, deadline: Date): boolean {
 }
 
 /** 今晚（18:00–23:00）是否存在可争夺的整块空档（≥2h，从 now 起算） */
-export function tonightFreeBlock(now: Date): TimeBlock | undefined {
+export async function tonightFreeBlock(now: Date): Promise<TimeBlock | undefined> {
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  return computeTimeBlocks(todayCourses(now)).find(
+  return computeTimeBlocks(await todayCourses(now)).find(
     (b) => b.kind === 'free' && Math.min(b.endMin, 23 * 60) - Math.max(b.startMin, nowMin, 18 * 60) >= MIN_BLOCK_MIN,
   );
-}
-
-export function describeBlocks(blocks: TimeBlock[]): string {
-  const free = blocks.filter((b) => b.kind === 'free');
-  const frag = blocks.filter((b) => b.kind === 'fragment');
-  const parts: string[] = [];
-  if (free.length > 0) parts.push(`整块空档 ${free.length} 段（${free.map((b) => `${fmtMin(b.startMin)}–${fmtMin(b.endMin)}`).join('、')}）`);
-  if (frag.length > 0) parts.push(`碎片 ${frag.length} 段`);
-  return parts.length > 0 ? parts.join('；') : '今天没有空档';
 }

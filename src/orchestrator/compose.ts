@@ -28,14 +28,14 @@ const SLOT_OF: Record<ReportType, Suggestion['slot'] | null> = {
   'exam-week': null,
 };
 
-function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentContext): OverviewItem[] {
+async function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentContext): Promise<OverviewItem[]> {
   const findings = results.flatMap((r) => r.findings);
   const fact = (id: string) => findings.find((f) => f.id === id)?.summary ?? '—';
   const warnings = findings.filter((f) => f.type === 'warning');
 
   if (type === 'noon') {
     const nowMin = ctx.now.getHours() * 60 + ctx.now.getMinutes();
-    const courses = todayCourses(ctx.now);
+    const courses = await todayCourses(ctx.now);
     const done = courses.filter((c) => c.endMin <= nowMin).length;
     const rest = courses.length - done;
     return [
@@ -55,7 +55,7 @@ function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentConte
 }
 
 async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: string }[]> {
-  const courses = todayCourses(ctx.now);
+  const courses = await todayCourses(ctx.now);
   const logs = await getSleepLogs();
   const lastNight = lastNightSleep(logs);
   const avg7 = avgSleepHours(logs, 7);
@@ -69,10 +69,10 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   ];
 }
 
-function buildPreview(ctx: AgentContext): string[] {
+async function buildPreview(ctx: AgentContext): Promise<string[]> {
   const dow = dayOfWeek(ctx.now);
   const tomorrowDow = ((dow % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  const tomorrow = coursesOfDay(tomorrowDow);
+  const tomorrow = await coursesOfDay(tomorrowDow);
   const items: string[] = [];
 
   if (tomorrow.length === 0) {
@@ -108,7 +108,7 @@ export async function composeReport(
   for (const kind of RECIPES[type]) {
     switch (kind) {
       case 'overview':
-        blocks.push({ kind: 'overview', items: buildOverview(type, results, ctx) });
+        blocks.push({ kind: 'overview', items: await buildOverview(type, results, ctx) });
         break;
       case 'suggestionGroup':
         for (const suggestion of slotSuggestions) blocks.push({ kind: 'suggestionGroup', suggestion });
@@ -123,7 +123,7 @@ export async function composeReport(
         blocks.push({ kind: 'recap', stats: { items: await buildRecap(ctx) } });
         break;
       case 'preview':
-        blocks.push({ kind: 'preview', items: buildPreview(ctx) });
+        blocks.push({ kind: 'preview', items: await buildPreview(ctx) });
         break;
     }
   }

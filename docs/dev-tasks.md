@@ -27,13 +27,14 @@
 - 已实现：`src/orchestrator/enrich.ts`，汇总阶段按规则表把跨域 Finding 挂载到选项卡（新规则 = RULES 加一行）；`life.ts` 已不再 import 睡眠模块
 - 验收：`life.ts` 无跨域 import；午饭选项 B「为什么」仍显示健康 Agent 依据（由编排器挂载）
 
-### A3. 课表 / 考试手动录入的数据层
-- 课程、考试从 `src/data/mock/courses.ts` 静态模块迁入 IndexedDB（Dexie 加表），提供 CRUD 接口；`src/data/queries.ts` 改读库，函数签名不变
-- 验收：B 侧用 `addCourse()` / `addExam()` 录入后，晨间报告内容随之变化
+### A3. 课表 / 考试手动录入的数据层 ✅ 已完成（2026-10-21）
+- 已实现：Dexie v2 新增 `courses` / `exams` 表；`src/data/store/courses.ts` 提供 `listCourses/addCourse/updateCourse/deleteCourse` 与 `listExams/addExam/updateExam/deleteExam`；`src/data/queries.ts` 全部改读库（取数函数异步化，纯函数保持同步）
+- 种子与升级：首启填充示例课表/考试；示例模式下每次启动刷新示例考试（DDL 演示永不过期）；v1 老库自动补种课表
+- 验收：B 侧用 `addCourse()` / `addExam()` 录入后，晨间报告内容随之变化 ✅ 已实测（库内 courses 13 条 / exams 3 条）
 
-### A4. 睡眠手动录入接口
-- `sleepLogs` 表已在，补 `upsertSleepLog(date, hours, bedTimeMin)` 与删除接口
-- 验收：录入昨晚 7.5h 后，健康 Agent 的午间小憩建议不再出现
+### A4. 睡眠手动录入接口 ✅ 已完成（2026-10-21）
+- 已实现：`upsertSleepLog(log)` / `deleteSleepLog(date)`（`src/data/store/profile.ts`），同一日期覆盖写
+- 验收：录入昨晚 7.5h 后，健康 Agent 的午间小憩建议不再出现 ✅ 已实测（小憩与 L1 合并卡消失，睡眠恢复后冲突卡按规则也不再出现）
 
 ### A5. 本地定时触发器
 - 页面打开 / 到点（7:30、11:30、21:30）自动生成对应报告；跨天时启动补生成

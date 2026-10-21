@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Preferences, SleepLog, UserProfile } from '@/types/contract';
+import type { Course, ExamItem, Preferences, SleepLog, UserProfile } from '@/types/contract';
 
 /**
  * 本地数据层（IndexedDB / Dexie）—— 本地优先的核心载体
@@ -34,6 +34,8 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   sleepLogs: EntityTable<SleepLog, 'date'>;
   choices: EntityTable<ChoiceRecord, 'id'>;
   compliance: EntityTable<ComplianceRecord, 'id'>;
+  courses: EntityTable<Course, 'id'>;
+  exams: EntityTable<ExamItem, 'id'>;
 };
 
 db.version(1).stores({
@@ -42,4 +44,10 @@ db.version(1).stores({
   sleepLogs: 'date',
   choices: '++id, topic, at',
   compliance: '++id, topic, date',
+});
+
+// v2：课表 / 考试落库（A3——手动录入与教务 adapter 的存储载体）
+db.version(2).stores({
+  courses: 'id, dayOfWeek',
+  exams: 'id, at',
 });

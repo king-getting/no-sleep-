@@ -16,7 +16,7 @@ export const academicAgent: AgentModule = {
 
   async run(ctx) {
     const findings: Finding[] = [];
-    const courses = todayCourses(ctx.now);
+    const courses = await todayCourses(ctx.now);
 
     findings.push({
       id: 'academic:today-courses',
@@ -30,7 +30,7 @@ export const academicAgent: AgentModule = {
       evidences: [{ agentId: 'academic', text: '数据来源：已导入的课表（示例）', confidence: 3 }],
     });
 
-    const exams = upcomingExams(ctx.now);
+    const exams = await upcomingExams(ctx.now);
     for (const e of exams) {
       const hoursLeft = Math.round((new Date(e.at).getTime() - ctx.now.getTime()) / 3600_000);
       const isExam = e.kind === 'exam';

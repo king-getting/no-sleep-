@@ -26,7 +26,7 @@ export const scheduleAgent: AgentModule = {
 
   async run(ctx) {
     const findings: Finding[] = [];
-    const courses = todayCourses(ctx.now);
+    const courses = await todayCourses(ctx.now);
     const blocks = computeTimeBlocks(courses);
 
     findings.push({
@@ -71,13 +71,13 @@ export const scheduleAgent: AgentModule = {
     // ① §4.2 风险预警（稀缺）：48h 内有 DDL 且之前没有 ≥2h 整块空档 → warning
     // ② §5.3 冲突主张（争夺）：48h 内有 DDL 且今晚存在整块空档 → 主张该空档用于复习，
     //    与健康 Agent 的「提前睡」主张构成 L2 真冲突
-    const urgent = upcomingExams(ctx.now, 2);
+    const urgent = await upcomingExams(ctx.now, 2);
     const nearest = urgent[0];
     const hoursLeft = nearest
       ? Math.round((new Date(nearest.at).getTime() - ctx.now.getTime()) / 3600_000)
       : 0;
 
-    if (nearest && !hasFreeBlockBefore(ctx.now, new Date(nearest.at))) {
+    if (nearest && !(await hasFreeBlockBefore(ctx.now, new Date(nearest.at)))) {
       findings.push({
         id: 'schedule:ddl-crunch',
         type: 'warning',
@@ -89,7 +89,7 @@ export const scheduleAgent: AgentModule = {
     }
 
     const result: AgentResult = { agentId: 'schedule', findings };
-    const tonight = tonightFreeBlock(ctx.now);
+    const tonight = await tonightFreeBlock(ctx.now);
     if (nearest && tonight) {
       result.conflictClaims = [
         {

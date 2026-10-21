@@ -26,7 +26,7 @@ export const healthAgent: AgentModule = {
     const lastNight = lastNightSleep(logs);
     const avg3 = avgSleepHours(logs, 3);
     const avg7 = avgSleepHours(logs, 7);
-    const courses = todayCourses(ctx.now);
+    const courses = await todayCourses(ctx.now);
     const hour = ctx.now.getHours() + ctx.now.getMinutes() / 60;
 
     findings.push({

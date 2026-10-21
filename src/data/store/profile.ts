@@ -1,25 +1,39 @@
 import { db } from './db';
+import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
 import { DEMO_PREFERENCES, DEMO_PROFILE } from '@/data/mock/profile';
 import { buildDemoSleepLogs } from '@/data/mock/sleep';
 import type { Preferences, SleepLog, UserProfile } from '@/types/contract';
 
 /**
- * 画像 / 偏好 / 记录的读写入口。
+ * 画像 / 偏好 / 睡眠 / 记录的读写入口。
  * 首次启动填充示例数据（带 isDemo 标签，设置里可一键清除）。
  */
 
 let seeding: Promise<void> | null = null;
 
-/** 幂等：首次调用时填充示例数据 */
+/** 幂等：首次调用时填充示例数据；示例模式下每次加载刷新示例考试，保证「DDL 在 40h 后」的演示形态 */
 export function ensureSeeded(): Promise<void> {
   seeding ??= (async () => {
     const count = await db.profiles.count();
-    if (count > 0) return;
-    await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs], async () => {
-      await db.profiles.put(DEMO_PROFILE);
-      await db.prefs.put({ id: 'prefs', value: DEMO_PREFERENCES });
-      await db.sleepLogs.bulkPut(buildDemoSleepLogs());
-    });
+    if (count === 0) {
+      await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.courses, db.exams], async () => {
+        await db.profiles.put(DEMO_PROFILE);
+        await db.prefs.put({ id: 'prefs', value: DEMO_PREFERENCES });
+        await db.sleepLogs.bulkPut(buildDemoSleepLogs());
+        await db.courses.bulkPut(MOCK_COURSES);
+        await db.exams.bulkPut(buildMockExams(new Date()));
+      });
+      return;
+    }
+    // 示例数据刷新：考试/DDL 是相对时间生成的，每次启动对齐到当前时间，演示永不过期
+    const profile = await db.profiles.get('me');
+    if (profile?.isDemo) {
+      await db.exams.bulkPut(buildMockExams(new Date()));
+    }
+    // 兼容 v1 老库升级：课表为空时补种示例课表
+    if ((await db.courses.count()) === 0) {
+      await db.courses.bulkPut(MOCK_COURSES);
+    }
   })();
   return seeding;
 }
@@ -45,6 +59,16 @@ export async function savePreferences(value: Preferences): Promise<void> {
 export async function getSleepLogs(): Promise<SleepLog[]> {
   await ensureSeeded();
   return db.sleepLogs.orderBy('date').toArray();
+}
+
+/** 睡眠手动录入 / 修改（A4）：date 格式 'YYYY-MM-DD'，同一日期覆盖写 */
+export async function upsertSleepLog(log: SleepLog): Promise<void> {
+  await ensureSeeded();
+  await db.sleepLogs.put(log);
+}
+
+export async function deleteSleepLog(date: string): Promise<void> {
+  await db.sleepLogs.delete(date);
 }
 
 /** 记录一次选项卡点选（表达意图，不是执行确认） */
@@ -75,13 +99,15 @@ export async function rememberConflictChoice(topic: string, choice: 'A' | 'B'): 
 
 /** 一键清除示例数据（诚实原则：可退出演示） */
 export async function clearAllData(): Promise<void> {
-  await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.choices, db.compliance], async () => {
+  await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.choices, db.compliance, db.courses, db.exams], async () => {
     await Promise.all([
       db.profiles.clear(),
       db.prefs.clear(),
       db.sleepLogs.clear(),
       db.choices.clear(),
       db.compliance.clear(),
+      db.courses.clear(),
+      db.exams.clear(),
     ]);
   });
   seeding = null;
