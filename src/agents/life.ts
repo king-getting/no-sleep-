@@ -1,6 +1,4 @@
 import { queryAdapters } from '@/data/adapters';
-import { getSleepLogs } from '@/data/store/profile';
-import { lastNightSleep } from '@/data/queries';
 import { dailyBudget } from '@/types/contract';
 import type { AgentModule, AgentResult, Finding, OptionCard, RawItem } from '@/types/contract';
 
@@ -93,7 +91,6 @@ export const lifeAgent: AgentModule = {
     const cvs = (await queryAdapters('convenience', ctx))[0];
     const w1 = windows.find((w) => w.id === 'ct-yitang-2f');
     const w2 = windows.find((w) => w.id === 'ct-gxy-light');
-    const lastNight = lastNightSleep(await getSleepLogs());
 
     if (hour >= 10 && hour < 14 && w1 && w2 && cvs) {
       // 午饭（§5.2 示例）
@@ -117,9 +114,8 @@ export const lifeAgent: AgentModule = {
           pros: ['清淡，午后不犯困'],
           cons: ['贵', '排队约 15 分钟'],
           impacts: [{ horizon: 'long', text: '常选轻食会让本周餐标吃紧', agentId: 'life' }],
+          // 跨域依据（睡眠×轻食）由编排器在汇总阶段富化挂载，生活 Agent 不越域读数据（契约 §5.1）
           evidences: [
-            // 跨域依据：健康域数据由生活 Agent 读本地数据层组装，来源仍标注健康（编排器级依据富化为后续重构点）
-            { agentId: 'health', text: `你昨晚睡眠 ${lastNight?.hours ?? '-'}h，清淡饮食午后不犯困`, confidence: 2 },
             { agentId: 'life', text: budgetText(Number(w2.payload?.avgPrice ?? 15), daily), confidence: 3 },
           ],
         },
@@ -130,8 +126,8 @@ export const lifeAgent: AgentModule = {
           pros: ['省下约 25 分钟'],
           cons: ['吃得将就'],
           impacts: [{ horizon: 'short', text: '下午预习到位，第一节课听课更轻松', agentId: 'schedule' }],
+          // 跨域依据（碎片时间可预习）同样交给编排器富化
           evidences: [
-            { agentId: 'schedule', text: '下午第一节前有一段碎片时间，可用来预习', confidence: 2 },
             { agentId: 'life', text: budgetText(Number(cvs.payload?.avgPrice ?? 10), daily), confidence: 3 },
           ],
         },

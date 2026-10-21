@@ -76,22 +76,40 @@ export function avgSleepHours(logs: SleepLog[], lastN: number): number {
   return slice.reduce((s, l) => s + l.hours, 0) / slice.length;
 }
 
-/** 某截止时间之前是否还有 ≥120min 的整块空档（今天 + 明天） */
+const MIN_BLOCK_MIN = 120;
+
+function blockDate(base: Date, dayOffset: number, min: number): Date {
+  const d = new Date(base);
+  d.setDate(base.getDate() + dayOffset);
+  d.setHours(Math.floor(min / 60), min % 60, 0, 0);
+  return d;
+}
+
+/** 从 now 起算、截止 deadline 之前，是否还有 ≥2h 的整块空档（看今明两天） */
 export function hasFreeBlockBefore(now: Date, deadline: Date): boolean {
   const dow = dayOfWeek(now);
-  const days: Array<1 | 2 | 3 | 4 | 5 | 6 | 7> = [dow, ((dow % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7];
-  for (const d of days) {
-    const blocks = computeTimeBlocks(coursesOfDay(d));
-    for (const b of blocks) {
+  for (const offset of [0, 1]) {
+    const d = ((((dow - 1 + offset) % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7);
+    for (const b of computeTimeBlocks(coursesOfDay(d))) {
       if (b.kind !== 'free') continue;
-      // 简化：整块起点在该天内且早于截止时间所在小时即视为可用
-      const blockDate = new Date(now);
-      blockDate.setDate(now.getDate() + (d === dow ? 0 : 1));
-      blockDate.setHours(Math.floor(b.startMin / 60), b.startMin % 60, 0, 0);
-      if (blockDate.getTime() < deadline.getTime()) return true;
+      const start = blockDate(now, offset, b.startMin);
+      const end = blockDate(now, offset, b.endMin);
+      // 今天已过去的时段不算数
+      const effectiveStart = offset === 0 && start < now ? now : start;
+      if (end <= effectiveStart) continue;
+      if (end.getTime() - effectiveStart.getTime() < MIN_BLOCK_MIN * 60_000) continue;
+      if (effectiveStart.getTime() < deadline.getTime()) return true;
     }
   }
   return false;
+}
+
+/** 今晚（18:00–23:00）是否存在可争夺的整块空档（≥2h，从 now 起算） */
+export function tonightFreeBlock(now: Date): TimeBlock | undefined {
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return computeTimeBlocks(todayCourses(now)).find(
+    (b) => b.kind === 'free' && Math.min(b.endMin, 23 * 60) - Math.max(b.startMin, nowMin, 18 * 60) >= MIN_BLOCK_MIN,
+  );
 }
 
 export function describeBlocks(blocks: TimeBlock[]): string {

@@ -3,10 +3,13 @@ import {
   describeBlocks,
   hasBackToBack,
   hasEarlyEight,
+  hasFreeBlockBefore,
   lunchCrunch,
   todayCourses,
+  tonightFreeBlock,
   upcomingExams,
 } from '@/data/queries';
+import { fmtMin } from '@/types/contract';
 import type { AgentModule, AgentResult, Finding } from '@/types/contract';
 
 /**
@@ -64,22 +67,30 @@ export const scheduleAgent: AgentModule = {
       });
     }
 
-    // DDL 预警：48h 内有 DDL → 主张今晚空档用于整块复习（与健康 Agent 的「提前睡」构成真冲突）
+    // DDL 预警与冲突主张是两条独立规则：
+    // ① §4.2 风险预警（稀缺）：48h 内有 DDL 且之前没有 ≥2h 整块空档 → warning
+    // ② §5.3 冲突主张（争夺）：48h 内有 DDL 且今晚存在整块空档 → 主张该空档用于复习，
+    //    与健康 Agent 的「提前睡」主张构成 L2 真冲突
     const urgent = upcomingExams(ctx.now, 2);
-    const crunch = urgent[0];
-    if (crunch) {
+    const nearest = urgent[0];
+    const hoursLeft = nearest
+      ? Math.round((new Date(nearest.at).getTime() - ctx.now.getTime()) / 3600_000)
+      : 0;
+
+    if (nearest && !hasFreeBlockBefore(ctx.now, new Date(nearest.at))) {
       findings.push({
         id: 'schedule:ddl-crunch',
         type: 'warning',
         topic: '复习',
-        confidence: 2,
-        summary: `「${crunch.title}」临近，今晚需要安排 ≥2h 的整块复习`,
-        evidences: [{ agentId: 'schedule', text: `DDL 在 ${Math.round((new Date(crunch.at).getTime() - ctx.now.getTime()) / 3600_000)}h 后`, confidence: 3 }],
+        confidence: 3,
+        summary: `「${nearest.title}」之前没有 ≥2h 的整块复习时间，需要挪用休息时间`,
+        evidences: [{ agentId: 'schedule', text: `DDL 在 ${hoursLeft}h 后`, confidence: 3 }],
       });
     }
 
     const result: AgentResult = { agentId: 'schedule', findings };
-    if (crunch) {
+    const tonight = tonightFreeBlock(ctx.now);
+    if (nearest && tonight) {
       result.conflictClaims = [
         {
           topic: 'tonight-slot',
@@ -95,7 +106,13 @@ export const scheduleAgent: AgentModule = {
               { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'schedule' },
               { horizon: 'long', text: '缺觉累积，或影响周末考试状态', agentId: 'health' },
             ],
-            evidences: [{ agentId: 'schedule', text: `「${crunch.title}」DDL 在 48h 内，复习窗口紧张`, confidence: 2 }],
+            evidences: [
+              {
+                agentId: 'schedule',
+                text: `「${nearest.title}」DDL 在 ${hoursLeft}h 后；今晚 ${fmtMin(tonight.startMin)}–${fmtMin(tonight.endMin)} 有整块空档`,
+                confidence: 2,
+              },
+            ],
           },
         },
       ];

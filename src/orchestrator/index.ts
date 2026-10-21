@@ -3,6 +3,7 @@ import { getPreferences, getProfile } from '@/data/store/profile';
 import type { AgentContext, AgentResult, Report, ReportType } from '@/types/contract';
 import { arbitrateClaims, mergeSuggestions } from './arbiter';
 import { composeReport } from './compose';
+import { enrichSuggestions } from './enrich';
 import { orchestratorEvents } from './events';
 
 export type Trigger = 'morning-report' | 'noon-report' | 'evening-report' | 'user-ask';
@@ -69,8 +70,11 @@ class Orchestrator {
     const merged = mergeSuggestions(results.flatMap((r) => r.suggestions ?? []));
     for (const text of merged.merges) ev.emit({ type: 'merge:applied', text });
 
+    // 依据富化：跨域依据由总控在汇总阶段挂载（Agent 之间不越域读数据）
+    const enriched = enrichSuggestions(merged.suggestions, results);
+
     // 按配方组装报告
-    const report = await composeReport(reportTypeForTrigger(trigger, now), results, merged.suggestions, conflicts, ctx);
+    const report = await composeReport(reportTypeForTrigger(trigger, now), results, enriched, conflicts, ctx);
     ev.emit({ type: 'report:composed', report });
     return report;
   }

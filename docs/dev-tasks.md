@@ -16,15 +16,16 @@
 
 ## A · 引擎任务（`src/agents/` `src/orchestrator/` `src/data/`）
 
-### A1. 修复冲突主张触发逻辑 ⚠️ 架构自洽，优先
-- 现状：`src/agents/schedule.ts` 简化为「48h 内有 DDL」就主张占用今晚空档，周三演示时今晚明明有大块空档，逻辑不自洽
-- 改成：DDL 在 48h 内 **且** 之前没有 ≥2h 整块空档（`src/data/queries.ts` 的 `hasFreeBlockBefore` 已备好，需支持「从 now 起算」），才发 warning + claim
-- 验收：周三 11:30 触发午间报告时无冲突卡；把 mock 课表改满后再触发，冲突卡出现
+### A1. 修复冲突主张触发逻辑 ✅ 已完成（2026-10-21）
+- 最终规则（预警与主张分离，对应设计文档两条独立规则）：
+  - §4.2 风险预警（稀缺）：48h 内有 DDL **且** 之前没有 ≥2h 整块空档 → warning「没有整块复习时间」；`hasFreeBlockBefore` 已修正为从 now 起算、过期时段不计
+  - §5.3 冲突主张（争夺）：48h 内有 DDL **且** 今晚（18:00–23:00）存在 ≥2h 整块空档 → 主张该空档用于复习，与健康 Agent 的「提前睡」构成 L2 真冲突
+- 验收：周三 11:30 午间报告**有**冲突卡（今晚有空档 + DDL 40h 后 + 近三天缺觉三方齐备），但**无**「复习窗口紧张」假预警；21:30 晚间报告无冲突卡（今晚剩余空档 <2h，争夺战不成立）
+- ⚠️ 注意：本清单初版验收标准「周三应无冲突卡」有误——那会砍掉路演最高潮的冲突演示，以上述最终规则为准
 
-### A2. 编排器依据富化（evidence enrichment）
-- 现状：`life.ts` 跨域读睡眠数据拼「昨晚睡眠 5.5h」依据，违反「Agent 只访问自己域」
-- 改成：life 只产出选项卡骨架；orchestrator 汇总阶段把健康 Finding 的依据挂到匹配选项上（契约 Evidence.agentId 保持不变）
-- 验收：`life.ts` 不再 import 睡眠相关模块；午饭选项 B 的「为什么」仍显示健康依据
+### A2. 编排器依据富化（evidence enrichment）✅ 已完成（2026-10-21）
+- 已实现：`src/orchestrator/enrich.ts`，汇总阶段按规则表把跨域 Finding 挂载到选项卡（新规则 = RULES 加一行）；`life.ts` 已不再 import 睡眠模块
+- 验收：`life.ts` 无跨域 import；午饭选项 B「为什么」仍显示健康 Agent 依据（由编排器挂载）
 
 ### A3. 课表 / 考试手动录入的数据层
 - 课程、考试从 `src/data/mock/courses.ts` 静态模块迁入 IndexedDB（Dexie 加表），提供 CRUD 接口；`src/data/queries.ts` 改读库，函数签名不变
