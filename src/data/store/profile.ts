@@ -83,9 +83,9 @@ export async function markCompliance(topic: string, done: boolean): Promise<void
   await db.compliance.add({ topic, date: dateStr, done });
 
   const prefs = await getPreferences();
-  const stat = prefs.compliance[topic] ?? { shown: 1, done: 0 };
-  stat.done += done ? 1 : 0;
-  stat.shown += 1; // 这次「追问」本身也算一次展示
+  const stat = prefs.compliance[topic] ?? { shown: 0, done: 0 };
+  stat.shown += 1; // 每次追问算一次展示
+  if (done) stat.done += 1; // 只累计「真的做了」的次数
   prefs.compliance[topic] = stat;
   await savePreferences(prefs);
 }

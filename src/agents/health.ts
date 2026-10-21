@@ -49,7 +49,7 @@ export const healthAgent: AgentModule = {
       });
 
       // §4.6 自动降级：连续 2 次未执行 → 换更轻量版本
-      const napStat = ctx.preferences.compliance['小憩'];
+      const napStat = ctx.preferences.compliance['午间小憩'];
       const degraded = !!napStat && napStat.shown >= 2 && napStat.done === 0;
 
       const normal: OptionCard = {

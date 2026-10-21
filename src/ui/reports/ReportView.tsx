@@ -21,14 +21,20 @@ export function ReportView({
   report,
   picks,
   resolutions,
+  marks,
   onPick,
   onResolve,
+  onMark,
 }: {
   report: Report;
   picks: Record<string, string>; // suggestionId -> optionId
   resolutions: Record<string, 'A' | 'B'>; // conflictId -> choice
+  /** 晚间闭环：suggestionId -> 是否做了 */
+  marks?: Record<string, boolean>;
   onPick?: (suggestionId: string, optionId: string, topic: string) => void;
   onResolve?: (conflictId: string, topic: string, choice: 'A' | 'B') => void;
+  /** 晚间闭环：做了 / 没做 */
+  onMark?: (suggestionId: string, topic: string, done: boolean) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -49,7 +55,9 @@ export function ReportView({
                 key={i}
                 suggestion={block.suggestion}
                 pickedOptionId={picks[block.suggestion.id]}
+                marked={marks?.[block.suggestion.id]}
                 onPick={onPick ? (optionId) => onPick(block.suggestion.id, optionId, block.suggestion.topic) : undefined}
+                onMark={onMark ? (done) => onMark(block.suggestion.id, block.suggestion.topic, done) : undefined}
               />
             );
           case 'conflict':

@@ -1,24 +1,71 @@
-import { Sparkles } from 'lucide-react';
+import { Check, Minus, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { OptionCardView } from '@/ui/cards/OptionCardView';
 import type { Suggestion } from '@/types/contract';
 
-/** 建议区：以选项卡呈现，不替用户决定（§4.4） */
+/**
+ * 建议区：以选项卡呈现，不替用户决定（§4.4）
+ * 晚间闭环（§4.6/§4.7）：右上角「做了 / 没做」一键标记，措辞中性，不做红叉式追责。
+ */
 export function SuggestionGroupBlock({
   suggestion,
   pickedOptionId,
+  marked,
   onPick,
+  onMark,
 }: {
   suggestion: Suggestion;
   pickedOptionId?: string;
+  /** 本次会话内该建议的标记结果：true=做了，false=没做 */
+  marked?: boolean;
   onPick?: (optionId: string) => void;
+  onMark?: (done: boolean) => void;
 }) {
   return (
     <section className="space-y-3">
-      <h3 className="flex items-center gap-2 font-medium">
-        <Sparkles className="h-4 w-4 text-accent-foreground" />
-        {suggestion.topic}
-        <span className="text-xs font-normal text-muted-foreground">给选项，不替你决定</span>
-      </h3>
+      <div className="flex items-center gap-2">
+        <h3 className="flex items-center gap-2 font-medium">
+          <Sparkles className="h-4 w-4 text-accent-foreground" />
+          {suggestion.topic}
+          <span className="text-xs font-normal text-muted-foreground">给选项，不替你决定</span>
+        </h3>
+
+        {onMark && (
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {marked === undefined ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => onMark(true)}
+                >
+                  <Check className="mr-1 h-3.5 w-3.5" /> 做了
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => onMark(false)}
+                >
+                  <Minus className="mr-1 h-3.5 w-3.5" /> 没做
+                </Button>
+              </>
+            ) : (
+              <span
+                className={cn(
+                  'rounded-full border px-2 py-0.5 text-xs',
+                  marked ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground',
+                )}
+              >
+                已记录 · {marked ? '做了' : '没做'}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {suggestion.options.map((option) => (
           <OptionCardView
