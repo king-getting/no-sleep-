@@ -13,7 +13,8 @@
 
 ## 文档导航
 
-- [项目设计文档](docs/CCUNER校园助手-项目设计.md) —— 产品定位、功能详设、多智能体架构与冲突仲裁、考试周生存模式、onboarding、隐私设计、品牌视觉、路演脚本、**2 人分工与协同规范（§14）**
+- [项目设计文档](docs/CCUNER校园助手-项目设计.md) —— 产品定位、功能详设、多智能体架构与冲突仲裁、考试周生存模式、onboarding、隐私设计、品牌视觉、路演脚本、2 人分工与协同规范（§14）
+- [Agent 输出契约与模块接口](docs/agent-contract.md) —— A/B 双方唯一接口：AgentModule、选项卡 / 冲突卡 Schema、报告区块配方、事件流、目录结构
 
 ## 技术栈（计划）
 
@@ -21,8 +22,8 @@ React 18 + TypeScript + Vite · Tailwind CSS + shadcn/ui · IndexedDB（本地�
 
 ## 协同开发
 
-2 人小队：`main` + `feat/*` 分支、约定式提交、mock 数据集中管理（UI 只走 adapter 层）。详细分工见设计文档 §14。
+2 人小队：**接口先行**（契约见 docs/agent-contract.md），`feat/*` 分支 + 约定式提交，mock 数据集中管理（UI 只走 adapter 层）。详细分工见设计文档 §14。
 
 ## 当前状态
 
-📐 设计定稿，进入开发冲刺。
+📐 设计定稿 + 模块契约 v1，进入开发冲刺。
