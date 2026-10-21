@@ -180,3 +180,9 @@ src/
 - A 负责 `orchestrator/` + `agents/` + `data/`；B 负责 `ui/`
 - B 开发一律用 `mock-orchestrator.ts`（预置一份完整的午间报告 JSON），不依赖 A 的进度
 - 契约文件改动 = 必须双方确认，commit message 用 `docs(contract): …`
+
+---
+
+## 9. 变更记录
+
+- **v1.1**（2026-10-21，主体架构落地时同步）：`AgentResult` 增加两个可选扩展字段——`suggestions`（Agent 直接产出的结构化建议草案）与 `conflictClaims`（对某时段/资源的方案主张，由仲裁器配对成 L2 冲突卡）；`Suggestion` 增加 `slot` 字段标记所属报告时段（morning/noon/evening）。代码唯一实现：`src/types/contract.ts`。

@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 品牌视觉（§13.2）：温暖纸感校园风
+ * 主色桂子山绿 + 暖米白背景 + 柿子橙强调，刻意避开科技蓝紫渐变的 AI 产品脸。
+ * 暗色模式必做——用户是半夜收到熬夜提醒的人。
+ */
+@layer base {
+  :root {
+    --background: 45 33% 95%; /* 暖米白 #F7F4EC */
+    --foreground: 154 18% 16%; /* 墨绿近黑 */
+    --card: 48 43% 97%;
+    --card-foreground: 154 18% 16%;
+    --popover: 48 43% 97%;
+    --popover-foreground: 154 18% 16%;
+    --primary: 157 18% 35%; /* 桂子山绿 #4A6B5C */
+    --primary-foreground: 45 33% 95%;
+    --secondary: 140 15% 88%;
+    --secondary-foreground: 157 18% 25%;
+    --muted: 45 25% 89%;
+    --muted-foreground: 110 7% 40%;
+    --accent: 26 71% 51%; /* 柿子橙 */
+    --accent-foreground: 45 33% 96%;
+    --destructive: 0 65% 47%;
+    --destructive-foreground: 45 33% 96%;
+    --border: 44 22% 83%;
+    --input: 44 22% 83%;
+    --ring: 157 18% 35%;
+    --radius: 0.75rem;
+    --sidebar-background: 45 33% 96%;
+    --sidebar-foreground: 154 18% 16%;
+    --sidebar-primary: 157 18% 35%;
+    --sidebar-primary-foreground: 45 33% 95%;
+    --sidebar-accent: 45 25% 89%;
+    --sidebar-accent-foreground: 157 18% 25%;
+    --sidebar-border: 44 22% 85%;
+    --sidebar-ring: 157 18% 35%;
+  }
+
+  .dark {
+    --background: 150 12% 9%;
+    --foreground: 45 20% 88%;
+    --card: 150 12% 12%;
+    --card-foreground: 45 20% 88%;
+    --popover: 150 12% 12%;
+    --popover-foreground: 45 20% 88%;
+    --primary: 150 18% 56%;
+    --primary-foreground: 150 20% 12%;
+    --secondary: 150 10% 16%;
+    --secondary-foreground: 45 20% 88%;
+    --muted: 150 10% 16%;
+    --muted-foreground: 140 8% 63%;
+    --accent: 27 72% 55%;
+    --accent-foreground: 150 20% 12%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 45 20% 88%;
+    --border: 150 12% 18%;
+    --input: 150 12% 18%;
+    --ring: 150 18% 56%;
+    --sidebar-background: 150 12% 11%;
+    --sidebar-foreground: 45 20% 88%;
+    --sidebar-primary: 150 18% 56%;
+    --sidebar-primary-foreground: 150 20% 12%;
+    --sidebar-accent: 150 10% 16%;
+    --sidebar-accent-foreground: 45 20% 88%;
+    --sidebar-border: 150 12% 18%;
+    --sidebar-ring: 150 18% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+      'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  }
+}
