@@ -232,7 +232,9 @@ export type ReportBlock =
   | { kind: 'conflict'; conflict: ConflictCard }
   | { kind: 'warning'; text: string; agentId: AgentId }
   | { kind: 'recap'; stats: RecapStats }
-  | { kind: 'preview'; items: string[] };
+  | { kind: 'preview'; items: string[] }
+  // 契约 v1.2（补丁新增）：考场物品清单，仅生存模式考试日使用
+  | { kind: 'checklist'; title: string; items: string[] };
 
 export type BlockKind = ReportBlock['kind'];
 

@@ -9,6 +9,6 @@ export const RECIPES: Record<ReportType, BlockKind[]> = {
   noon: ['overview', 'suggestionGroup', 'conflict', 'warning'],
   evening: ['recap', 'suggestionGroup', 'preview', 'conflict'],
   // 生存模式注入（设计文档 §4.8 MVP 裁剪版）
-  'exam-day': ['overview', 'warning', 'suggestionGroup'],
+  'exam-day': ['overview', 'warning', 'suggestionGroup', 'checklist'],
   'exam-week': ['overview', 'suggestionGroup', 'conflict', 'recap'],
 };

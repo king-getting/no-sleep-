@@ -25,10 +25,11 @@ export function SuggestionGroupBlock({
   return (
     <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <h3 className="flex items-center gap-2 font-medium">
-          <Sparkles className="h-4 w-4 text-accent-foreground" />
-          {suggestion.topic}
-          <span className="text-xs font-normal text-muted-foreground">给选项，不替你决定</span>
+        <h3 className="flex min-w-0 items-center gap-2 font-medium">
+          <Sparkles className="h-4 w-4 shrink-0 text-accent-foreground" />
+          <span className="whitespace-nowrap">{suggestion.topic}</span>
+          {/* 375px 上这行提示会把「主题」和右侧「做了/没做」挤成两行，小屏隐藏，桌面保留 */}
+          <span className="hidden text-xs font-normal text-muted-foreground sm:inline">给选项，不替你决定</span>
         </h3>
 
         {onMark && (

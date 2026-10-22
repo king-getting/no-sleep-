@@ -1,5 +1,6 @@
 import type { Report } from '@/types/contract';
 import { ConflictCardView } from '@/ui/cards/ConflictCardView';
+import { ChecklistBlock } from './ChecklistBlock';
 import { OverviewBlock } from './OverviewBlock';
 import { PreviewBlock } from './PreviewBlock';
 import { RecapBlock } from './RecapBlock';
@@ -75,6 +76,8 @@ export function ReportView({
             return <RecapBlock key={i} stats={block.stats} />;
           case 'preview':
             return <PreviewBlock key={i} items={block.items} />;
+          case 'checklist':
+            return <ChecklistBlock key={i} title={block.title} items={block.items} />;
         }
       })}
     </div>
