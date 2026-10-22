@@ -1,4 +1,4 @@
-# 小山 · Agent 输出契约与模块接口（v1.2）
+# 小山 · Agent 输出契约与模块接口（v1.3）
 
 > 这是 A（引擎）与 B（体验）之间的**唯一接口**。两边对着这份契约各自开发，互不阻塞。
 > 契约变更必须双方同步（每日站会对一遍）。
@@ -217,3 +217,8 @@ src/
   - `RECIPES` 补齐 `exam-day` / `exam-week` 两条配方（v1.1 时这两条只有类型、无实现路径，属**死代码**）；同时把 `noon` 配方补上代码里早已存在的 `warning`
   - 新增 §4.1 生存模式注入约定：`mode` 判定阈值（7 天 / 6 小时 grace）、`EXAM_WEIGHT` 权重表、合成 finding 的 id 集合（`exam:title` 等五个）
   - 契约层原本就预留了 `Mode`、`AgentContext.mode`、`ExamItem.mastery`、`AgentModule.defaultWeight`，本次只是把它们**接上实现**，未改类型定义本身
+- **v1.3**（2026-10-23，周历可编辑落地时同步）：
+  - `OverviewItem` 增加可选字段 `link?: string`：概览里的某一行可以指向站内路由（当前只有「今日课程」用它，值形如 `/week?dow=3`）
+  - `OverviewBlock` 在有 `link` 时渲染成 `react-router` 的 `Link`（虚线下划线 + 箭头），无 `link` 时保持纯文本，**其他概览行不受影响**
+  - 「今日课程」的跳转目标由 `compose.ts` 的 `buildOverview` 按 `dayOfWeek(ctx.now)` 生成；周历页读 `?dow=` 参数决定落在哪一天并给该列加高亮环
+  - 类型仍是可选的，A 侧不填也不会破坏渲染——B 侧可独立回滚
