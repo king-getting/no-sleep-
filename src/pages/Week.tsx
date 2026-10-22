@@ -126,6 +126,9 @@ export default function Week() {
   const today = dayOfWeek(now);
   const [picked, setPicked] = useState<number>(today);
   const [draft, setDraft] = useState<CourseDraft | null>(null);
+  // 每次打开都给面板一个新的 key：否则从「详情」切到「加课」时组件不会重挂载，
+  // 里面 useState 的初始值还停在上一次（标题对、内容是旧的）
+  const [draftSeq, setDraftSeq] = useState(0);
 
   const load = useCallback(async () => {
     const loaded = await Promise.all(
@@ -145,6 +148,7 @@ export default function Week() {
     const base = makeDraft(dow, startMin, endMin);
     base.siblings = days?.find((d) => d.dow === dow)?.courses ?? [];
     setDraft(base);
+    setDraftSeq((n) => n + 1);
   };
 
   const openDetail = (course: Course) => {
@@ -153,6 +157,7 @@ export default function Week() {
       course,
       siblings: (days?.find((d) => d.dow === course.dayOfWeek)?.courses ?? []).filter((c) => c.id !== course.id),
     });
+    setDraftSeq((n) => n + 1);
   };
 
   const save = async (course: Course, isNew: boolean) => {
@@ -389,7 +394,15 @@ export default function Week() {
         时间轴固定 07:00–23:00；色块高度按真实时长换算。点课程看详情，点空白处加课——改完报告里的空档和冲突会立刻跟着变。
       </p>
 
-      {draft && <CourseSheet draft={draft} onClose={() => setDraft(null)} onSave={save} onDelete={remove} />}
+      {draft && (
+        <CourseSheet
+          key={draftSeq}
+          draft={draft}
+          onClose={() => setDraft(null)}
+          onSave={save}
+          onDelete={remove}
+        />
+      )}
     </div>
   );
 }
