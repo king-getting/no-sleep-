@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { AlertTriangle, CalendarDays, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -124,7 +125,10 @@ export default function Week() {
   const [days, setDays] = useState<DayData[] | null>(null);
   const now = useMemo(() => new Date(), []);
   const today = dayOfWeek(now);
-  const [picked, setPicked] = useState<number>(today);
+  // 从报告里的「今日课程」点进来会带 ?dow=3，落地即停在那一天
+  const [searchParams] = useSearchParams();
+  const targetDow = Number(searchParams.get('dow')) || null;
+  const [picked, setPicked] = useState<number>(targetDow ?? today);
   const [draft, setDraft] = useState<CourseDraft | null>(null);
   // 每次打开都给面板一个新的 key：否则从「详情」切到「加课」时组件不会重挂载，
   // 里面 useState 的初始值还停在上一次（标题对、内容是旧的）
@@ -285,8 +289,8 @@ export default function Week() {
             <div
               key={day.dow}
               className={`rounded-lg border bg-card ${isToday ? 'ring-1 ring-primary/40' : ''} ${
-                day.dow === picked ? '' : 'hidden lg:block'
-              }`}
+                day.dow === targetDow ? 'ring-2 ring-primary/70' : ''
+              } ${day.dow === picked ? '' : 'hidden lg:block'}`}
             >
               <div className="border-b px-2 py-1.5">
                 <div className="flex items-baseline justify-between">

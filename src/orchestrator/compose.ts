@@ -33,6 +33,8 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
   const findings = results.flatMap((r) => r.findings);
   const fact = (id: string) => findings.find((f) => f.id === id)?.summary ?? '—';
   const warnings = findings.filter((f) => f.type === 'warning');
+  // 「今日课程」这一行点得动：跳到周历并定位到今天（v1.3）
+  const weekLink = `/week?dow=${dayOfWeek(ctx.now)}`;
 
   if (type === 'noon') {
     const nowMin = ctx.now.getHours() * 60 + ctx.now.getMinutes();
@@ -52,7 +54,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
     const urgent = warnings.some((w) => w.id === 'exam:lead');
     return [
       { label: '倒计时', value: fact('exam:countdown') },
-      { label: '今日课程', value: fact('academic:today-courses') },
+      { label: '今日课程', value: fact('academic:today-courses'), link: weekLink },
       { label: '复习窗口', value: fact('exam:blocks') },
       {
         label: '风险项',

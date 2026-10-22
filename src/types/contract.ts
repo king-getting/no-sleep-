@@ -220,6 +220,8 @@ export interface OverviewItem {
   label: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
+  /** 可选：这一行点得动，跳到站内某个路由（如「今日课程」→ `/week?dow=3`）。v1.3 */
+  link?: string;
 }
 
 export interface RecapStats {
