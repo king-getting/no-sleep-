@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CalendarDays, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   computeTimeBlocks,
   coursesOfDay,
@@ -7,16 +8,22 @@ import {
   hasEarlyEight,
   lunchCrunch,
 } from '@/data/queries';
+import { addCourse, deleteCourse, updateCourse } from '@/data/store/courses';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, TimeBlock } from '@/types/contract';
+import { Button } from '@/components/ui/button';
+import { CourseSheet, makeDraft } from '@/ui/week/CourseSheet';
+import type { CourseDraft } from '@/ui/week/CourseSheet';
 
 /**
  * B3 · 「我的这一周」时间轴视图（§4.2）
  *
- * 只读视图：把本地课表按天切成「上课 / 整块空档 / 碎片」三类色块，
+ * 把本地课表按天切成「上课 / 整块空档 / 碎片」三类色块，
  * 风险项（早八、连排、午休被吃掉、整天没有整块空档）置顶标红。
  * 数据全部走 queries.ts 的纯函数，和报告里的口径完全一致——报告说「午休被吃掉」，
  * 这里同一格就是红的，不会出现两处不一致。
+ *
+ * 交互（本次新增）：点课程看详情/改名/删除；点空白处按点中的位置加课。
  */
 
 const DAY_START = 7 * 60;
@@ -37,6 +44,11 @@ type Risk = {
 };
 
 const RISK_ORDER: Record<Risk['kind'], number> = { lunch: 0, early: 1, busy: 2, nogap: 3 };
+
+function newId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `c-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}
 
 function monthDay(base: Date, dow: number): string {
   const monday = new Date(base);
@@ -113,18 +125,62 @@ export default function Week() {
   const now = useMemo(() => new Date(), []);
   const today = dayOfWeek(now);
   const [picked, setPicked] = useState<number>(today);
+  const [draft, setDraft] = useState<CourseDraft | null>(null);
+
+  const load = useCallback(async () => {
+    const loaded = await Promise.all(
+      DOWS.map(async (dow) => {
+        const courses = await coursesOfDay(dow);
+        return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
+      }),
+    );
+    setDays(loaded);
+  }, []);
 
   useEffect(() => {
-    void (async () => {
-      const loaded = await Promise.all(
-        DOWS.map(async (dow) => {
-          const courses = await coursesOfDay(dow);
-          return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
-        }),
-      );
-      setDays(loaded);
-    })();
-  }, []);
+    void load();
+  }, [load]);
+
+  const openAdd = (dow: number, startMin: number, endMin: number) => {
+    const base = makeDraft(dow, startMin, endMin);
+    base.siblings = days?.find((d) => d.dow === dow)?.courses ?? [];
+    setDraft(base);
+  };
+
+  const openDetail = (course: Course) => {
+    setDraft({
+      mode: 'edit',
+      course,
+      siblings: (days?.find((d) => d.dow === course.dayOfWeek)?.courses ?? []).filter((c) => c.id !== course.id),
+    });
+  };
+
+  const save = async (course: Course, isNew: boolean) => {
+    if (isNew) {
+      await addCourse({ ...course, id: newId() });
+      toast.success(`已加「${course.name}」`, { description: `${WEEK_LABEL[course.dayOfWeek - 1]} ${fmtMin(course.startMin)}–${fmtMin(course.endMin)}` });
+    } else {
+      await updateCourse(course.id, {
+        name: course.name,
+        teacher: course.teacher,
+        location: course.location,
+        dayOfWeek: course.dayOfWeek,
+        startMin: course.startMin,
+        endMin: course.endMin,
+      });
+      toast.success('已保存');
+    }
+    setDraft(null);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) setPicked(course.dayOfWeek);
+    await load();
+  };
+
+  const remove = async (course: Course) => {
+    await deleteCourse(course.id);
+    toast.success(`已删除「${course.name}」`);
+    setDraft(null);
+    await load();
+  };
 
   if (!days) {
     return <p className="p-10 text-center text-sm text-muted-foreground">正在排这一周…</p>;
@@ -137,10 +193,28 @@ export default function Week() {
   return (
     <div className="mx-auto min-h-[100dvh] max-w-6xl px-4 py-6 pb-24">
       <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">我的这一周</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          按你录入的课表切色块：{courseCount} 门次课、{freeCount} 段整块空档。报告里说「午休被吃掉」，这里同一格就是红的。
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">我的这一周</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              按你录入的课表切色块：{courseCount} 门次课、{freeCount} 段整块空档。报告里说「午休被吃掉」，这里同一格就是红的。
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              // 默认落在这一天第一段空档里；没有空档就放 20:00
+              const day = days.find((d) => d.dow === picked) ?? days[0];
+              const slot = day.blocks.find((b) => b.kind === 'free') ?? day.blocks.find((b) => b.kind === 'fragment');
+              const start = slot ? slot.startMin : 20 * 60;
+              openAdd(day.dow, start, Math.min(start + 100, DAY_END));
+            }}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            加课
+          </Button>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm border border-primary/40 bg-primary/10" />上课
@@ -224,42 +298,84 @@ export default function Week() {
               </div>
 
               <div
-                className="relative"
+                className="relative select-none"
                 style={{
                   height: WINDOW_PX,
                   backgroundImage:
                     'repeating-linear-gradient(to bottom, hsl(var(--border)) 0 1px, transparent 1px ' +
                     `${HOUR_PX}px)`,
                 }}
+                onClick={(e) => {
+                  // 点在最底层（没被色块盖住的地方）：按纵坐标换算成时间，吸附到 5 分钟
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const raw = DAY_START + ((e.clientY - rect.top) / HOUR_PX) * 60;
+                  const snapped = Math.round(raw / 5) * 5;
+                  openAdd(day.dow, Math.max(DAY_START, snapped), Math.max(DAY_START, snapped) + 100);
+                }}
               >
-                {day.blocks.map((b) => {
-                  const box = y(b.startMin, b.endMin);
-                  const isCrunch = b.kind === 'class' && !!lunch && b.label === lunch.name;
-                  const hours = (b.endMin - b.startMin) / 60;
-                  const span = `${hours.toFixed(1).replace(/\.0$/, '')}h`;
-                  const label =
-                    b.kind === 'class' ? b.label : b.kind === 'free' ? `空 ${span}` : '碎片';
+                {/* 空档 / 碎片：点一下就在这个位置加课 */}
+                {day.blocks
+                  .filter((b) => b.kind !== 'class')
+                  .map((b) => {
+                    const box = y(b.startMin, b.endMin);
+                    const span = `${((b.endMin - b.startMin) / 60).toFixed(1).replace(/\.0$/, '')}h`;
+                    return (
+                      <button
+                        key={`${b.kind}-${b.startMin}`}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAdd(day.dow, b.startMin, b.endMin);
+                        }}
+                        aria-label={`${WEEK_LABEL[day.dow - 1]} ${fmtMin(b.startMin)} 空档，点这里加课`}
+                        className={`${blockStyle(b.kind, false)} text-left transition-colors hover:border-primary/50 hover:bg-primary/5`}
+                        style={{ top: box.top, height: box.height }}
+                        title={`${fmtMin(b.startMin)}–${fmtMin(b.endMin)} · 点一下加课`}
+                      >
+                        {box.height >= 26 && (
+                          <>
+                            <span className="block truncate font-medium">{b.kind === 'free' ? `空 ${span}` : '碎片'}</span>
+                            <span className="block truncate opacity-80">
+                              {fmtMin(b.startMin)}–{fmtMin(b.endMin)}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+
+                {/* 课程块：点一下看详情 / 改 / 删 */}
+                {day.courses.map((c) => {
+                  const box = y(c.startMin, c.endMin);
+                  const isCrunch = !!lunch && lunch.id === c.id;
                   return (
-                    <div
-                      key={`${b.kind}-${b.startMin}`}
-                      className={blockStyle(b.kind, isCrunch)}
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDetail(c);
+                      }}
+                      aria-label={`${c.name}，${fmtMin(c.startMin)} 到 ${fmtMin(c.endMin)}，点开看详情`}
+                      className={`${blockStyle('class', isCrunch)} text-left transition-colors hover:bg-primary/20`}
                       style={{ top: box.top, height: box.height }}
-                      title={`${fmtMin(b.startMin)}–${fmtMin(b.endMin)}${b.label ? ` ${b.label}` : ''}`}
+                      title={`${c.name} · ${fmtMin(c.startMin)}–${fmtMin(c.endMin)} · ${c.location}`}
                     >
                       {box.height >= 26 && (
                         <>
-                          <span className="block truncate font-medium">{label}</span>
+                          <span className="block truncate font-medium">{c.name}</span>
                           <span className="block truncate opacity-80">
-                            {fmtMin(b.startMin)}–{fmtMin(b.endMin)}
+                            {fmtMin(c.startMin)}–{fmtMin(c.endMin)}
                           </span>
                         </>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
-                {day.courses.length === 0 && (
-                  <p className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-2 text-center text-[11px] text-muted-foreground">
-                    这天没课，整天空着
+
+                {day.courses.length === 0 && day.blocks.length === 0 && (
+                  <p className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 px-2 text-center text-[11px] text-muted-foreground">
+                    这天没课，点空白处加一门
                   </p>
                 )}
               </div>
@@ -270,8 +386,10 @@ export default function Week() {
 
       <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
         <CalendarDays className="h-3.5 w-3.5" />
-        时间轴固定 07:00–23:00；色块高度按真实时长换算，宽窄不代表重要性。想改课表→设置页的「我的画像」。
+        时间轴固定 07:00–23:00；色块高度按真实时长换算。点课程看详情，点空白处加课——改完报告里的空档和冲突会立刻跟着变。
       </p>
+
+      {draft && <CourseSheet draft={draft} onClose={() => setDraft(null)} onSave={save} onDelete={remove} />}
     </div>
   );
 }
