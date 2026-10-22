@@ -137,9 +137,11 @@ export function CourseSheet({
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold">{isNew ? '加一门课' : mode === 'form' ? '改这门课' : '课程详情'}</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isNew ? `${WEEK_LABEL[dow - 1]} · ${start} 开始` : `${WEEK_LABEL[course.dayOfWeek - 1]} · ${fmtMin(course.startMin)}–${fmtMin(course.endMin)}`}
-            </p>
+            {isNew && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {WEEK_LABEL[dow - 1]} · {start} 开始
+              </p>
+            )}
           </div>
           <button
             type="button"
