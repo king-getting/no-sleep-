@@ -28,6 +28,18 @@ export interface ComplianceRecord {
   done: boolean;
 }
 
+/** 信息流「与我无关」负反馈（A7）：被屏蔽的 RawItem id，落库后刷新仍生效 */
+export interface FeedMutedRecord {
+  id: string;
+  at: string; // ISO
+}
+
+/** 信息流收藏（B2）：收藏只存在本机 */
+export interface FeedFavRecord {
+  id: string;
+  at: string; // ISO
+}
+
 export const db = new Dexie('xiaoshan') as Dexie & {
   profiles: EntityTable<UserProfile, 'id'>;
   prefs: EntityTable<PrefsRecord, 'id'>;
@@ -36,6 +48,8 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   compliance: EntityTable<ComplianceRecord, 'id'>;
   courses: EntityTable<Course, 'id'>;
   exams: EntityTable<ExamItem, 'id'>;
+  feedMuted: EntityTable<FeedMutedRecord, 'id'>;
+  feedFav: EntityTable<FeedFavRecord, 'id'>;
 };
 
 db.version(1).stores({
@@ -50,4 +64,10 @@ db.version(1).stores({
 db.version(2).stores({
   courses: 'id, dayOfWeek',
   exams: 'id, at',
+});
+
+// v3：信息流负反馈 / 收藏落库（A7 + B2——「与我无关」要跨刷新生效）
+db.version(3).stores({
+  feedMuted: 'id, at',
+  feedFav: 'id, at',
 });

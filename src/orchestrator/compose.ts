@@ -4,6 +4,7 @@ import { getSleepLogs } from '@/data/store/profile';
 import { avgSleepHours, lastNightSleep } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
+import { examEveChecklist } from './exam';
 import type {
   AgentContext,
   AgentResult,
@@ -46,6 +47,21 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
     ];
   }
 
+  // 生存模式（A6）：overview 换成「倒计时 + 复习窗口」，风险项在考前 3 天内变红
+  if (type === 'exam-day' || type === 'exam-week') {
+    const urgent = warnings.some((w) => w.id === 'exam:lead');
+    return [
+      { label: '倒计时', value: fact('exam:countdown') },
+      { label: '今日课程', value: fact('academic:today-courses') },
+      { label: '复习窗口', value: fact('exam:blocks') },
+      {
+        label: '风险项',
+        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        tone: urgent ? 'danger' : warnings.length > 0 ? 'warn' : 'default',
+      },
+    ];
+  }
+
   return [
     { label: '今日课程', value: fact('academic:today-courses') },
     { label: '时间块', value: fact('schedule:timeblocks') },
@@ -59,12 +75,14 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   const logs = await getSleepLogs();
   const lastNight = lastNightSleep(logs);
   const avg7 = avgSleepHours(logs, 7);
+  // 没有录入记录时不要把「健康基线 8h」当实测值展示（真实模式首跑会撞上）
+  const avg7Text = logs.length === 0 ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
   const todayStr = ctx.now.toDateString();
   const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
   return [
     { label: '今日课程', value: `${courses.length} 节` },
-    { label: '昨晚睡眠', value: `${lastNight?.hours ?? '—'}h` },
-    { label: '近 7 天平均睡眠', value: `${avg7.toFixed(1)}h` },
+    { label: '昨晚睡眠', value: lastNight ? `${lastNight.hours}h` : '—（尚未录入）' },
+    { label: '近 7 天平均睡眠', value: avg7Text },
     { label: '今日点选', value: `${choicesToday} 个选项（已记入本地偏好）` },
   ];
 }
@@ -103,6 +121,7 @@ export async function composeReport(
     .filter((s) => slot === null || s.slot === slot)
     .sort((a, b) => a.priority - b.priority);
   const warnings = results.flatMap((r) => r.findings).filter((f) => f.type === 'warning');
+  const facts = results.flatMap((r) => r.findings);
 
   const blocks: ReportBlock[] = [];
   for (const kind of RECIPES[type]) {
@@ -125,6 +144,15 @@ export async function composeReport(
       case 'preview':
         blocks.push({ kind: 'preview', items: await buildPreview(ctx) });
         break;
+      case 'checklist': {
+        const examTitle = facts.find((f) => f.id === 'exam:title')?.summary ?? '考试';
+        blocks.push({
+          kind: 'checklist',
+          title: `${examTitle} · 考场物品清单`,
+          items: examEveChecklist(examTitle),
+        });
+        break;
+      }
     }
   }
   return { type, generatedAt: ctx.now, blocks };

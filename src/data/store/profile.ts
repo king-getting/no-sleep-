@@ -1,4 +1,5 @@
 import { db } from './db';
+import { bootMode } from './boot';
 import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
 import { DEMO_PREFERENCES, DEMO_PROFILE } from '@/data/mock/profile';
 import { buildDemoSleepLogs } from '@/data/mock/sleep';
@@ -13,6 +14,8 @@ let seeding: Promise<void> | null = null;
 
 /** 幂等：首次调用时填充示例数据；示例模式下每次加载刷新示例考试，保证「DDL 在 40h 后」的演示形态 */
 export function ensureSeeded(): Promise<void> {
+  // 真实模式（已完成 onboarding）：不灌任何示例数据，避免示例成绩单混进用户数据
+  if (bootMode() === 'real') return Promise.resolve();
   seeding ??= (async () => {
     const count = await db.profiles.count();
     if (count === 0) {
@@ -43,6 +46,17 @@ export async function getProfile(): Promise<UserProfile> {
   const p = await db.profiles.get('me');
   if (!p) throw new Error('本地画像不存在：请先完成 onboarding');
   return p;
+}
+
+/** 写入 / 覆盖画像（onboarding 收尾与设置页编辑共用） */
+export async function saveProfile(profile: UserProfile): Promise<void> {
+  await db.profiles.put(profile);
+}
+
+/** 是否已有真实画像（App 用来决定要不要先走 onboarding） */
+export async function hasProfile(): Promise<boolean> {
+  const p = await db.profiles.get('me');
+  return !!p && !p.isDemo;
 }
 
 export async function getPreferences(): Promise<Preferences> {
