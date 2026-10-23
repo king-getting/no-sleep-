@@ -40,6 +40,19 @@ export interface FeedFavRecord {
   at: string; // ISO
 }
 
+/** 复习计划草案（B4）：一块 = 某天某个时段专门给某门考试 */
+export interface ReviewBlockRecord {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  startMin: number;
+  endMin: number;
+  topic: string; // 考试名
+  examId?: string;
+  mastery?: number;
+  done: boolean;
+  at: string; // 生成/修改时间 ISO
+}
+
 export const db = new Dexie('xiaoshan') as Dexie & {
   profiles: EntityTable<UserProfile, 'id'>;
   prefs: EntityTable<PrefsRecord, 'id'>;
@@ -50,6 +63,7 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   exams: EntityTable<ExamItem, 'id'>;
   feedMuted: EntityTable<FeedMutedRecord, 'id'>;
   feedFav: EntityTable<FeedFavRecord, 'id'>;
+  reviewBlocks: EntityTable<ReviewBlockRecord, 'id'>;
 };
 
 db.version(1).stores({
@@ -70,4 +84,9 @@ db.version(2).stores({
 db.version(3).stores({
   feedMuted: 'id, at',
   feedFav: 'id, at',
+});
+
+// v4：复习计划草案落库（B4——草案要能拖、能勾、刷新还在）
+db.version(4).stores({
+  reviewBlocks: 'id, date',
 });
