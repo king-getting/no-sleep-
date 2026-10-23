@@ -71,6 +71,27 @@ export function examReportTypeOf(w: ExamWindow): ReportType {
   return w.isExamDay ? 'exam-day' : 'exam-week';
 }
 
+/**
+ * 考后小结的起点：开考 2 小时后算「刚考完」。
+ * ExamItem 只有开始时间没有结束时间，按常见考试时长估一个下限，
+ * 宁可晚一点出小结，也不要在人还在考场时宣告考完。
+ */
+export const EXAM_DONE_AFTER_MS = 120 * 60_000;
+
+/** 考后小结的展示窗口：考完 6 小时内还会出（之后回到普通日报） */
+export const EXAM_DONE_WINDOW_MS = 6 * 3600_000;
+
+/** 刚刚考完的那一场（在考后小结窗口内），没有则 null */
+export function justFinishedExam(exams: ExamItem[], now: Date): ExamItem | null {
+  const t = now.getTime();
+  const finished = exams.filter((e) => {
+    const start = new Date(e.at).getTime();
+    if (Number.isNaN(start)) return false;
+    return t >= start + EXAM_DONE_AFTER_MS && t <= start + EXAM_DONE_WINDOW_MS;
+  });
+  return finished.length > 0 ? finished[finished.length - 1] : null;
+}
+
 /** 倒计时文案：'今天 14:00' / '3 天后 09:00' / '已结束' */
 export function countdownText(item: ExamItem, now: Date): string {
   const at = new Date(item.at);

@@ -5,6 +5,7 @@ import { avgSleepHours, lastNightSleep } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
 import { examEveChecklist } from './exam';
+import { weeklyComplianceText } from './compliance';
 import type {
   AgentContext,
   AgentResult,
@@ -27,6 +28,7 @@ const SLOT_OF: Record<ReportType, Suggestion['slot'] | null> = {
   evening: 'evening',
   'exam-day': null, // 生存模式报告聚合全部时段的建议
   'exam-week': null,
+  'exam-done': 'evening',
 };
 
 async function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentContext): Promise<OverviewItem[]> {
@@ -46,6 +48,21 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
       { label: '下午安排', value: rest > 0 ? `还有 ${rest} 节课` : '下午没课' },
       { label: '时间块', value: fact('schedule:timeblocks') },
       { label: '风险项', value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无', tone: warnings.length > 0 ? 'warn' : 'default' },
+    ];
+  }
+
+  // 考后小结（B10）：不再给倒计时，改成「刚考完 / 昨晚睡了几小时 / 复习执行了几次 / 下一场」
+  if (type === 'exam-done') {
+    return [
+      { label: '刚考完', value: fact('exam:done') },
+      { label: '考前一晚', value: fact('exam:sleep-night') },
+      { label: '复习执行', value: fact('exam:review') },
+      { label: '下一场', value: fact('exam:next') },
+      {
+        label: '风险项',
+        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        tone: warnings.length > 0 ? 'warn' : 'default',
+      },
     ];
   }
 
@@ -81,10 +98,13 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   const avg7Text = logs.length === 0 ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
   const todayStr = ctx.now.toDateString();
   const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
+  // A8：本周执行率直接来自「做了 / 没做」的点击记录，没有记录就不编数字
+  const weekRate = await weeklyComplianceText(ctx.now);
   return [
     { label: '今日课程', value: `${courses.length} 节` },
     { label: '昨晚睡眠', value: lastNight ? `${lastNight.hours}h` : '—（尚未录入）' },
     { label: '近 7 天平均睡眠', value: avg7Text },
+    { label: '本周建议执行率', value: weekRate ?? '—（还没点过「做了 / 没做」）' },
     { label: '今日点选', value: `${choicesToday} 个选项（已记入本地偏好）` },
   ];
 }

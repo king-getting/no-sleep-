@@ -214,7 +214,7 @@ export interface ConflictCard {
 
 // ── 报告 = 区块拼装（契约 §4）─────────────────────────────────
 
-export type ReportType = 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week';
+export type ReportType = 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week' | 'exam-done';
 
 export interface OverviewItem {
   label: string;

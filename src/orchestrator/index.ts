@@ -1,13 +1,14 @@
 import { getEnabledAgents } from '@/agents/registry';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { upcomingExams } from '@/data/queries';
-import { examReportTypeOf, examWindowOf } from '@/lib/examMode';
+import { examReportTypeOf, examWindowOf, justFinishedExam } from '@/lib/examMode';
 import type { AgentContext, AgentResult, Mode, Report, ReportType } from '@/types/contract';
 import { arbitrateClaims, mergeSuggestions } from './arbiter';
 import { composeReport } from './compose';
+import { collectTopicStats, downgradeByCompliance } from './compliance';
 import { enrichSuggestions } from './enrich';
 import { orchestratorEvents } from './events';
-import { buildExamResults } from './exam';
+import { buildExamDoneResults, buildExamResults } from './exam';
 
 export type Trigger = 'morning-report' | 'noon-report' | 'evening-report' | 'user-ask';
 
@@ -40,7 +41,9 @@ class Orchestrator {
     const examItems = await upcomingExams(now, 8);
     const window = examWindowOf(examItems, now);
     const forceNormal = localStorage.getItem('xiaoshan:force-normal') === '1';
-    const mode: Mode = forceNormal ? 'normal' : window.mode;
+    // 考后小结（B10）：刚考完的那一场优先——这时候给「冲刺」是错的，该复盘
+    const finished = forceNormal ? null : justFinishedExam(examItems, now);
+    const mode: Mode = forceNormal || finished ? 'normal' : window.mode;
 
     const ctx: AgentContext = { user, preferences, mode, now };
 
@@ -74,12 +77,22 @@ class Orchestrator {
     );
 
     // 生存模式：注入考试域的产出（复习建议 / 赶考提醒 / 考前一晚冲突 / 权重调整）
-    if (mode === 'exam') {
+    if (!finished && mode === 'exam') {
       const examResults = await buildExamResults(ctx, window);
       results.push(...examResults);
       ev.emit({
         type: 'merge:applied',
         text: '生存模式：注入考试域产出（schedule 权重 ×1.4 / health ×1.3）',
+      });
+    }
+
+    // 考后小结：刚考完就复盘一次，不再给冲刺建议
+    if (finished) {
+      const doneResults = await buildExamDoneResults(ctx, finished, examItems);
+      results.push(...doneResults);
+      ev.emit({
+        type: 'merge:applied',
+        text: `考后小结：${finished.title} 已考完，本轮改成复盘而不是冲刺`,
       });
     }
 
@@ -94,9 +107,21 @@ class Orchestrator {
     // 依据富化：跨域依据由总控在汇总阶段挂载（Agent 之间不越域读数据）
     const enriched = enrichSuggestions(merged.suggestions, results);
 
-    // 按配方组装报告（生存模式下不是 morning/noon/evening，而是 exam-week / exam-day）
-    const type: ReportType = mode === 'exam' ? examReportTypeOf(window) : reportTypeForTrigger(trigger, now);
-    const report = await composeReport(type, results, enriched, conflicts, ctx);
+    // 遵从度回流（A8）：同一主题连续 2 次「没做」→ 本轮建议降一级
+    const topicStats = await collectTopicStats();
+    const { suggestions: ranked, downgraded } = downgradeByCompliance(enriched, topicStats);
+    if (downgraded.length > 0) {
+      const detail = downgraded.map((d) => `${d.topic}（连续 ${d.missStreak} 次没做，${d.from} → ${d.to}）`).join('；');
+      ev.emit({ type: 'merge:applied', text: `遵从度回流：${detail}` });
+    }
+
+    // 按配方组装报告（生存模式下不是 morning/noon/evening，而是 exam-week / exam-day / exam-done）
+    const type: ReportType = finished
+      ? 'exam-done'
+      : mode === 'exam'
+        ? examReportTypeOf(window)
+        : reportTypeForTrigger(trigger, now);
+    const report = await composeReport(type, results, ranked, conflicts, ctx);
     ev.emit({ type: 'report:composed', report });
     return report;
   }

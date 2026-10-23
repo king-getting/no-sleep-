@@ -10,6 +10,7 @@ import type {
   Suggestion,
 } from '@/types/contract';
 import { countdownText, masteryAdvice, type ExamWindow } from '@/lib/examMode';
+import { collectTopicStats } from './compliance';
 
 /**
  * 生存模式注入层（dev-tasks A6）
@@ -255,3 +256,121 @@ export function examEveChecklist(examTitle: string): string[] {
     `「${examTitle}」的 A4 公式纸 / 单词卡（考前 10 分钟看）`,
   ];
 }
+
+// ── 考后小结（B10）────────────────────────────────────────────
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * 考后小结：某一门刚考完（开考 2h ~ 6h 之间）时，报告从「冲刺」切到「复盘」。
+ *
+ * 三个数字都来自真实记录，不估算：
+ * - 考前一晚睡了几小时（sleepLogs 里考试当天那条）
+ * - 复习建议给过几次、真正标了「做了」几次（compliance 表，主题含「复习」）
+ * - 下一场在什么时候（exams 表）
+ */
+export async function buildExamDoneResults(
+  ctx: AgentContext,
+  exam: ExamItem,
+  allExams: ExamItem[],
+): Promise<AgentResult[]> {
+  const start = new Date(exam.at);
+  const hhmm = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+  const findings: Finding[] = [];
+
+  findings.push({
+    id: 'exam:done',
+    type: 'fact',
+    topic: '考试',
+    confidence: 3,
+    summary: `《${exam.title}》已考完 · 今天 ${hhmm} 开考`,
+  });
+
+  // 复习执行：只数「复习」类主题，不把午饭、小憩那些算进来
+  const stats = await collectTopicStats();
+  const review = [...stats.values()].filter((s) => s.topic.includes('复习'));
+  const shown = review.reduce((n, s) => n + s.shown, 0);
+  const done = review.reduce((n, s) => n + s.done, 0);
+  findings.push({
+    id: 'exam:review',
+    type: 'fact',
+    topic: '复习',
+    confidence: shown > 0 ? 3 : 0,
+    summary: shown === 0 ? '这次的复习建议没留下执行记录' : `复习建议给过 ${shown} 次，你标了 ${done} 次「做了」`,
+  });
+
+  const logs = await getSleepLogs();
+  const eveLog = logs.find((l) => l.date === isoDate(start));
+  findings.push({
+    id: 'exam:sleep-night',
+    type: 'fact',
+    topic: '睡眠',
+    confidence: eveLog ? 3 : 0,
+    summary: eveLog ? `考前一晚睡了 ${eveLog.hours}h` : '考前一晚没有睡眠记录',
+  });
+
+  const next = allExams.find((e) => new Date(e.at).getTime() > ctx.now.getTime());
+  findings.push({
+    id: 'exam:next',
+    type: 'fact',
+    topic: '考试',
+    confidence: 2,
+    summary: next ? `下一场《${next.title}》：${countdownText(next, ctx.now)}` : '这个学期暂时没有别的考试',
+  });
+
+  if (eveLog && eveLog.hours < 6) {
+    findings.push({
+      id: 'exam:done-fatigue',
+      type: 'warning',
+      topic: '睡眠',
+      confidence: 2,
+      summary: `考前一晚只睡了 ${eveLog.hours}h，今天下午的注意力会打折，别把需要动脑的事排在晚上`,
+    });
+  }
+
+  // 一条建议就够：考完当晚别从一个极端跳到另一个极端
+  const recover: Suggestion = {
+    id: 'sug-exam-recover',
+    topic: '考完这一晚',
+    priority: 2,
+    slot: 'evening',
+    sourceFindingIds: ['exam:done', 'exam:sleep-night'],
+    options: [
+      {
+        id: 'recover-sleep',
+        title: '早点睡，把欠的补回来',
+        cost: { timeMin: 0 },
+        pros: ['连续几天的睡眠债，这时候回本最有效'],
+        cons: ['今晚的娱乐时间要让路'],
+        impacts: [{ horizon: 'short', text: '明天白天精神明显好转', agentId: 'health' }],
+        evidences: eveLog ? [{ agentId: 'health', text: `考前一晚 ${eveLog.hours}h`, confidence: 3 }] : [],
+      },
+      {
+        id: 'recover-play',
+        title: '先玩两小时再说',
+        cost: { timeMin: 120 },
+        pros: ['考完需要放松，硬撑着也学不进去'],
+        cons: ['补觉时间整体推迟两小时'],
+        impacts: [{ horizon: 'short', text: '明天起床时间会被往后推', agentId: 'health' }],
+        evidences: [{ agentId: 'health', text: '放松本身没错，代价只是推迟入睡', confidence: 2 }],
+      },
+      {
+        id: 'recover-normal',
+        title: '照常作息，什么也不改',
+        cost: { timeMin: 0 },
+        pros: ['不打破已经形成的节奏'],
+        cons: ['睡眠债继续滚到下一周'],
+        impacts: [{ horizon: 'long', text: '下周的精力起点还是偏低的', agentId: 'health' }],
+        evidences: [],
+      },
+    ],
+  };
+
+  return [
+    { agentId: 'academic', findings },
+    { agentId: 'health', findings: [], suggestions: [recover] },
+  ];
+}
+
