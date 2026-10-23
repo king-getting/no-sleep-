@@ -13,6 +13,7 @@ const REPORT_TITLE: Record<Report['type'], string> = {
   evening: '晚间报告',
   'exam-day': '考试日报告',
   'exam-week': '冲刺报告',
+  'exam-done': '考后小结',
 };
 
 /**

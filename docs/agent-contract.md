@@ -110,7 +110,7 @@ interface ConflictPlan extends OptionCard {
 
 ```ts
 interface Report {
-  type: 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week';
+  type: 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week' | 'exam-done';
   generatedAt: Date;
   blocks: ReportBlock[];                  // 配方组装，见下
 }
@@ -131,6 +131,7 @@ const RECIPES: Record<Report['type'], BlockKind[]> = {
   evening: ['recap', 'suggestionGroup', 'preview', 'conflict'],
   'exam-day': ['overview', 'warning', 'suggestionGroup', 'checklist'], // 生存模式（v1.2）
   'exam-week': ['overview', 'suggestionGroup', 'conflict', 'recap'],
+  'exam-done': ['overview', 'warning', 'recap', 'suggestionGroup'], // 考后 2–6h（v1.4）
 };
 ```
 
@@ -157,6 +158,35 @@ const EXAM_WEIGHT = { academic: 1.2, life: 1.0, health: 1.3, schedule: 1.4 };
 ```
 
 `Report.type` 与实际触发时段解耦：`mode === 'exam'` 时任何 trigger 都落到 `exam-day` / `exam-week`，标题相应变成「考试日报告」/「冲刺报告」。逃生开关是 `localStorage['xiaoshan:force-normal'] === '1'`（设置页「强制关闭生存模式」），用于路演时在普通版与冲刺版两种形态间切换。
+
+### 4.2 考后小结（v1.4 新增）
+
+一场考试在 `[开考 + 2h, 开考 + 6h]` 之间时，报告切换为 `exam-done`（标题「考后小结」），优先级高于 `exam-day`/`exam-week`：
+
+```ts
+EXAM_DONE_AFTER_MS  = 120 * 60_000   // 开考后 2h 之后才算「已考完」
+EXAM_DONE_WINDOW_MS =   6 * 3600_000 // 6h 之后回到正常模式
+// 合成的 finding（agentId 记在各自的 evidences 里）
+//   exam:done           「<考试名> HH:MM 开考，已结束 N 小时」+ 掌握度自评
+//   exam:sleep-night    昨晚睡了多久（没有记录就直说没有）
+//   exam:review         本周这个主题被点了 N 次「做了」
+//   exam:next           下一场考试倒计时，没有就说没有
+// 建议 topic 固定为「考完这一晚」，priority 2；`force-normal` 同样能关掉它
+```
+
+### 4.3 遵从度回流（v1.4 新增，A8）
+
+编排末尾会对建议做一次**降级回流**，规则与实现都在 `src/orchestrator/compliance.ts`：
+
+```ts
+MISSES_BEFORE_DOWNGRADE = 2   // 同一 topic 连续 2 天标「没做」即触发
+// 同一天多次点击只取最后一次；priority 最大是 3，已经是 3 的不再降
+// 触发时发出一条 merge:applied：「遵从度回流：<topic>（连续 N 次没做，1 → 2）」
+// 恢复条件：最近一天标了「做了」，连续计数归零，下次报告自动回到原优先级
+```
+
+周报（`recap`）新增一项 **本周建议执行率**：最近 7 天 `做了 / 总点击`，一次都没点过时显示「—（还没点过「做了 / 没做」）」，**不拿示例数据编数字**。
+
 
 ## 5. 数据源 Adapter 接口
 
@@ -222,3 +252,9 @@ src/
   - `OverviewBlock` 在有 `link` 时渲染成 `react-router` 的 `Link`（虚线下划线 + 箭头），无 `link` 时保持纯文本，**其他概览行不受影响**
   - 「今日课程」的跳转目标由 `compose.ts` 的 `buildOverview` 按 `dayOfWeek(ctx.now)` 生成；周历页读 `?dow=` 参数决定落在哪一天并给该列加高亮环
   - 类型仍是可选的，A 侧不填也不会破坏渲染——B 侧可独立回滚
+- **v1.4**（2026-10-23，考后小结与遵从度回流落地时同步）：
+  - `Report['type']` 增加第六种 `'exam-done'`，配方 `['overview','warning','recap','suggestionGroup']`，`SLOT_OF` 归 `evening`；`REPORT_TITLE` 加「考后小结」
+  - 新增 §4.2 考后小结：`EXAM_DONE_AFTER_MS`（2h）/ `EXAM_DONE_WINDOW_MS`（6h）与四个合成 finding（`exam:done` 等），优先级高于 exam-day/exam-week
+  - 新增 §4.3 遵从度回流：`MISSES_BEFORE_DOWNGRADE = 2`、同日去重、降级只降一级且最多到 3、恢复条件是一次「做了」
+  - `recap` 新增「本周建议执行率」；无数据时显示占位而不是编数字
+
