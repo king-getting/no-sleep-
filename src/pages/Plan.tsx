@@ -134,7 +134,7 @@ export default function Plan() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">复习安排</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            按考试倒序和掌握度排的空档，可以拖动互换时段，也可以勾掉已经做完的。
+            按掌握度和考试先后排进空档，可以拖动互换时段，也可以勾掉已经做完的。
           </p>
         </div>
         <div className="flex gap-2">
