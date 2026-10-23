@@ -34,6 +34,20 @@ export const academicAgent: AgentModule = {
     for (const e of exams) {
       const hoursLeft = Math.round((new Date(e.at).getTime() - ctx.now.getTime()) / 3600_000);
       const isExam = e.kind === 'exam';
+      // 已经开考的（含刚考完还在 6 小时宽限期里的）不能再报「就在明天前」
+      if (hoursLeft <= 0) {
+        if (hoursLeft > -6) {
+          findings.push({
+            id: `academic:${e.id}`,
+            type: 'fact',
+            topic: isExam ? '考试' : 'DDL',
+            confidence: 3,
+            summary: `「${e.title}」${hoursLeft > -1 ? '正在进行' : `已开考 ${-hoursLeft} 小时`}`,
+            evidences: [{ agentId: 'academic', text: `开始：${new Date(e.at).toLocaleString('zh-CN')}`, confidence: 3 }],
+          });
+        }
+        continue;
+      }
       findings.push({
         id: `academic:${e.id}`,
         type: hoursLeft <= 7 * 24 ? 'warning' : 'fact',
