@@ -267,10 +267,10 @@
 
 | 交付物 | 说明 | 状态 |
 |---|---|---|
-| 在线 Demo | PWA 部署 Vercel/Netlify，公开可访问 | 仓库侧已备 `vercel.json`（SPA rewrites）；待连 Vercel 账号，10 分钟 |
+| 在线 Demo | PWA 部署 Vercel/Netlify，公开可访问 | 仓库侧已备 `vercel.json`（SPA rewrites）；Vercel 账号暂缓，现场以本地 `preview` 兜底 |
 | 3 分钟路演视频 | 录屏 + 配音，防直播翻车 | 待做（脚本 §8 已定） |
-| GitHub 仓库 | README 顶部放 Agent 编排架构图 + 本地运行说明 | 代码已推送 main；README 架构图待补 |
-| 一页项目介绍 | 问题 → 方案 → 创新点 → 截图 | 待做（截图素材已备 18 张，见 `no-sleep-patch/_shots/`） |
+| GitHub 仓库 | README 顶部放 Agent 编排架构图 + 本地运行说明 | ✅ 已完成：README 含 Mermaid 编排架构图 + 目录树 + 两张界面截图 + 快速开始 / 断网演示 / 隐私说明 |
+| 一页项目介绍 | 问题 → 方案 → 创新点 → 截图 | 待做（截图素材已备 35 张，见 `no-sleep-patch/_shots/`） |
 
 > 补充：**断网演示已完成彩排**（2026-10-22，真关服务器 + 三路由刷新），可当作「在线 Demo 之外的第二重保底」——现场网络翻车时直接开本地 `preview` 演示离线可用。
 
