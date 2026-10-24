@@ -1,6 +1,6 @@
 # 部署与演示保障（A9）
 
-> 线上 Demo（2026-10-24 已验收）：<https://swift-aurora-e8ai1hx.tmp.now>
+> 线上 Demo（2026-10-24 已验收）：<https://ccuner-xiaoshan.vercel.app>，已连接 GitHub，push 到 `main` 自动部署最新版
 >
 > 目标：线上 URL 可访问 + 断网时仍能演示。两步互相独立——Vercel 只是「评委自己点开看看」的入口，**现场演示永远用本地 + 离线**，这样不赌会场网络。
 

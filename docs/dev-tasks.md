@@ -64,7 +64,7 @@
 
 ### A9. 部署与演示保障 ✅ 已完成（2026-10-24）
 - 断网彩排 ✅（2026-10-22）：`vite preview` 下确认 SW 接管并预缓存 6 条资源，**真关服务器**（不是模拟离线）后 `/`、`/feed`、`/settings` 三个路由刷新均正常渲染 —— 子路由可离线靠 `vite.config.ts` 里原有的 `navigateFallback: 'index.html'`
-- Vercel 在线 Demo：<https://swift-aurora-e8ai1hx.tmp.now>，已认领至 `king-getting` 账号；构建命令 `npm run build`、输出 `dist/`
+- Vercel 在线 Demo：<https://ccuner-xiaoshan.vercel.app>，已认领至 `king-getting` 账号并连接 GitHub（push 到 `main` 自动部署）；构建命令 `npm run build`、输出 `dist/`
 - 线上验收：`/`、`/week?dow=5`、`/plan`、`/feed`、`/health`、`/settings` 均返回 200 且实际渲染；复习草案可生成，睡眠录入后统计更新并在刷新后保留，清除数据可进入建档并恢复示例数据
 - 移动端与离线基础：375px 视口无横向溢出；Service Worker 为 activated，Workbox 预缓存 6 项应用资源
 - 质量复查：`npm run lint` 0 错误，`npm run build` 通过

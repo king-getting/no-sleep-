@@ -4,7 +4,7 @@
 
 > 校园黑客松参赛项目 🏔️🌼
 
-**[打开在线 Demo](https://swift-aurora-e8ai1hx.tmp.now)** · Vercel 部署，无需账号，数据只保存在当前浏览器。
+**[打开在线 Demo](https://ccuner-xiaoshan.vercel.app)** · Vercel 部署，已连接 GitHub（push 到 `main` 自动部署最新版），无需账号，数据只保存在当前浏览器。
 
 ## 为什么是小山
 
