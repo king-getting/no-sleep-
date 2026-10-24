@@ -4,6 +4,7 @@ import { ArrowRight, CalendarClock, Check, GripVertical, RefreshCw, Trash2, Tria
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ExamManager } from '@/ui/exams/ExamManager';
 import { fmtMin } from '@/types/contract';
 import {
   clearReviewBlocks,
@@ -148,6 +149,8 @@ export default function Plan() {
           </Button>
         </div>
       </header>
+
+      <ExamManager onChanged={load} />
 
       {blocks.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm">

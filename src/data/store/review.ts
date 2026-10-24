@@ -46,6 +46,11 @@ export async function deleteReviewBlock(id: string): Promise<void> {
   await db.reviewBlocks.delete(id);
 }
 
+/** 删除考试时同步清理关联草案，避免留下无法追溯来源的复习块。 */
+export async function deleteReviewBlocksForExam(examId: string): Promise<number> {
+  return db.reviewBlocks.filter((block) => block.examId === examId).delete();
+}
+
 export async function clearReviewBlocks(): Promise<void> {
   await db.reviewBlocks.clear();
 }
