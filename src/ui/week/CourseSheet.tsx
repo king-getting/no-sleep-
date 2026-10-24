@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarPlus, Clock, MapPin, Pencil, Trash2, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { dayOfWeek, fmtMin } from '@/types/contract';
+import { fmtMin } from '@/types/contract';
 import type { Course } from '@/types/contract';
 
 /**
@@ -300,27 +300,4 @@ export function CourseSheet({
       </div>
     </div>
   );
-}
-
-/** 供外部构造「点空白新建」时的默认草稿 */
-export function makeDraft(dow: number, startMin: number, endMin: number): CourseDraft {
-  const snapped = Math.max(0, Math.min(24 * 60 - 60, Math.round(startMin / 5) * 5));
-  const span = endMin - startMin >= 40 ? Math.min(endMin - startMin, 180) : 100;
-  return {
-    mode: 'add',
-    course: {
-      id: '',
-      name: '',
-      location: '',
-      dayOfWeek: dow as Course['dayOfWeek'],
-      startMin: snapped,
-      endMin: Math.min(snapped + span, 23 * 60 + 59),
-    },
-    siblings: [],
-  };
-}
-
-/** 今天/指定天的默认周几（避免调用方重复算） */
-export function defaultDow(now = new Date()): number {
-  return dayOfWeek(now);
 }

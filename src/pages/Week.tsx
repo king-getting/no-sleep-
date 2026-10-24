@@ -13,7 +13,8 @@ import { addCourse, deleteCourse, updateCourse } from '@/data/store/courses';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, TimeBlock } from '@/types/contract';
 import { Button } from '@/components/ui/button';
-import { CourseSheet, makeDraft } from '@/ui/week/CourseSheet';
+import { CourseSheet } from '@/ui/week/CourseSheet';
+import { makeDraft } from '@/ui/week/draft';
 import type { CourseDraft } from '@/ui/week/CourseSheet';
 
 /**
@@ -121,6 +122,15 @@ function buildRisks(days: DayData[]): Risk[] {
   return risks.sort((a, b) => RISK_ORDER[a.kind] - RISK_ORDER[b.kind] || a.dow - b.dow);
 }
 
+async function fetchDays(): Promise<DayData[]> {
+  return Promise.all(
+    DOWS.map(async (dow) => {
+      const courses = await coursesOfDay(dow);
+      return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
+    }),
+  );
+}
+
 export default function Week() {
   const [days, setDays] = useState<DayData[] | null>(null);
   const now = useMemo(() => new Date(), []);
@@ -135,18 +145,18 @@ export default function Week() {
   const [draftSeq, setDraftSeq] = useState(0);
 
   const load = useCallback(async () => {
-    const loaded = await Promise.all(
-      DOWS.map(async (dow) => {
-        const courses = await coursesOfDay(dow);
-        return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
-      }),
-    );
-    setDays(loaded);
+    setDays(await fetchDays());
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true;
+    void fetchDays().then((loaded) => {
+      if (active) setDays(loaded);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const openAdd = (dow: number, startMin: number, endMin: number) => {
     const base = makeDraft(dow, startMin, endMin);
