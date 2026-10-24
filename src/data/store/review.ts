@@ -103,6 +103,13 @@ interface Slot {
   end: number;
 }
 
+/** 一门考试按掌握度应获得的复习总时长；页面与生成器共用，避免目标值口径漂移。 */
+export function reviewTargetMinOf(mastery: number | undefined): number {
+  if (mastery !== undefined && mastery <= 2) return 180;
+  if (mastery === 3) return 120;
+  return 45;
+}
+
 /** 生成草案：按「掌握度低优先、离考试近优先」把整块空档排给考试 */
 export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<ReviewBlock[]> {
   const exams = (await upcomingExams(now, 8)).filter((e) => new Date(e.at).getTime() > now.getTime() && e.kind === 'exam');
@@ -145,7 +152,7 @@ export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<Re
   for (const exam of order) {
     const mastery = exam.mastery ?? 3;
     // 掌握度越低给的总时长越多；>=4 的只排一块短复习
-    const needMin = mastery <= 2 ? 180 : mastery === 3 ? 120 : 45;
+    const needMin = reviewTargetMinOf(mastery);
     const maxChunk = mastery >= 4 ? 45 : mastery <= 2 ? 90 : 60;
     const dayBudget = mastery <= 2 ? 90 : REVIEW_DAY_MAX;
     const examDate = dateKey(new Date(exam.at));

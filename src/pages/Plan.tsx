@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ExamManager } from '@/ui/exams/ExamManager';
-import { fmtMin } from '@/types/contract';
+import { fmtMin, type ExamItem } from '@/types/contract';
+import { listExams } from '@/data/store/courses';
 import {
   clearReviewBlocks,
   dateKey,
@@ -13,6 +14,7 @@ import {
   generateReviewPlan,
   listReviewBlocks,
   moveReviewBlockToDate,
+  reviewTargetMinOf,
   swapReviewBlocks,
   updateReviewBlock,
   type ReviewBlock,
@@ -32,6 +34,7 @@ function durText(block: ReviewBlock): string {
 
 export default function Plan() {
   const [blocks, setBlocks] = useState<ReviewBlock[]>([]);
+  const [exams, setExams] = useState<ExamItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -39,7 +42,9 @@ export default function Plan() {
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   const load = useCallback(async () => {
-    setBlocks(await listReviewBlocks());
+    const [blockRows, examRows] = await Promise.all([listReviewBlocks(), listExams()]);
+    setBlocks(blockRows);
+    setExams(examRows);
   }, []);
 
   useEffect(() => {
@@ -57,6 +62,22 @@ export default function Plan() {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, items]) => ({ date, items: items.sort((a, b) => a.startMin - b.startMin) }));
   }, [blocks]);
+
+  const shortfalls = useMemo(() => {
+    const now = Date.now();
+    return exams
+      .filter((exam) => exam.kind === 'exam' && new Date(exam.at).getTime() > now)
+      .map((exam) => {
+        const actualMin = blocks
+          .filter((block) => block.examId === exam.id)
+          .reduce((sum, block) => sum + (block.endMin - block.startMin), 0);
+        const targetMin = reviewTargetMinOf(exam.mastery);
+        return actualMin < targetMin
+          ? { exam, actualMin, targetMin, gapMin: targetMin - actualMin }
+          : null;
+      })
+      .filter((item) => item !== null);
+  }, [blocks, exams]);
 
   const total = blocks.reduce((sum, b) => sum + (b.endMin - b.startMin), 0);
   const doneCount = blocks.filter((b) => b.done).length;
@@ -159,6 +180,26 @@ export default function Plan() {
           </span>
           <span className="text-muted-foreground">已完成 {doneCount} 段</span>
           <span className="text-muted-foreground">拖动卡片可互换时段，拖到某一天的分组里可以整块挪过去</span>
+        </div>
+      )}
+
+      {shortfalls.length > 0 && (
+        <div
+          className="mt-3 flex gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+          role="alert"
+          aria-live="polite"
+        >
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+            <p className="font-medium">
+              复习目标还有 {shortfalls.reduce((sum, item) => sum + item.gapMin, 0)} 分钟没排进草案
+            </p>
+            <p className="mt-0.5">
+              {shortfalls
+                .map((item) => `「${item.exam.title}」已排 ${item.actualMin} / 目标 ${item.targetMin} 分钟`)
+                .join('；')}。这通常是可用空档不足；请拖动现有复习块，或手动给这些考试补排时间。
+            </p>
+          </div>
         </div>
       )}
 
