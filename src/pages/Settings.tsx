@@ -146,12 +146,21 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-24 pt-6">
-      <h1 className="mb-4 font-serif text-xl font-bold">设置</h1>
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1280px] px-4 pb-24 pt-6 sm:px-6">
+      <header className="mb-5">
+        <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          所有开关都只改这台机器上的数据：不登录、不上传，清了就是真没了。
+        </p>
+      </header>
 
-      <section className="mb-4 rounded-2xl border bg-card p-4">
-        <h2 className="mb-1 text-sm font-semibold">Agent 启停</h2>
-        <p className="mb-3 text-xs text-muted-foreground">关掉一个 Agent，报告的对应区块就整段消失，不会留空壳。</p>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="space-y-4">
+      <section className="rounded-2xl border bg-card p-5">
+        <h2 className="mb-1 text-sm font-semibold">Agent 启停与权重</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          关掉一个 Agent，报告的对应区块就整段消失，不会留空壳。权重决定同优先级时谁排在前面。
+        </p>
         <ul className="space-y-2">
           {agentRegistry.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3">
@@ -200,7 +209,7 @@ export default function Settings() {
         </ul>
       </section>
 
-      <section className="mb-4 rounded-2xl border bg-card p-4">
+      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">我的画像</h2>
         <p className="mb-3 text-xs text-muted-foreground">
           {profile ? `${profile.identity.grade} · ${profile.identity.college}` : '尚未建档'}
@@ -240,8 +249,10 @@ export default function Settings() {
           {saving ? '保存中…' : '保存'}
         </Button>
       </section>
+        </div>
 
-      <section className="mb-4 rounded-2xl border bg-card p-4">
+        <div className="space-y-4">
+      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-3 text-sm font-semibold">外观</h2>
         <div className="flex gap-2">
           {(
@@ -258,7 +269,7 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="mb-4 rounded-2xl border bg-card p-4">
+      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">演示旋钮</h2>
         <p className="mb-3 text-xs text-muted-foreground">示例考试是相对当前时间生成的，可能正好落在 7 天窗口里。</p>
         <Button variant={forceNormal ? 'default' : 'outline'} size="sm" onClick={toggleForceNormal}>
@@ -266,7 +277,7 @@ export default function Settings() {
         </Button>
       </section>
 
-      <section className="mb-4 rounded-2xl border bg-card p-4">
+      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">模型（选填）</h2>
         <p className="mb-3 text-xs text-muted-foreground">
           本期报告由本地规则生成，不调用任何大模型；此处 key 只存在浏览器 localStorage。
@@ -292,7 +303,7 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="rounded-2xl border bg-card p-4">
+      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">数据</h2>
         <p className="mb-3 text-xs text-muted-foreground">
           当前模式：{bootMode() === 'demo' ? '示例数据' : '我的真实录入'}
@@ -309,6 +320,8 @@ export default function Settings() {
           清除后回到 30 秒建档流程；IndexedDB + localStorage 一并清空，不保留任何副本。
         </p>
       </section>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Flame, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { queryFeed } from '@/data/adapters';
 import { favIds, mutedIds, muteItem, toggleFav, unmuteItem } from '@/data/store/feed';
-import { listExams } from '@/data/store/courses';
 import { getPreferences, getProfile } from '@/data/store/profile';
-import { examWindowOf } from '@/lib/examMode';
 import type { ScoredItem } from '@/data/relevance';
 import { cn } from '@/lib/utils';
 import type { AgentContext, RawItem } from '@/types/contract';
@@ -18,20 +16,7 @@ import type { AgentContext, RawItem } from '@/types/contract';
  *   - 每条卡片都有一行「为什么推给我」（可解释，不做黑箱）
  *   - 「与我无关」写进本地 feedMuted 表，下次刷新该条直接消失
  *   - 收藏写进 feedFav 表；收藏夹单独一栏，连被「与我无关」过的也能翻回来
- *
- * 生存模式（§4.8-2）：考前窗口内讲座 / 活动类推荐自动暂停，只留考试相关与生活必需，
- * 页顶明示「暂停了 N 条」——改变的是优先级，不是让内容偷偷消失。
  */
-
-/** 生存模式下暂停推荐的标签（讲座 / 活动 / 素拓…） */
-const PAUSED_TAGS = ['讲座', '活动', '素拓', '社团', '招新', '展演', '比赛'];
-/** 命中这些标签的内容即使在生存模式也保留（考试相关是主线） */
-const KEEP_TAGS = ['考试', 'DDL', 'ddl', '教务', '选课', '缓考', '补考', '成绩'];
-
-function isPausedInExamMode(item: RawItem): boolean {
-  if (item.tags.some((t) => KEEP_TAGS.includes(t))) return false;
-  return item.tags.some((t) => PAUSED_TAGS.some((p) => t.includes(p)));
-}
 
 const TYPE_LABEL: Record<string, string> = {
   notice: '教务 / 通知',
@@ -57,22 +42,18 @@ export default function Feed() {
   const [openReasons, setOpenReasons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  /** 生存模式（§4.8-2）：考前窗口内为 true，讲座/活动类推荐暂停 */
-  const [examMode, setExamMode] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [user, preferences, exams] = await Promise.all([getProfile(), getPreferences(), listExams()]);
-      const now = new Date();
-      const ctx: AgentContext = { user, preferences, mode: 'normal', now };
+      const [user, preferences] = await Promise.all([getProfile(), getPreferences()]);
+      const ctx: AgentContext = { user, preferences, mode: 'normal', now: new Date() };
       // 连「与我无关」的一起拿：收藏夹要能翻回自己存过、后来又被屏蔽的条目
       const [ranked, fav, muted] = await Promise.all([queryFeed(ctx, { includeMuted: true }), favIds(), mutedIds()]);
       setItems(ranked);
       setFavs(fav);
       setMutedCount(muted.size);
-      setExamMode(examWindowOf(exams, now).mode === 'exam');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -114,29 +95,21 @@ export default function Feed() {
   const toggleReasons = (id: string) =>
     setOpenReasons((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
   const visible = useMemo(() => {
     const inTab = tab === 'fav' ? items.filter((x) => favs.has(x.item.id)) : items.filter((x) => !x.muted);
-    const inExam = examMode && tab === 'all' ? inTab.filter((x) => !isPausedInExamMode(x.item)) : inTab;
-    return type === 'all' ? inExam : inExam.filter((x) => x.item.type === type);
-  }, [items, favs, tab, type, examMode]);
-
-  /** 生存模式暂停掉的条数（顶部明示用） */
-  const pausedCount = useMemo(() => {
-    if (!examMode || tab !== 'all') return 0;
-    return items.filter((x) => !x.muted && isPausedInExamMode(x.item)).length;
-  }, [items, examMode, tab]);
+    return type === 'all' ? inTab : inTab.filter((x) => x.item.type === type);
+  }, [items, favs, tab, type]);
 
   const allCount = items.filter((x) => !x.muted).length;
   const favCount = items.filter((x) => favs.has(x.item.id)).length;
   const types = useMemo(() => [...new Set(items.map((x) => x.item.type))], [items]);
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-24 pt-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6">
       {/* 顶部固定在视口里：一屏能看三四条，翻到下面还能切「收藏」 */}
       <header className="sticky top-0 z-10 -mx-4 mb-3 bg-background/95 px-4 pb-2 pt-1 backdrop-blur">
         <div className="flex items-end justify-between gap-3">
@@ -193,16 +166,6 @@ export default function Feed() {
         </div>
       </header>
 
-      {examMode && (
-        <p className="mb-3 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
-          <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>
-            生存模式：考试临近，讲座 / 活动类推荐已暂停{pausedCount > 0 ? `（${pausedCount} 条）` : ''}
-            ，只保留考试相关与生活必需通知。考完全自动恢复。
-          </span>
-        </p>
-      )}
-
       {loading && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">正在按你的身份排序…</p>}
       {error && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-destructive">{error}</p>}
 
@@ -216,7 +179,7 @@ export default function Feed() {
         </p>
       )}
 
-      <ul className="space-y-3">
+      <ul className="grid items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {visible.map(({ item, reasons, score, muted }) => {
           const band = relevanceBand(score);
           const isFav = favs.has(item.id);
