@@ -2,14 +2,12 @@
 
 专属于华师（CCNU）学生的本地优先 AI 校园助手：**数据不出设备，决策过程看得见。**
 
-> 校园黑客松参赛项目 🏔️🌼
-
 **[打开在线 Demo（国内镜像）](https://ccuner-xiaoshan-mirror.netlify.app)** · Netlify 托管，无需账号，数据只保存在当前浏览器。
 **[Vercel 主站](https://ccuner-xiaoshan.vercel.app)** · 连接 GitHub，push 到 `main` 自动部署最新版；部分网络环境可能无法访问，请优先使用上方镜像。
 
 ## 为什么是小山
 
-- **本校专属**：只做华师（桂子山 / 南湖），信息按身份过滤，山民秒懂
+- **本校专属**：只做华师（桂子山 / 南湖），信息按身份过滤
 - **本地优先**：课表、日程、健康数据只存在你自己的设备上，断网照样用
 - **可解释多智能体**：教务 / 生活 / 健康 / 日程 4 个专职 Agent + 总控编排器，每条建议都给出依据
 - **给选项，不替人决定**：所有建议以选项卡呈现，标注成本与可能影响，用户拍板，助手记住偏好
@@ -198,7 +196,3 @@ npm run preview    # 以产物方式起服务——断网演示必须用这个�
 ## 技术栈
 
 React 19 + TypeScript + Vite · Tailwind CSS + shadcn/ui · Dexie / IndexedDB（本地数据层） · recharts（趋势图） · xlsx（课表导入） · vite-plugin-pwa（离线可用）
-
-## 协同开发
-
-见设计文档 §14。要点：`main` 受保护，`feat/*` / `fix/*` 分支经 PR 合并；约定式提交；mock 数据集中管理，UI 只走 adapter 层与契约 Schema。
