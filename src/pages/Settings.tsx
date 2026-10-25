@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { agentRegistry } from '@/agents/registry';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
-import { bootMode, readAgentEnabled, resetBootMode, setBootMode, writeAgentEnabled } from '@/data/store/boot';
+import { bootMode, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
-import type { UserProfile } from '@/types/contract';
+import { effectiveWeight } from '@/orchestrator/weights';
+import type { AgentId, UserProfile } from '@/types/contract';
 
 /**
  * 设置页（dev-tasks B7 + B9 的外观开关 + A6 的演示旋钮）
@@ -34,6 +35,7 @@ export default function Settings() {
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+  const [weightTick, setWeightTick] = useState(0);
   const [theme, setThemeState] = useState<ThemeChoice>('system');
   const [forceNormal, setForceNormal] = useState(false);
   const [llmKey, setLlmKey] = useState('');
@@ -49,10 +51,12 @@ export default function Settings() {
         setWeight(p.bodyBaseline?.weightKg ? String(p.bodyBaseline.weightKg) : '');
       }
       const persisted = readAgentEnabled();
+      const weights = readAgentWeights();
       const map: Record<string, boolean> = {};
       for (const a of agentRegistry) {
         // 持久化的值优先；未持久化时用注册表默认值
         if (persisted[a.id] !== undefined) a.enabled = persisted[a.id];
+        if (weights[a.id] !== undefined) a.defaultWeight = weights[a.id];
         map[a.id] = a.enabled;
       }
       setEnabled(map);
@@ -71,6 +75,22 @@ export default function Settings() {
     writeAgentEnabled(map);
     toast(next ? `已启用${AGENT_LABEL[id] ?? id}` : `已停用${AGENT_LABEL[id] ?? id}`, {
       description: '下一份报告生效；历史报告不变。',
+    });
+  }
+
+  /** 权重档位：0.5–3，步进 0.5。改的是注册表单例 + localStorage，下一轮报告生效 */
+  function bumpWeight(id: AgentId, delta: number) {
+    const agent = agentRegistry.find((a) => a.id === id);
+    if (!agent) return;
+    const next = Math.min(3, Math.max(0.5, Math.round((agent.defaultWeight + delta) * 10) / 10));
+    if (next === agent.defaultWeight) return;
+    agent.defaultWeight = next;
+    const map: Record<string, number> = {};
+    for (const a of agentRegistry) map[a.id] = a.defaultWeight;
+    writeAgentWeights(map);
+    setWeightTick((n) => n + 1);
+    toast(`${AGENT_LABEL[id] ?? id} 权重 ${next}`, {
+      description: `生存模式下折算为 ×${effectiveWeight(next, 'exam', id).toFixed(1)}；普通模式只影响同优先级排序。`,
     });
   }
 
@@ -135,19 +155,46 @@ export default function Settings() {
         <ul className="space-y-2">
           {agentRegistry.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm">{AGENT_LABEL[a.id] ?? a.id}</div>
-                <div className="text-xs text-muted-foreground">默认权重 {a.defaultWeight}</div>
+                <div className="text-xs text-muted-foreground">
+                  权重 {a.defaultWeight} · 生存模式折算 ×{effectiveWeight(a.defaultWeight, 'exam', a.id).toFixed(1)}
+                </div>
               </div>
-              <Button
-                variant={enabled[a.id] ? 'default' : 'outline'}
-                size="sm"
-                role="switch"
-                aria-checked={Boolean(enabled[a.id])}
-                onClick={() => toggleAgent(a.id)}
-              >
-                {enabled[a.id] ? '已启用' : '已停用'}
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="flex items-center rounded-full border" data-weight={a.defaultWeight}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-r-none px-2 text-xs"
+                    aria-label={`降低${AGENT_LABEL[a.id] ?? a.id}权重`}
+                    onClick={() => bumpWeight(a.id, -0.5)}
+                  >
+                    −
+                  </Button>
+                  <span className="min-w-8 text-center text-xs tabular-nums" data-tick={weightTick}>
+                    {a.defaultWeight}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 rounded-l-none px-2 text-xs"
+                    aria-label={`提高${AGENT_LABEL[a.id] ?? a.id}权重`}
+                    onClick={() => bumpWeight(a.id, 0.5)}
+                  >
+                    +
+                  </Button>
+                </div>
+                <Button
+                  variant={enabled[a.id] ? 'default' : 'outline'}
+                  size="sm"
+                  role="switch"
+                  aria-checked={Boolean(enabled[a.id])}
+                  onClick={() => toggleAgent(a.id)}
+                >
+                  {enabled[a.id] ? '已启用' : '已停用'}
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

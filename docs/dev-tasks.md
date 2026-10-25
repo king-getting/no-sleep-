@@ -171,6 +171,8 @@
 ### B7. 设置页 ✅ 已完成（2026-10-22）
 - 已实现：`src/pages/Settings.tsx` 六组——Agent 启停（写 `localStorage['xiaoshan:agents']` 并即时改注册表 `enabled`）、画像编辑、外观三选（跟随系统/浅色/深色）、演示旋钮（强制关闭生存模式）、LLM API Key 选填（标明当前不接模型）、数据（恢复示例 / 清除全部 → `clearAllData()` + 回 onboarding）
 - 验收：关掉健康 Agent 后报告不再含健康建议 ✅；清除数据后刷新回到 onboarding ✅（浏览器实测）
+- **权重可调（2026-10-25，契约 v1.8）**：Agent 行从「只读展示权重」改成 −/+ 步进（0.5–3，持久化 `localStorage['xiaoshan:agent-weights']`），旁边直接标出「生存模式折算 ×1.4」这类结果；`src/orchestrator/weights.ts` 让 `defaultWeight` 真正参与排序（生存模式按 `defaultWeight × 生存因子` 升/降一级，普通模式只作同优先级排序依据），`exam.ts` 里那张硬编码 `EXAM_WEIGHT` 已删除
+- **顺带修掉的真 bug**：启停与权重的恢复原在 `App` 的 `useEffect` 里，而 React 子组件 effect 先于父组件执行 → **首屏那份报告总是用默认设置生成的**（关掉的 Agent 照样出现、调过的权重不生效，要手动再点一次才算数）。现移到 `src/agents/restore.ts`，在 `registry` 模块加载时执行
 
 ### B8. 编排动画视觉升级版 ⭐ 演示抓手 ✅ 已完成（2026-10-22）
 - 已实现：`OrchestrationTimeline.tsx` 从文字流改成节点图——三步流程条（拆解任务/并行执行/汇总决策）+ 总控节点 + 4 个 Agent 节点（等待 / 执行中 ping / 完成「N 条发现 / M 条建议」）+ 冲突徽标与「冲突待裁决」节点 + L1 自动合并节点 + 「报告已生成」收尾

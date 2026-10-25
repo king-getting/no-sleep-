@@ -10,6 +10,7 @@
 
 const BOOT_KEY = 'xiaoshan:boot';
 const AGENT_KEY = 'xiaoshan:agents';
+const WEIGHT_KEY = 'xiaoshan:agent-weights';
 
 export type BootMode = 'demo' | 'real';
 
@@ -26,6 +27,7 @@ export function setBootMode(mode: BootMode): void {
 export function resetBootMode(): void {
   localStorage.removeItem(BOOT_KEY);
   localStorage.removeItem(AGENT_KEY);
+  localStorage.removeItem(WEIGHT_KEY);
 }
 
 /** 设置页的 Agent 启停持久化（重启后仍然生效） */
@@ -40,4 +42,18 @@ export function readAgentEnabled(): Record<string, boolean> {
 
 export function writeAgentEnabled(map: Record<string, boolean>): void {
   localStorage.setItem(AGENT_KEY, JSON.stringify(map));
+}
+
+/** 设置页的 Agent 权重持久化（注册表是模块级单例，改完要存活到下次打开） */
+export function readAgentWeights(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(WEIGHT_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeAgentWeights(map: Record<string, number>): void {
+  localStorage.setItem(WEIGHT_KEY, JSON.stringify(map));
 }

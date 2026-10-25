@@ -159,8 +159,13 @@ const EXAM_DAY_GRACE_MS = 6 * 3600_000;   // 考试结束时刻后仍算「考�
 interface ExamWindow { mode: Mode; daysToExam: number | null; isExamDay: boolean;
                        nextExam: ExamItem | null; upcoming: ExamItem[] }
 
-// 权重（src/orchestrator/exam.ts）：写进事件流供 B 的动画展示
-const EXAM_WEIGHT = { academic: 1.2, life: 1.0, health: 1.3, schedule: 1.4 };
+// 权重（src/orchestrator/weights.ts，v1.7 起统一到一处）
+//   有效权重 = AgentModule.defaultWeight × 生存因子（普通模式因子为 1）
+const SURVIVAL_FACTOR = { academic: 0.6, life: 0.5, health: 0.65, schedule: 0.7 };
+//   默认权重 2/1/2/2 折算后 = 1.2 / 0.5 / 1.3 / 1.4，与 v1.2 的硬编码表一致；
+//   ≥1.3 上浮一级 priority，≤0.8 降一级，其余不动（仅生存模式动 priority）
+//   普通模式：权重只作同优先级内的排序依据，不改 priority（否则午饭会被永久压到睡眠后面）
+//   归属规则：建议归给 sourceFindingIds 指向的 finding 的产出 Agent，取不到归 schedule
 // 合成结果的 finding id 约定（B 侧渲染与文案依赖这几个 id，改名视为契约变更）
 //   exam:title       考试标题（checklist 卡标题取它）
 //   exam:countdown   倒计时一句话（概览「倒计时」行）
@@ -324,4 +329,11 @@ src/
   - 新增 §4.5「今天的午饭」L2 冲突的触发口径与三条门槛（日均餐标 <¥30、健康侧仅缺觉时提、结构标签不参与排序）
   - 选项卡与冲突卡渲染同一行结构文案（`nutritionLabel()` / `nutritionTip()` 放在 `src/lib/nutrition.ts`），避免两处口径不一
   - 冲突卡两列改为 `min-w-0 flex-1 basis-0`：此前两列宽度随内容伸缩，一边长一边短，看着像两个不相关的卡
+- **v1.8**（2026-10-25，Agent 权重真正接线）：
+  - 新增 `src/orchestrator/weights.ts`：`SURVIVAL_FACTOR`（academic 0.6 / life 0.5 / health 0.65 / schedule 0.7）、`effectiveWeight(base, mode, agentId)`、`applyAgentWeights(...)`
+  - **`AgentModule.defaultWeight` 从此刻起真的被读取**（此前四个 Agent 都声明了它、设置页也展示它，但编排器从未使用；生存模式用的是 `exam.ts` 里另一张硬编码表 `EXAM_WEIGHT`，现已被删除）
+  - 语义：生存模式下 `有效权重 = defaultWeight × 生存因子`，≥1.3 上浮一级、≤0.8 降一级、其余不动；**普通模式不动 priority**，权重只作同优先级内的排序依据
+  - 建议归属规则：`sourceFindingIds` → finding 的产出 Agent；找不到归属时归 `schedule`
+  - 设置页的权重从「只读展示」改成可调（0.5–3，步进 0.5，持久化在 `localStorage['xiaoshan:agent-weights']`）
+  - 修复：启停与权重的恢复从 `App` 的 `useEffect` 移到 `registry` 模块加载时（`src/agents/restore.ts`）。React 子组件 effect 先于父组件执行，原先**首屏那份报告总是用默认设置生成**
 

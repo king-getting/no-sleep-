@@ -9,6 +9,7 @@ import { collectTopicStats, downgradeByCompliance } from './compliance';
 import { enrichSuggestions } from './enrich';
 import { orchestratorEvents } from './events';
 import { buildExamDoneResults, buildExamResults } from './exam';
+import { applyAgentWeights } from './weights';
 
 export type Trigger = 'morning-report' | 'noon-report' | 'evening-report' | 'user-ask';
 
@@ -82,7 +83,7 @@ class Orchestrator {
       results.push(...examResults);
       ev.emit({
         type: 'merge:applied',
-        text: '生存模式：注入考试域产出（schedule 权重 ×1.4 / health ×1.3）',
+        text: '生存模式：注入考试域产出（复习安排 / 考前夜冲突卡）',
       });
     }
 
@@ -115,13 +116,23 @@ class Orchestrator {
       ev.emit({ type: 'merge:applied', text: `遵从度回流：${detail}` });
     }
 
+    // Agent 权重（生存模式才动 priority；普通模式只做同优先级排序）
+    const weighted = applyAgentWeights(ranked, results, agents, mode);
+    const moved = weighted.rows.filter((r) => r.moved > 0);
+    if (mode === 'exam' && moved.length > 0) {
+      const detail = moved
+        .map((r) => `${r.agentId} ×${r.effective.toFixed(1)}${r.effective >= 1.3 ? '（上浮）' : '（降级）'}`)
+        .join(' / ');
+      ev.emit({ type: 'merge:applied', text: `权重调整：${detail}` });
+    }
+
     // 按配方组装报告（生存模式下不是 morning/noon/evening，而是 exam-week / exam-day / exam-done）
     const type: ReportType = finished
       ? 'exam-done'
       : mode === 'exam'
         ? examReportTypeOf(window)
         : reportTypeForTrigger(trigger, now);
-    const report = await composeReport(type, results, ranked, conflicts, ctx);
+    const report = await composeReport(type, results, weighted.suggestions, conflicts, ctx);
     ev.emit({ type: 'report:composed', report });
     return report;
   }
