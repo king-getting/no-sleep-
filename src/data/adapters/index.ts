@@ -63,9 +63,9 @@ const FEED_TYPES = ['notice', 'express', 'canteen-window', 'convenience'] as con
  * 信息流（B2）：四类源拉平后按「与我有多有关」排序（A7 打分），
  * 并在返回前剔除用户点过「与我无关」的条目——负反馈落库，刷新仍然生效。
  */
-export async function queryFeed(ctx: AgentContext): Promise<ScoredItem[]> {
+export async function queryFeed(ctx: AgentContext, opts?: { includeMuted?: boolean }): Promise<ScoredItem[]> {
   const batches = await Promise.all(FEED_TYPES.map((type) => queryAdapters(type, ctx)));
   const items = batches.flat();
   const [interest, muted] = await Promise.all([loadInterests(), mutedIds()]);
-  return rankFeed(items, ctx, interest, muted);
+  return rankFeed(items, ctx, interest, muted, opts);
 }
