@@ -3,6 +3,7 @@ import { getPreferences, getProfile } from '@/data/store/profile';
 import { upcomingExams } from '@/data/queries';
 import { examReportTypeOf, examWindowOf, justFinishedExam } from '@/lib/examMode';
 import type { AgentContext, AgentResult, Mode, Report, ReportType } from '@/types/contract';
+import { applyMissReasons } from './attribution';
 import { arbitrateClaims, mergeSuggestions } from './arbiter';
 import { composeReport } from './compose';
 import { collectTopicStats, downgradeByCompliance } from './compliance';
@@ -108,13 +109,25 @@ class Orchestrator {
     // 依据富化：跨域依据由总控在汇总阶段挂载（Agent 之间不越域读数据）
     const enriched = enrichSuggestions(merged.suggestions, results);
 
+    // 报告类型先定下来：后面的归因回流只对晨间报告生效（§4.7 归因 → 次日建议）
+    const type: ReportType = finished
+      ? 'exam-done'
+      : mode === 'exam'
+        ? examReportTypeOf(window)
+        : reportTypeForTrigger(trigger, now);
+
     // 遵从度回流（A8）：同一主题连续 2 次「没做」→ 本轮建议降一级
     const topicStats = await collectTopicStats();
-    const { suggestions: ranked, downgraded } = downgradeByCompliance(enriched, topicStats);
+    const { suggestions: ranked0, downgraded } = downgradeByCompliance(enriched, topicStats);
     if (downgraded.length > 0) {
       const detail = downgraded.map((d) => `${d.topic}（连续 ${d.missStreak} 次没做，${d.from} → ${d.to}）`).join('；');
       ev.emit({ type: 'merge:applied', text: `遵从度回流：${detail}` });
     }
+
+    // 归因回流（§4.7）：昨天「没做」的原因 → 今天晨间报告里的更轻选项卡
+    const { suggestions: ranked, notes: attributionNotes } =
+      type === 'morning' ? applyMissReasons(ranked0, preferences.missReasons, topicStats) : { suggestions: ranked0, notes: [] };
+    for (const note of attributionNotes) ev.emit({ type: 'merge:applied', text: note });
 
     // Agent 权重（生存模式才动 priority；普通模式只做同优先级排序）
     const weighted = applyAgentWeights(ranked, results, agents, mode);
@@ -127,11 +140,6 @@ class Orchestrator {
     }
 
     // 按配方组装报告（生存模式下不是 morning/noon/evening，而是 exam-week / exam-day / exam-done）
-    const type: ReportType = finished
-      ? 'exam-done'
-      : mode === 'exam'
-        ? examReportTypeOf(window)
-        : reportTypeForTrigger(trigger, now);
     const report = await composeReport(type, results, weighted.suggestions, conflicts, ctx);
     ev.emit({ type: 'report:composed', report });
     return report;

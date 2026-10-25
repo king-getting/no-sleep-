@@ -90,8 +90,9 @@ export async function recordChoice(suggestionId: string, optionId: string, topic
   await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString() });
 }
 
-/** 晚间报告一键标记「做了 / 没做」，同时更新遵从度画像 */
-export async function markCompliance(topic: string, done: boolean): Promise<void> {
+/** 晚间报告一键标记「做了 / 没做」，同时更新遵从度画像。
+ *  没做时可带归因（§4.7）：原因落 missReasons 表并写进偏好，次日建议据此转化。 */
+export async function markCompliance(topic: string, done: boolean, reason?: string): Promise<void> {
   const date = new Date();
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   await db.compliance.add({ topic, date: dateStr, done });
@@ -101,6 +102,24 @@ export async function markCompliance(topic: string, done: boolean): Promise<void
   stat.shown += 1; // 每次追问算一次展示
   if (done) stat.done += 1; // 只累计「真的做了」的次数
   prefs.compliance[topic] = stat;
+
+  if (!done && reason) {
+    await db.missReasons.add({ topic, date: dateStr, reason });
+    prefs.missReasons = { ...prefs.missReasons, [topic]: reason };
+  }
+  if (done && prefs.missReasons?.[topic]) {
+    // 做了就清掉旧归因：障碍已经不存在，别让昨天的原因继续污染今天的建议
+    const next = { ...prefs.missReasons };
+    delete next[topic];
+    prefs.missReasons = next;
+  }
+  await savePreferences(prefs);
+}
+
+/** §4.7「不再追问」：某个主题以后不再出现「做了 / 没做」标记，关闭即停 */
+export async function optOutNoAsk(topic: string): Promise<void> {
+  const prefs = await getPreferences();
+  prefs.noAsk = { ...prefs.noAsk, [topic]: true };
   await savePreferences(prefs);
 }
 
@@ -113,7 +132,7 @@ export async function rememberConflictChoice(topic: string, choice: 'A' | 'B'): 
 
 /** 一键清除示例数据（诚实原则：可退出演示） */
 export async function clearAllData(): Promise<void> {
-  await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.choices, db.compliance, db.courses, db.exams], async () => {
+  await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.choices, db.compliance, db.courses, db.exams, db.missReasons], async () => {
     await Promise.all([
       db.profiles.clear(),
       db.prefs.clear(),
@@ -122,6 +141,7 @@ export async function clearAllData(): Promise<void> {
       db.compliance.clear(),
       db.courses.clear(),
       db.exams.clear(),
+      db.missReasons.clear(),
     ]);
   });
   seeding = null;

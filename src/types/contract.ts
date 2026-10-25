@@ -62,6 +62,10 @@ export interface Preferences {
   compliance: Record<string, { shown: number; done: number }>;
   /** 冲突裁决记忆：topic -> 上次选择（裁决一次，不再重复打扰） */
   conflictChoices: Record<string, 'A' | 'B'>;
+  /** v1.10「没做」归因：topic -> 最近一次原因（起晚了/不饿/没时间/忘了），次日建议据此转化 */
+  missReasons?: Record<string, string>;
+  /** v1.10 一键「不再追问」的 topic：不再出现「做了 / 没做」标记 */
+  noAsk?: Record<string, true>;
 }
 
 /** 课程（时间统一用「当日分钟数」表示，如 8:00 = 480） */
@@ -297,3 +301,6 @@ export function dayOfWeek(d: Date): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
   const day = d.getDay();
   return (day === 0 ? 7 : day) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
 }
+
+/** 「没做」归因的可选项（v1.10，§4.7）：UI 与编排器共用这一份，别各写各的 */
+export const MISS_REASON_OPTIONS = ['起晚了', '不饿', '没时间', '忘了'] as const;
