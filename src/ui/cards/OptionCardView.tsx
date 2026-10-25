@@ -15,10 +15,13 @@ import type { OptionCard } from '@/types/contract';
 export function OptionCardView({
   option,
   picked,
+  dimmed,
   onPick,
 }: {
   option: OptionCard;
   picked?: boolean;
+  /** 同组里已经选了别人：这张退到背景里，但仍然可点（随时能改主意） */
+  dimmed?: boolean;
   onPick?: (optionId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -26,8 +29,10 @@ export function OptionCardView({
   return (
     <div
       className={cn(
-        'rounded-xl border bg-card p-4 shadow-xs transition-colors',
-        picked && 'border-primary bg-primary/5',
+        'rounded-xl border bg-card p-4 shadow-xs transition-all duration-200',
+        'motion-safe:active:scale-[0.995]',
+        picked && 'border-primary bg-primary/5 ring-1 ring-primary/20',
+        dimmed && 'opacity-70 hover:opacity-100',
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -50,7 +55,7 @@ export function OptionCardView({
           <Button
             size="sm"
             variant={picked ? 'default' : 'outline'}
-            className="shrink-0"
+            className="shrink-0 transition-transform motion-safe:active:scale-95"
             onClick={() => onPick(option.id)}
           >
             {picked ? (

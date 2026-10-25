@@ -6,10 +6,29 @@ import { cn } from '@/lib/utils';
 import { AGENT_META } from '@/ui/agentMeta';
 import type { ConflictCard, ConflictPlan } from '@/types/contract';
 
-function PlanView({ plan, side, chosen, onChoose }: { plan: ConflictPlan; side: 'A' | 'B'; chosen: boolean; onChoose?: () => void }) {
+function PlanView({
+  plan,
+  side,
+  chosen,
+  dimmed,
+  onChoose,
+}: {
+  plan: ConflictPlan;
+  side: 'A' | 'B';
+  chosen: boolean;
+  dimmed?: boolean;
+  onChoose?: () => void;
+}) {
   const meta = AGENT_META[plan.agentId];
   return (
-    <div className={cn('min-w-0 flex-1 basis-0 rounded-xl border bg-card p-4', chosen && 'border-primary bg-primary/5')}>
+    <div
+      className={cn(
+        'min-w-0 flex-1 basis-0 rounded-xl border bg-card p-4 transition-all duration-300',
+        chosen && 'border-primary bg-primary/5',
+        // 只有在「已经做过选择」时才把另一边压暗；没选的时候两侧一样重，谁也别装成默认答案
+        dimmed && 'opacity-60 hover:opacity-100',
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className={cn('gap-1.5 font-normal', meta.color)}>
           <span className={cn('h-1.5 w-1.5 rounded-full', meta.bg)} />
@@ -79,8 +98,20 @@ export function ConflictCardView({
         )}
       </header>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-        <PlanView plan={conflict.planA} side="A" chosen={chosenSide === 'A'} onChoose={onResolve ? () => onResolve('A') : undefined} />
-        <PlanView plan={conflict.planB} side="B" chosen={chosenSide === 'B'} onChoose={onResolve ? () => onResolve('B') : undefined} />
+        <PlanView
+          plan={conflict.planA}
+          side="A"
+          chosen={chosenSide === 'A'}
+          dimmed={!!chosenSide && chosenSide !== 'A'}
+          onChoose={onResolve ? () => onResolve('A') : undefined}
+        />
+        <PlanView
+          plan={conflict.planB}
+          side="B"
+          chosen={chosenSide === 'B'}
+          dimmed={!!chosenSide && chosenSide !== 'B'}
+          onChoose={onResolve ? () => onResolve('B') : undefined}
+        />
       </div>
     </section>
   );
