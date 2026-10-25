@@ -183,10 +183,22 @@ export interface OptionCard {
   id: string;
   title: string; // 「一食堂二楼经济窗口」
   cost: { money?: number; timeMin?: number };
+  /** 一餐的结构标签（v1.7）：只讲蔬菜 / 蛋白 / 油这类能自查的层级，**不报热量** */
+  nutrition?: MealNutrition;
   pros: string[]; // 优势
   cons: string[]; // 代价
   impacts: Impact[]; // 可能影响（决策模拟）
   evidences: Evidence[]; // 「为什么」展开渲染
+}
+
+/**
+ * 结构标签，0/1/2 三级。刻意不引入 kcal：
+ * 食堂菜品没有可信的热量数据来源，编一个数字写进产品比不写更糟。
+ */
+export interface MealNutrition {
+  veg: 0 | 1 | 2; // 0 没有蔬菜 / 1 偏少 / 2 到位
+  protein: 0 | 1 | 2; // 0 偏少 / 1 够 / 2 充足
+  oil: 0 | 1 | 2; // 0 偏重 / 1 适中 / 2 偏轻
 }
 
 export interface Impact {

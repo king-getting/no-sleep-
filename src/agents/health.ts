@@ -1,4 +1,6 @@
+import { queryAdapters } from '@/data/adapters';
 import { getSleepLogs } from '@/data/store/profile';
+import { nutritionLabel } from '@/lib/nutrition';
 import {
   SLEEP_NEED_HOURS,
   avgSleepHours,
@@ -13,8 +15,8 @@ import {
   wakePlanOf,
   weekOverWeek,
 } from '@/data/queries';
-import { fmtMin } from '@/types/contract';
-import type { AgentModule, AgentResult, Finding, OptionCard } from '@/types/contract';
+import { dailyBudget, fmtMin } from '@/types/contract';
+import type { AgentModule, AgentResult, Finding, MealNutrition, OptionCard } from '@/types/contract';
 
 /** 没有记录就说没有记录，不拿健康基线冒充实测；中文里「平均 没有记录」读着别扭，所以整句换掉 */
 function avg3Phrase(v: number | null): string {
@@ -292,6 +294,44 @@ export const healthAgent: AgentModule = {
           ],
         },
       });
+    }
+
+    // 午饭的「吃好」侧（契约 §4.5）：与生活 Agent 的「省钱」侧配对成 L2。
+    // 缺觉的时候更需要蛋白和蔬菜撑住下午——这不是营养学结论，是「欠觉 → 饭后更困」的常识推论，
+    // 所以只在近 3 天平均 < 6.5h 时才提，睡够的日子不打扰。
+    const lunchHour = ctx.now.getHours() >= 10 && ctx.now.getHours() < 14;
+    if (lunchHour && avg3 !== null && avg3 < 6.5) {
+      const windows = await queryAdapters('canteen-window', ctx);
+      const light = windows.find((w) => w.id === 'ct-gxy-light');
+      const n2 = light?.payload?.nutrition as MealNutrition | undefined;
+      const price = Number(light?.payload?.avgPrice ?? 15);
+      const daily = dailyBudget(ctx.user);
+      if (light && n2) {
+        const over = price - daily;
+        claims.push({
+          topic: '今天的午饭',
+          side: 'balanced',
+          plan: {
+            id: 'lunch-balanced',
+            agentId: 'health',
+            title: `吃好优先：桂香园 ¥${price}，蔬菜和蛋白都到位`,
+            cost: { money: price },
+            nutrition: n2,
+            // 结构由卡上的「这一餐」那行给出，这里只留取舍本身
+            pros: ['午后不容易犯困，下午那节课撑得住'],
+            cons: [over > 0 ? `这顿比日均餐标多 ¥${over.toFixed(0)}` : '贵一点，但还在今天的餐标内'],
+            impacts: [
+              { horizon: 'short', text: `近 3 天平均 ${avg3.toFixed(1)}h，吃完这顿不至于下午第一节就发呆`, agentId: 'health' },
+              { horizon: 'long', text: '连续几天吃到蔬菜，比靠咖啡硬撑划算', agentId: 'health' },
+            ],
+            evidences: [
+              { agentId: 'health', text: `${avg3Phrase(avg3)}，缺觉时更需要蛋白和蔬菜`, confidence: 2 },
+              { agentId: 'health', text: `结构：${nutritionLabel(n2)}（按常识标的，不是营养学测量）`, confidence: 2 },
+              { agentId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}`, confidence: 3 },
+            ],
+          },
+        });
+      }
     }
 
     const result: AgentResult = { agentId: 'health', findings };

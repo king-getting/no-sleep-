@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Check, ChevronDown, Clock, Coins } from 'lucide-react';
+import { Check, ChevronDown, Clock, Coins, Salad } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { nutritionLabel, nutritionTip } from '@/lib/nutrition';
 import { cn } from '@/lib/utils';
 import { AGENT_META } from '@/ui/agentMeta';
 import type { OptionCard } from '@/types/contract';
@@ -64,6 +65,16 @@ export function OptionCardView({
       </div>
 
       <div className="mt-3 space-y-1.5 text-sm">
+        {option.nutrition && (
+          <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <Salad className="h-3 w-3" />
+              这一餐
+            </span>
+            <span className="text-foreground/80">{nutritionLabel(option.nutrition)}</span>
+            {nutritionTip(option.nutrition) && <span>· {nutritionTip(option.nutrition)}</span>}
+          </p>
+        )}
         {option.pros.map((t) => (
           <p key={t} className="text-foreground/90">
             <span className="mr-1.5 text-primary">优势</span>
