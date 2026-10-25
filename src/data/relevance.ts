@@ -26,6 +26,8 @@ export interface ScoredItem {
   score: number;
   /** 「为什么推给我」的逐条依据，UI 直接渲染 */
   reasons: string[];
+  /** 被「与我无关」标记过：默认不展示，但收藏夹里仍然看得到 */
+  muted?: boolean;
 }
 
 /** 类型权重：教务 / 快递这类「有时效、漏了就亏」的信息天然更该靠前 */
@@ -50,8 +52,9 @@ export function scoreItem(
   interest: InterestProfile,
   muted: Set<string>,
 ): ScoredItem | null {
-  if (muted.has(item.id)) return null;
-  // 若想改成「同类沉底而非消失」：去掉上面的 return，改为 score -= 100 并保留 reasons 里的说明
+  // 被「与我无关」标记过的仍然照常打分，只是打上 muted：信息流默认不显示，
+  // 但收藏夹要能把它翻回来（谁都有手滑点错的时候）
+  const isMuted = muted.has(item.id);
 
   const { level, grade, college, campus } = ctx.user.identity;
   const reasons: string[] = [];
@@ -98,7 +101,7 @@ export function scoreItem(
 
   if (reasons.length === 0) reasons.push('校园公共信息（与你的身份无特别关联）');
 
-  return { item, score, reasons };
+  return { item, score, reasons, muted: isMuted };
 }
 
 /** 批量打分 + 排序；同分时保持原始顺序，避免每次刷新跳动 */
@@ -107,10 +110,13 @@ export function rankFeed(
   ctx: AgentContext,
   interest: InterestProfile,
   muted: Set<string>,
+  opts?: { includeMuted?: boolean },
 ): ScoredItem[] {
   return items
     .map((item, index) => ({ scored: scoreItem(item, ctx, interest, muted), index }))
     .filter((x): x is { scored: ScoredItem; index: number } => x.scored !== null)
+    // 默认把「与我无关」的剔掉；收藏夹要连它们一起拿，再自己决定显示哪些
+    .filter((x) => opts?.includeMuted || !x.scored.muted)
     .sort((a, b) => b.scored.score - a.scored.score || a.index - b.index)
     .map((x) => x.scored);
 }
