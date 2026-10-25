@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { AlertTriangle, CalendarDays, Plus } from 'lucide-react';
+import CourseExcelImport from '@/ui/week/CourseExcelImport';
 import { toast } from 'sonner';
 import {
   computeTimeBlocks,
@@ -219,20 +220,23 @@ export default function Week() {
               按你录入的课表切色块：{courseCount} 门次课、{freeCount} 段整块空档。报告里说「午休被吃掉」，这里同一格就是红的。
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              // 默认落在这一天第一段空档里；没有空档就放 20:00
-              const day = days.find((d) => d.dow === picked) ?? days[0];
-              const slot = day.blocks.find((b) => b.kind === 'free') ?? day.blocks.find((b) => b.kind === 'fragment');
-              const start = slot ? slot.startMin : 20 * 60;
-              openAdd(day.dow, start, Math.min(start + 100, DAY_END));
-            }}
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            加课
-          </Button>
+          <div className="flex flex-col items-end gap-2">
+            <CourseExcelImport onImported={() => void load()} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // 默认落在这一天第一段空档里；没有空档就放 20:00
+                const day = days.find((d) => d.dow === picked) ?? days[0];
+                const slot = day.blocks.find((b) => b.kind === 'free') ?? day.blocks.find((b) => b.kind === 'fragment');
+                const start = slot ? slot.startMin : 20 * 60;
+                openAdd(day.dow, start, Math.min(start + 100, DAY_END));
+              }}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              加课
+            </Button>
+          </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">

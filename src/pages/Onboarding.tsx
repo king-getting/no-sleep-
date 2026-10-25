@@ -5,6 +5,9 @@ import { db } from '@/data/store/db';
 import { savePreferences, saveProfile } from '@/data/store/profile';
 import { setBootMode } from '@/data/store/boot';
 import { MOCK_COURSES } from '@/data/mock/courses';
+import CourseExcelImport from '@/ui/week/CourseExcelImport';
+import { newId } from '@/lib/courseExcel';
+import type { CourseInput } from '@/lib/courseExcel';
 import type { Campus, Preferences, UserProfile } from '@/types/contract';
 
 /**
@@ -62,8 +65,9 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
 
-  // 课表
-  const [withCourses, setWithCourses] = useState(true);
+  // 课表：示例填充 / 空表自加 / Excel 导入
+  const [courseMode, setCourseMode] = useState<'mock' | 'empty' | 'excel'>('mock');
+  const [excelCourses, setExcelCourses] = useState<CourseInput[]>([]);
 
   // 餐标
   const [mealBudget, setMealBudget] = useState('1200');
@@ -92,7 +96,10 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       const prefs: Preferences = { chronotype, foodPriority, napHabit, compliance: {}, conflictChoices: {} };
       await saveProfile(profile);
       await savePreferences(prefs);
-      if (withCourses) await db.courses.bulkPut(MOCK_COURSES);
+      if (courseMode === 'mock') await db.courses.bulkPut(MOCK_COURSES);
+      if (courseMode === 'excel' && excelCourses.length > 0) {
+        await db.courses.bulkPut(excelCourses.map((c) => ({ ...c, id: newId() })));
+      }
       setBootMode('real'); // 从此不再自动灌示例数据
       toast('画像已保存在这台设备上', { description: '数据只存本地 IndexedDB，不上传任何服务器。' });
       onDone();
@@ -235,25 +242,40 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
           <section className="space-y-4">
             <h2 className="font-serif text-lg font-semibold">课表怎么来</h2>
             <p className="text-sm text-muted-foreground">
-              这学期还没有真实教务源，先二选一；之后可以在设置里逐条增删。
+              三种方式任选；之后随时可以在周历里逐条增删改，或重新导入。
             </p>
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => setWithCourses(true)}
-                className={`w-full rounded-xl border p-3 text-left text-sm ${withCourses ? 'border-primary bg-primary/5' : ''}`}
+                onClick={() => setCourseMode('mock')}
+                className={`w-full rounded-xl border p-3 text-left text-sm ${courseMode === 'mock' ? 'border-primary bg-primary/5' : ''}`}
               >
                 <div className="font-medium">先导入示例课表（推荐）</div>
                 <div className="text-muted-foreground">含早八、连排、午休被吃掉的真实形态，便于立刻看到报告效果</div>
               </button>
               <button
                 type="button"
-                onClick={() => setWithCourses(false)}
-                className={`w-full rounded-xl border p-3 text-left text-sm ${!withCourses ? 'border-primary bg-primary/5' : ''}`}
+                onClick={() => setCourseMode('empty')}
+                className={`w-full rounded-xl border p-3 text-left text-sm ${courseMode === 'empty' ? 'border-primary bg-primary/5' : ''}`}
               >
                 <div className="font-medium">空课表，我自己加</div>
                 <div className="text-muted-foreground">报告会以「今天没课」为起点，时间块变为整天空档</div>
               </button>
+              <button
+                type="button"
+                onClick={() => setCourseMode('excel')}
+                className={`w-full rounded-xl border p-3 text-left text-sm ${courseMode === 'excel' ? 'border-primary bg-primary/5' : ''}`}
+              >
+                <div className="font-medium">从 Excel 导入我的课表</div>
+                <div className="text-muted-foreground">
+                  {excelCourses.length > 0 ? `已读取 ${excelCourses.length} 门课，完成建档后写入` : '按模板填好课程名 / 星期 / 开始 / 结束即可'}
+                </div>
+              </button>
+              {courseMode === 'excel' && (
+                <div className="rounded-xl border bg-muted/30 p-3">
+                  <CourseExcelImport onParsed={setExcelCourses} />
+                </div>
+              )}
             </div>
             <div className="flex justify-between pt-2">
               <Button variant="ghost" onClick={() => setStep(2)}>
@@ -363,7 +385,15 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
               <div className="flex justify-between gap-4 border-b pb-2">
                 <dt className="text-muted-foreground">课表</dt>
-                <dd>{withCourses ? `已导入 ${MOCK_COURSES.length} 条示例课程` : '空课表'}</dd>
+                <dd>
+                  {courseMode === 'mock'
+                    ? `已导入 ${MOCK_COURSES.length} 条示例课程`
+                    : courseMode === 'excel'
+                      ? excelCourses.length > 0
+                        ? `已从 Excel 读取 ${excelCourses.length} 门课`
+                        : '选了 Excel 导入但还没选文件（等同空课表）'
+                      : '空课表'}
+                </dd>
               </div>
               <div className="flex justify-between gap-4 border-b pb-2">
                 <dt className="text-muted-foreground">餐标</dt>
