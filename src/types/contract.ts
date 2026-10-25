@@ -210,6 +210,8 @@ export interface ConflictCard {
   resolvedBy?: 'user' | 'orchestrator';
   /** 是否按历史偏好预填（裁决一次，不重复打扰） */
   preset?: boolean;
+  /** 上次选过的方案，用于把「预填」真正高亮出来（契约 v1.6） */
+  presetChoice?: 'A' | 'B';
 }
 
 // ── 报告 = 区块拼装（契约 §4）─────────────────────────────────

@@ -31,8 +31,9 @@ export function arbitrateClaims(claims: ConflictClaim[], prefs: Preferences): Co
       level: 'L2',
       planA: list[0].plan,
       planB: list[1].plan,
-      // 裁决记忆：同类冲突上次选过 → 预填，仍可一键切换（裁决一次，不再重复打扰）
+      // 裁决记忆：同类冲突上次选过 → 预填并高亮，仍可一键切换（裁决一次，不再重复打扰）
       preset: prefs.conflictChoices[topic] !== undefined,
+      presetChoice: prefs.conflictChoices[topic],
     });
   }
   return cards;
