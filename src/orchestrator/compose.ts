@@ -1,13 +1,14 @@
 import { coursesOfDay, todayCourses } from '@/data/queries';
 import { db } from '@/data/store/db';
 import { getSleepLogs } from '@/data/store/profile';
-import { avgSleepHours, lastNightSleep } from '@/data/queries';
+import { SLEEP_NEED_HOURS, avgSleepHours, lastNightSleep, sleepDebt } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
 import { examEveChecklist } from './exam';
 import { weeklyComplianceText } from './compliance';
 import type {
   AgentContext,
+  AgentId,
   AgentResult,
   ConflictCard,
   OverviewItem,
@@ -100,10 +101,16 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
   // A8：本周执行率直接来自「做了 / 没做」的点击记录，没有记录就不编数字
   const weekRate = await weeklyComplianceText(ctx.now);
+  // 一周尺度的睡眠债：和「昨晚」分开说，免得两个口径混在一行里
+  const debt = sleepDebt(logs, 7, ctx.now);
+  const debtText = debt === null
+    ? '—（尚未录入）'
+    : `${debt.debtHours}h（近 ${debt.covered} 晚按 ${SLEEP_NEED_HOURS}h 算）`;
   return [
     { label: '今日课程', value: `${courses.length} 节` },
     { label: '昨晚睡眠', value: lastNight ? `${lastNight.hours}h` : '—（尚未录入）' },
     { label: '近 7 天平均睡眠', value: avg7Text },
+    { label: '睡眠债', value: debtText },
     { label: '本周建议执行率', value: weekRate ?? '—（还没点过「做了 / 没做」）' },
     { label: '今日点选', value: `${choicesToday} 个选项（已记入本地偏好）` },
   ];
@@ -144,6 +151,12 @@ export async function composeReport(
     .sort((a, b) => a.priority - b.priority);
   const warnings = results.flatMap((r) => r.findings).filter((f) => f.type === 'warning');
   const facts = results.flatMap((r) => r.findings);
+  // 警告卡上的「—— 健康 Agent」要认得出是谁出的：先看证据，再看它落在哪个 Agent 的结果里。
+  // 之前只认证据，没有证据的警告一律显示成「日程 Agent」，会张冠李戴。
+  const agentOfFinding = (f: (typeof facts)[number]): AgentId =>
+    f.evidences?.[0]?.agentId ??
+    results.find((r) => r.findings.some((x) => x.id === f.id))?.agentId ??
+    'schedule';
 
   const blocks: ReportBlock[] = [];
   for (const kind of RECIPES[type]) {
@@ -158,7 +171,7 @@ export async function composeReport(
         for (const conflict of conflicts) blocks.push({ kind: 'conflict', conflict });
         break;
       case 'warning':
-        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, agentId: w.evidences?.[0]?.agentId ?? 'schedule' });
+        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, agentId: agentOfFinding(w) });
         break;
       case 'recap':
         blocks.push({ kind: 'recap', stats: { items: await buildRecap(ctx) } });

@@ -1,12 +1,16 @@
 import { getSleepLogs } from '@/data/store/profile';
 import {
+  SLEEP_NEED_HOURS,
   avgSleepHours,
+  bedtimeRegularity,
   hasBackToBack,
   hasEarlyEight,
   hoursIfSleepNow,
   lastNightSleep,
+  sleepDebt,
   todayCourses,
   wakePlanOf,
+  weekOverWeek,
 } from '@/data/queries';
 import { fmtMin } from '@/types/contract';
 import type { AgentModule, AgentResult, Finding, OptionCard } from '@/types/contract';
@@ -66,6 +70,75 @@ export const healthAgent: AgentModule = {
         },
       ],
     });
+
+    // ── 睡眠债 / 规律性 / 本周对比 ──
+    // 这三条是「一周尺度」的判断，和上面「昨晚」的即时判断分开说，
+    // 免得一句话里既有 5.5h 又有 6.1h 却没交代清楚各自的口径。
+    const debt = sleepDebt(logs, 7, ctx.now);
+    const rhythm = bedtimeRegularity(logs, 7, ctx.now);
+    const week = weekOverWeek(logs, ctx.now);
+
+    const loadParts: string[] = [];
+    if (debt) loadParts.push(`睡眠债 ${debt.debtHours}h（近 ${debt.covered} 晚按 ${SLEEP_NEED_HOURS}h 算）`);
+    if (rhythm) loadParts.push(`入睡时间波动 ±${rhythm.stdMin} 分钟`);
+    if (week.delta !== null && week.thisWeek !== null) {
+      const dir = week.delta >= 0 ? '多' : '少';
+      loadParts.push(`本周平均 ${week.thisWeek.toFixed(1)}h，比上周${dir} ${Math.abs(week.delta).toFixed(1)}h`);
+    }
+    if (loadParts.length > 0) {
+      findings.push({
+        id: 'health:sleep-load',
+        type: 'fact',
+        topic: '睡眠',
+        confidence: 3,
+        summary: loadParts.join('；'),
+        evidences: [
+          {
+            agentId: 'health',
+            text: `口径：每晚报 7.5h 记一次缺口；入睡时间波动是近 7 晚入睡时刻的标准差${debt ? `，只算有记录的 ${debt.covered} 晚` : ''}`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+
+    // 欠得多才报，不把「某一晚少睡一小时」也写成风险
+    if (debt && debt.debtHours >= 6) {
+      const worstText = debt.worst
+        ? `，欠得最多的是 ${debt.worst.date} 那晚只睡 ${debt.worst.hours}h`
+        : '';
+      findings.push({
+        id: 'health:sleep-debt-warn',
+        type: 'warning',
+        topic: '睡眠',
+        confidence: 2,
+        summary: `近 ${debt.covered} 晚累计睡眠债 ${debt.debtHours}h${worstText}`,
+        evidences: [
+          {
+            agentId: 'health',
+            text: `欠得最多的是 ${debt.worst?.date ?? '—'} 那晚 ${debt.worst?.hours ?? 0}h`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+
+    if (rhythm && rhythm.stdMin >= 90) {
+      findings.push({
+        id: 'health:sleep-irregular',
+        type: 'warning',
+        topic: '睡眠',
+        confidence: 2,
+        summary: `入睡时间波动 ±${rhythm.stdMin} 分钟，作息不太规律`,
+        evidences: [
+          {
+            agentId: 'health',
+            text: `近 ${rhythm.covered} 晚入睡时刻的标准差为 ${rhythm.stdMin} 分钟（<30 稳 / 30–60 一般 / >90 乱）`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
 
     // ── 午间小憩建议 ──
     const sleepForNap = lastNight?.hours ?? avg3 ?? 8;

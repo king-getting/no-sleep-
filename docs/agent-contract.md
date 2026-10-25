@@ -130,7 +130,7 @@ const RECIPES: Record<Report['type'], BlockKind[]> = {
   noon: ['overview', 'suggestionGroup', 'conflict', 'warning'],
   evening: ['recap', 'suggestionGroup', 'preview', 'conflict'],
   'exam-day': ['overview', 'warning', 'suggestionGroup', 'checklist'], // 生存模式（v1.2）
-  'exam-week': ['overview', 'suggestionGroup', 'conflict', 'recap'],
+  'exam-week': ['overview', 'warning', 'suggestionGroup', 'conflict', 'recap'], // warning 于 v1.5 补入
   'exam-done': ['overview', 'warning', 'recap', 'suggestionGroup'], // 考后 2–6h（v1.4）
 };
 ```
@@ -257,4 +257,11 @@ src/
   - 新增 §4.2 考后小结：`EXAM_DONE_AFTER_MS`（2h）/ `EXAM_DONE_WINDOW_MS`（6h）与四个合成 finding（`exam:done` 等），优先级高于 exam-day/exam-week
   - 新增 §4.3 遵从度回流：`MISSES_BEFORE_DOWNGRADE = 2`、同日去重、降级只降一级且最多到 3、恢复条件是一次「做了」
   - `recap` 新增「本周建议执行率」；无数据时显示占位而不是编数字
+- **v1.5**（2026-10-25，健康口径与一周尺度指标落地时同步）：
+  - **睡眠口径**：`lastNightSleep(logs, now)` 只认「昨天那一条」；`avgSleepHours(logs, lastN, now)` 按日历窗口统计且**可返回 `null`**；新增 `wakePlanOf(now)`（按次日最早一节课反推起床时间）与 `hoursIfSleepNow(now, wakeMin)`（自动跨午夜）。调用方拿到 `null` 必须写「—（尚未录入）」，不得回退到健康基线
+  - **一周尺度**：新增 `sleepDebt()`（每晚按 `SLEEP_NEED_HOURS = 7.5` 计缺口，同时返回覆盖晚数）、`bedtimeRegularity()`（入睡时刻标准差，凌晨入睡统一 +1440 后计算）、`weekOverWeek()`（本周 7 晚 vs 上周 7 晚，两边都有数才给 `delta`）
+  - 健康 Agent 新增三条 finding：`health:sleep-load`（fact，一句话讲清债 / 波动 / 同比）、`health:sleep-debt-warn`（≥6h 才报）、`health:sleep-irregular`（标准差 ≥90 分钟才报）
+  - `recap` 新增「睡眠债」一行，与「昨晚睡眠」「近 7 天平均」并列，口径各自写明
+  - `RECIPES['exam-week']` 补上 `warning`：此前冲刺报告只在概览里写「N 项需留意」却没有任何一处能读到具体是哪几项
+  - `compose` 的警告卡归属改为「先看证据、再看它落在哪个 Agent 的结果里」：此前无证据的警告一律显示成「日程 Agent」，会张冠李戴
 
