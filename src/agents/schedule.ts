@@ -139,13 +139,16 @@ export const scheduleAgent: AgentModule = {
         const wakeMin = firstClass.startMin - CUSHION_MIN - WALK_MIN - plan.prep;
         return {
           id: plan.id,
-          title: `${fmtMin(wakeMin)} 起，${plan.label}`,
-          cost: { timeMin: firstClass.startMin - wakeMin },
+          title: `${fmtMin(wakeMin)} 起，${plan.label}（${plan.prep >= 35 ? '坐得下来' : '不耽误课'}）`,
+          note: plan.id === 'early8-canteen' ? `食堂早饭 · ${fmtMin(firstClass.startMin)} 上「${firstClass.name}」` : `${fmtMin(firstClass.startMin)} 上「${firstClass.name}」`,
+          when: `明早 ${fmtMin(wakeMin)} 出门`,
+          cost: { timeMin: firstClass.startMin - wakeMin, effort: (plan.prep >= 35 ? 2 : 1) as 1 | 2 },
           pros: plan.pros,
           cons:
             plan.id === 'early8-canteen'
               ? [`比「${plans[2].label}」早起 ${plans[0].prep - plans[2].prep} 分钟`]
               : plan.cons,
+          fallback: plan.id === 'early8-skip' ? '空着肚子撑到第三节课，中途很难补' : '闹钟仍按最晚那档，路上出岔子就迟到',
           impacts: [
             { horizon: 'short' as const, text: plan.shortImpact, agentId: 'schedule' as const },
             { horizon: 'long' as const, text: '早八这天的上午状态，多半由这一顿决定', agentId: 'health' as const },

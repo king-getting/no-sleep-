@@ -23,7 +23,7 @@ export function WarningListBlock({ items }: { items: { text: string; agentId: Ag
             <li key={i} className="flex items-start gap-2.5 px-4 py-2.5">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/80" />
               <p className="min-w-0 flex-1 text-sm leading-relaxed">{item.text}</p>
-              <span className={cn('mt-0.5 shrink-0 text-[11px]', meta.color)}>{meta.name}</span>
+              <span className={cn('mt-0.5 hidden shrink-0 text-[11px] sm:inline', meta.color)}>{meta.name}</span>
             </li>
           );
         })}

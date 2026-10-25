@@ -1,6 +1,8 @@
-import { Scale, Salad } from 'lucide-react';
+import { Fragment } from 'react';
+import { Clock, Coins, Info, Salad, Scale } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { fmtDuration, fmtMoney } from '@/lib/format';
 import { nutritionLabel, nutritionTip } from '@/lib/nutrition';
 import { cn } from '@/lib/utils';
 import { AGENT_META } from '@/ui/agentMeta';
@@ -40,9 +42,29 @@ function PlanView({
           </Button>
         )}
       </div>
-      <p className="mt-2 font-medium">{plan.title}</p>
+      <p className="mt-2 text-[13.5px] font-medium leading-snug">{plan.title}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-1">
+        {plan.when && (
+          <Badge variant="default" className="h-5 gap-1 bg-accent px-1.5 text-[11px] font-normal text-accent-foreground">
+            <Clock className="h-2.5 w-2.5" />
+            {plan.when}
+          </Badge>
+        )}
+        {plan.cost.money !== undefined && (
+          <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[11px] font-normal">
+            <Coins className="h-2.5 w-2.5" />
+            {fmtMoney(plan.cost.money)}
+          </Badge>
+        )}
+        {plan.cost.timeMin !== undefined && (
+          <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[11px] font-normal">
+            <Clock className="h-2.5 w-2.5" />
+            {fmtDuration(plan.cost.timeMin)}
+          </Badge>
+        )}
+      </div>
       {plan.nutrition && (
-        <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-[11.5px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <Salad className="h-3 w-3" />
             这一餐
@@ -51,21 +73,33 @@ function PlanView({
           {nutritionTip(plan.nutrition) && <span>· {nutritionTip(plan.nutrition)}</span>}
         </p>
       )}
-      <div className="mt-2 space-y-1 text-sm">
+      <div className="mt-2 grid grid-cols-[2.75rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-[12.5px] leading-relaxed">
         {plan.pros.map((t) => (
-          <p key={t}><span className="mr-1.5 text-primary">优势</span>{t}</p>
+          <Fragment key={`p-${t}`}>
+            <span className="text-primary/80">优势</span>
+            <span className="text-foreground/90">{t}</span>
+          </Fragment>
         ))}
         {plan.cons.map((t) => (
-          <p key={t} className="text-muted-foreground"><span className="mr-1.5">代价</span>{t}</p>
+          <Fragment key={`c-${t}`}>
+            <span className="text-muted-foreground/70">代价</span>
+            <span className="text-muted-foreground">{t}</span>
+          </Fragment>
         ))}
         {plan.impacts.map((i) => (
-          <p key={i.text} className="text-muted-foreground">
-            <span className="mr-1.5">{i.horizon === 'short' ? '短期影响' : '长期影响'}</span>
-            {i.text}
-          </p>
+          <Fragment key={i.text}>
+            <span className="text-muted-foreground/60">{i.horizon === 'short' ? '短期' : '长期'}</span>
+            <span className="text-muted-foreground">{i.text}</span>
+          </Fragment>
         ))}
       </div>
-      <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+      {plan.fallback && (
+        <p className="mt-1.5 flex items-start gap-1 text-[11.5px] text-muted-foreground/80">
+          <Info className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>不选的话：{plan.fallback}</span>
+        </p>
+      )}
+      <div className="mt-2 border-t pt-1.5 text-[11px] text-muted-foreground">
         依据：{plan.evidences.map((e) => e.text).join('；')}
       </div>
     </div>

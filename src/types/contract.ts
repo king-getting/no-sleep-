@@ -62,10 +62,6 @@ export interface Preferences {
   compliance: Record<string, { shown: number; done: number }>;
   /** 冲突裁决记忆：topic -> 上次选择（裁决一次，不再重复打扰） */
   conflictChoices: Record<string, 'A' | 'B'>;
-  /** v1.10「没做」归因：topic -> 最近一次原因（起晚了/不饿/没时间/忘了），次日建议据此转化 */
-  missReasons?: Record<string, string>;
-  /** v1.10 一键「不再追问」的 topic：不再出现「做了 / 没做」标记 */
-  noAsk?: Record<string, true>;
 }
 
 /** 课程（时间统一用「当日分钟数」表示，如 8:00 = 480） */
@@ -185,13 +181,20 @@ export interface Suggestion {
 
 export interface OptionCard {
   id: string;
-  title: string; // 「一食堂二楼经济窗口」
-  cost: { money?: number; timeMin?: number };
+  /** 动作 + 取舍。例：「去一食堂吃（省 7 元）」。只写对象名的话，用户得自己从 pros 里拼出取舍 */
+  title: string;
+  /** 对象与地点。例：「一食堂二楼 · 12:10 前是低峰」 */
+  note?: string;
+  /** 时间锚：「今天 12:00 前」「明早 7:40 出门」。跨时段看报告时，没有它不知道还来不来得及 */
+  when?: string;
+  cost: { money?: number; timeMin?: number; effort?: 1 | 2 | 3 };
   /** 一餐的结构标签（v1.7）：只讲蔬菜 / 蛋白 / 油这类能自查的层级，**不报热量** */
   nutrition?: MealNutrition;
-  pros: string[]; // 优势
-  cons: string[]; // 代价
-  impacts: Impact[]; // 可能影响（决策模拟）
+  pros: string[]; // 优势（≤2 条，与 cons 逐条对应）
+  cons: string[]; // 代价（≤2 条）
+  /** 不选这一项时，默认会发生什么。不替人决定，但要让人知道「什么都不做」的后果 */
+  fallback?: string;
+  impacts: Impact[]; // 可能影响：必须可观察，禁止「概率更高」这类套话
   evidences: Evidence[]; // 「为什么」展开渲染
 }
 
@@ -301,6 +304,3 @@ export function dayOfWeek(d: Date): 1 | 2 | 3 | 4 | 5 | 6 | 7 {
   const day = d.getDay();
   return (day === 0 ? 7 : day) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
 }
-
-/** 「没做」归因的可选项（v1.10，§4.7）：UI 与编排器共用这一份，别各写各的 */
-export const MISS_REASON_OPTIONS = ['起晚了', '不饿', '没时间', '忘了'] as const;

@@ -42,13 +42,16 @@ function reviewSuggestionOf(exam: ExamItem, now: Date): Suggestion {
 
   const blockOption = {
     id: `${exam.id}-block`,
-    title: '今晚留一个 90 分钟整块，只攻这一门',
-    cost: { timeMin: 90 },
-    pros: ['连续上下文，适合建立章节框架', masteryAdvice(mastery)],
+    title: `今晚留一个 90 分钟整块，只攻「${exam.title}」`,
+    note: '连续上下文，适合建立章节框架',
+    when: '今晚 19:00 后',
+    cost: { timeMin: 90, effort: 2 },
+    pros: ['一口气啃完一章，不用反复热身', masteryAdvice(mastery)],
     cons: ['今晚别的安排要让路'],
+    fallback: '今晚不排，明天冲刺报告会把可用时间标红',
     impacts: [
-      { horizon: 'short' as const, text: '今晚进度明显推进，但会更累', agentId: 'schedule' as const },
-      { horizon: 'long' as const, text: '考前不慌的概率更高', agentId: 'schedule' as const },
+      { horizon: 'short' as const, text: '今晚会累一点，但这一章能过完', agentId: 'schedule' as const },
+      { horizon: 'long' as const, text: '考前还剩两轮能回头补漏', agentId: 'schedule' as const },
     ],
     evidences: [
       { agentId: 'schedule' as const, text: `${exam.title}：${days}`, confidence: 3 as const },
@@ -59,9 +62,12 @@ function reviewSuggestionOf(exam: ExamItem, now: Date): Suggestion {
   const fragmentOption = {
     id: `${exam.id}-fragment`,
     title: '拆成 3 个 30 分钟碎片（课间 / 排队 / 睡前）',
-    cost: { timeMin: 90 },
-    pros: ['不占整块，抗打断', '记忆类内容（单词、公式）适合碎片'],
-    cons: ['每次都要重新进入状态，深度不够'],
+    note: '只适合单词、公式这类能背的',
+    when: '今天剩余时间',
+    cost: { timeMin: 90, effort: 1 },
+    pros: ['不占整块，被打断也不心疼'],
+    cons: ['每次都要重新进入状态，理解深度不够'],
+    fallback: '今天大概率一事无成，明天还得多花 30 分钟热身',
     impacts: [
       { horizon: 'short' as const, text: '今天能挤出复习量，但理解深度有限', agentId: 'schedule' as const },
       { horizon: 'long' as const, text: '只适合记忆型科目，纯理解型收效低', agentId: 'schedule' as const },
@@ -72,11 +78,14 @@ function reviewSuggestionOf(exam: ExamItem, now: Date): Suggestion {
   const drillOption = {
     id: `${exam.id}-drill`,
     title: '先做一套往年题，用错题反推要看的章节',
-    cost: { timeMin: 60 },
-    pros: ['先暴露不会的地方，避免无效通读', '有明确完成标志'],
+    note: '限时做完再对答案',
+    when: '今晚 20:00 前',
+    cost: { timeMin: 60, effort: 2 },
+    pros: ['先暴露不会的地方，避免无效通读'],
     cons: ['基础太薄时容易挫败'],
+    fallback: '继续从头翻书，翻到哪算哪',
     impacts: [
-      { horizon: 'short' as const, text: '一小时就知道该看哪几章', agentId: 'schedule' as const },
+      { horizon: 'short' as const, text: '一小时后就知道该看哪几章', agentId: 'schedule' as const },
       { horizon: 'long' as const, text: '考前手感更接近真实考场', agentId: 'schedule' as const },
     ],
     evidences: [{ agentId: 'schedule' as const, text: '掌握度 ≥4 时刷题收益高于通读', confidence: 2 as const }],
