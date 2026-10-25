@@ -1,14 +1,17 @@
 import {
+  avgSleepHours,
   computeTimeBlocks,
   describeBlocks,
   hasBackToBack,
   hasEarlyEight,
   hasFreeBlockBefore,
+  lastNightSleep,
   lunchCrunch,
   todayCourses,
   tonightFreeBlock,
   upcomingExams,
 } from '@/data/queries';
+import { getSleepLogs } from '@/data/store/profile';
 import { fmtMin } from '@/types/contract';
 import type { AgentModule, AgentResult, Finding } from '@/types/contract';
 
@@ -91,17 +94,32 @@ export const scheduleAgent: AgentModule = {
     const result: AgentResult = { agentId: 'schedule', findings };
     const tonight = await tonightFreeBlock(ctx.now);
     if (nearest && tonight) {
+      // L2 真冲突的日程方：主张把今晚这段整块留给复习。
+      // 代价一律用真实数据算，不写死「连续第 4 天」这种可能对不上的话。
+      const logs = await getSleepLogs();
+      const lastNight = lastNightSleep(logs, ctx.now);
+      const avg3 = avgSleepHours(logs, 3, ctx.now);
+      // 「今晚」只算 18:00 之后那段：没课的日子空档从早上就开始了，不能把白天也算进来
+      const eveningFrom = Math.max(tonight.startMin, 18 * 60);
+      const eveningTo = Math.min(tonight.endMin, 23 * 60);
+      const blockHours = ((eveningTo - eveningFrom) / 60).toFixed(1);
       result.conflictClaims = [
         {
-          topic: 'tonight-slot',
+          topic: '今晚的空档',
           side: 'study',
           plan: {
             id: 'plan-study-first',
             agentId: 'schedule',
-            title: '学习优先：今晚复习至 23:30',
-            cost: { timeMin: 150 },
-            pros: ['复习时间充足，DDL 稳妥'],
-            cons: ['睡眠连续第 4 天 <6h'],
+            title: `学习优先：今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 留给「${nearest.title}」`,
+            cost: { timeMin: Number(blockHours) * 60 },
+            pros: [
+              `DDL 还有 ${hoursLeft}h，今晚能推进约 ${blockHours}h`,
+              '整块时间不断开，比拆成碎片更有效率',
+            ],
+            cons: [
+              lastNight ? `昨晚只睡 ${lastNight.hours}h，再晚睡明早容易废掉` : '缺觉状态下硬撑，效率打折扣',
+              avg3 !== null ? `近 3 天平均 ${avg3.toFixed(1)}h，已经欠着` : '这一周的睡眠本来就不多',
+            ],
             impacts: [
               { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'schedule' },
               { horizon: 'long', text: '缺觉累积，或影响周末考试状态', agentId: 'health' },
@@ -109,9 +127,10 @@ export const scheduleAgent: AgentModule = {
             evidences: [
               {
                 agentId: 'schedule',
-                text: `「${nearest.title}」DDL 在 ${hoursLeft}h 后；今晚 ${fmtMin(tonight.startMin)}–${fmtMin(tonight.endMin)} 有整块空档`,
+                text: `「${nearest.title}」DDL 在 ${hoursLeft}h 后；今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`,
                 confidence: 2,
               },
+              ...(lastNight ? [{ agentId: 'health' as const, text: `昨晚睡 ${lastNight.hours}h`, confidence: 3 as const }] : []),
             ],
           },
         },

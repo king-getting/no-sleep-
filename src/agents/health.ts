@@ -9,6 +9,7 @@ import {
   lastNightSleep,
   sleepDebt,
   todayCourses,
+  tonightFreeBlock,
   wakePlanOf,
   weekOverWeek,
 } from '@/data/queries';
@@ -244,22 +245,51 @@ export const healthAgent: AgentModule = {
     }
 
     // ── 对今晚空档的「提前睡」主张（真冲突的健康方） ──
-    if (avg3 !== null && avg3 < 6) {
+    // 和日程 Agent 的「今晚整块拿来复习」主张同 topic → arbiter 生成 L2 卡。
+    // 只有三个条件同时成立才开这张卡：近 3 天睡不够、今晚确实有可支配的空档、明天还要早起。
+    const tonightSlot = await tonightFreeBlock(ctx.now);
+    const debt7 = sleepDebt(logs, 7, ctx.now);
+    if (avg3 !== null && avg3 < 6 && tonightSlot) {
+      // 冲突点在「几点收工」：日程想用整晚空档，健康想 22:00 收工、23:00 睡下。
+      // 空档常常从早上就开始（没课的一天），所以只取 18:00 之后那段，别把白天算进「今晚」。
+      const eveningFrom = Math.max(tonightSlot.startMin, 18 * 60);
+      const eveningTo = Math.min(tonightSlot.endMin, 23 * 60);
+      const bedtimeMin = 23 * 60;
+      const stopAt = 22 * 60;
+      const cutMin = Math.max(0, eveningTo - stopAt);
+      const hoursAt23 = ((((wake.wakeMin - bedtimeMin) % 1440) + 1440) % 1440) / 60;
+      const moreThanLastNight = lastNight ? `${(hoursAt23 - lastNight.hours).toFixed(1)}h` : '—';
+      const debtAfter = debt7 ? Math.max(0, debt7.debtHours - hoursAt23).toFixed(1) : null;
       claims.push({
-        topic: 'tonight-slot',
+        topic: '今晚的空档',
         side: 'health',
         plan: {
           id: 'plan-health-first',
           agentId: 'health',
-          title: `健康优先：今晚早睡，${fmtMin(wake.wakeMin)} 起`,
-          cost: { timeMin: 60 },
-          pros: ['睡眠恢复，明早状态好'],
-          cons: ['复习时间 −1h'],
-          impacts: [
-            { horizon: 'short', text: '需挪用明晚 1h 整块时间补复习', agentId: 'schedule' },
-            { horizon: 'long', text: '打断连续缺觉，周末考试状态回升', agentId: 'health' },
+          title: `健康优先：今晚 ${fmtMin(stopAt)} 收工，${fmtMin(bedtimeMin)} 睡、明早 ${fmtMin(wake.wakeMin)} 起（约 ${hoursAt23.toFixed(1)} 小时）`,
+          cost: { timeMin: cutMin },
+          pros: [
+            lastNight ? `比昨晚多睡 ${moreThanLastNight}` : '把这一周的缺口补一点',
+            wake.reason === 'class' && wake.firstClass
+              ? `明早 ${fmtMin(wake.firstClass.startMin)} 有 ${wake.firstClass.name}，不缺觉才听得进去`
+              : '明早按自己的节奏起床，不至于睡过头',
           ],
-          evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 }],
+          cons: [cutMin > 0 ? `今晚的复习整块少 ${cutMin} 分钟（${fmtMin(stopAt)} 之后不再开工）` : `${fmtMin(stopAt)} 之后不再开工`],
+          impacts: [
+            {
+              horizon: 'short',
+              text: wake.reason === 'class' && wake.firstClass
+                ? `${fmtMin(wake.firstClass.startMin)} 那节课不至于走神`
+                : '明早起来不至于发懵',
+              agentId: 'health',
+            },
+            { horizon: 'long', text: debtAfter !== null ? `这周睡眠债从 ${debt7?.debtHours.toFixed(1)}h 降到约 ${debtAfter}h` : '把这周的缺口压下去', agentId: 'health' },
+          ],
+          evidences: [
+            { agentId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 },
+            { agentId: 'health', text: debt7 ? `近 7 晚累计睡债 ${debt7.debtHours.toFixed(1)}h` : `${wakeText}`, confidence: 2 },
+            { agentId: 'schedule', text: `今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`, confidence: 2 },
+          ],
         },
       });
     }
