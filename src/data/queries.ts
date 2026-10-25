@@ -155,6 +155,101 @@ export function hoursIfSleepNow(now: Date, wakeMin: number): number {
   return Math.round((total / 60) * 10) / 10;
 }
 
+// ── 睡眠债 / 作息规律性 / 本周对比 ───────────────────────────
+// 三条都只用「有记录的那几晚」算，并且同时报出覆盖晚数，
+// 免得 2 条记录算出来的「欠了 1.4 小时」被当成一周的结论。
+
+/** 每晚需要多少小时：取 7.5，与图表里的建议线同一个数 */
+export const SLEEP_NEED_HOURS = 7.5;
+
+export interface SleepDebt {
+  /** 累计欠下的小时数（每晚不足 7.5 的部分相加） */
+  debtHours: number;
+  /** 有记录的晚数 */
+  covered: number;
+  /** 窗口总共几晚 */
+  window: number;
+  /** 欠得最多的那一晚 */
+  worst?: { date: string; hours: number };
+}
+
+export function sleepDebt(logs: SleepLog[], lastN = 7, now = new Date()): SleepDebt | null {
+  const byDate = new Map(logs.map((l) => [l.date, l.hours]));
+  let debt = 0;
+  let covered = 0;
+  let worst: SleepDebt['worst'];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = dateKeyOf(d);
+    const hours = byDate.get(key);
+    if (typeof hours !== 'number') continue;
+    covered += 1;
+    const short = SLEEP_NEED_HOURS - hours;
+    if (short > 0) {
+      debt += short;
+      if (!worst || short > SLEEP_NEED_HOURS - worst.hours) worst = { date: key, hours };
+    }
+  }
+  if (covered === 0) return null;
+  return { debtHours: Math.round(debt * 10) / 10, covered, window: lastN, worst };
+}
+
+export interface SleepRhythm {
+  /** 入睡时间的标准差（分钟）：越小越稳 */
+  stdMin: number;
+  /** 平均入睡时刻（分钟数，>1440 表示次日凌晨） */
+  meanMin: number;
+  covered: number;
+}
+
+/** 凌晨 0–11 点入睡的统一挪到次日，避免 23:50 和 00:10 被算成「差 23 小时」 */
+function normalizeBed(min: number): number {
+  return min < 12 * 60 ? min + 24 * 60 : min;
+}
+
+export function bedtimeRegularity(logs: SleepLog[], lastN = 7, now = new Date()): SleepRhythm | null {
+  const byDate = new Map(logs.map((l) => [l.date, l]));
+  const values: number[] = [];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const log = byDate.get(dateKeyOf(d));
+    if (log && typeof log.bedTimeMin === 'number') values.push(normalizeBed(log.bedTimeMin));
+  }
+  // 只有一晚谈不上「规律」，两天也算不出有意义的波动
+  if (values.length < 2) return null;
+  const mean = values.reduce((s, v) => s + v, 0) / values.length;
+  const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+  return { stdMin: Math.round(Math.sqrt(variance)), meanMin: Math.round(mean), covered: values.length };
+}
+
+export interface WeekCompare {
+  thisWeek: number | null;
+  lastWeek: number | null;
+  /** 本周 − 上周（小时，正数表示这周睡得更多）；两边都有数时才有值 */
+  delta: number | null;
+}
+
+export function weekOverWeek(logs: SleepLog[], now = new Date()): WeekCompare {
+  const avgOf = (from: number, to: number): number | null => {
+    const values: number[] = [];
+    for (let i = from; i <= to; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const log = logs.find((l) => l.date === dateKeyOf(d));
+      if (log) values.push(log.hours);
+    }
+    if (values.length === 0) return null;
+    return values.reduce((s, v) => s + v, 0) / values.length;
+  };
+  const thisWeek = avgOf(1, 7);
+  const lastWeek = avgOf(8, 14);
+  const delta =
+    thisWeek !== null && lastWeek !== null ? Math.round((thisWeek - lastWeek) * 10) / 10 : null;
+  return { thisWeek, lastWeek, delta };
+}
+
 export function describeBlocks(blocks: TimeBlock[]): string {
   const free = blocks.filter((b) => b.kind === 'free');
   const frag = blocks.filter((b) => b.kind === 'fragment');

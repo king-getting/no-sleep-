@@ -3,6 +3,7 @@ import { Area, Bar, CartesianGrid, Cell, ComposedChart, ReferenceLine, Responsiv
 import { BedDouble, Moon, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { bedtimeRegularity, sleepDebt, weekOverWeek } from '@/data/queries';
 import { deleteSleepLog, getSleepLogs, upsertSleepLog } from '@/data/store/profile';
 import type { SleepLog } from '@/types/contract';
 
@@ -94,6 +95,14 @@ export default function Health() {
     energy: w.log ? energyOf(w.log.hours) : null,
     missing: !w.log,
   }));
+
+  // 一周尺度的三条：欠了多少、稳不稳、比上周如何（都只算有记录的晚数）
+  const debt = sleepDebt(logs, 7, now);
+  const rhythm = bedtimeRegularity(logs, 7, now);
+  const compare = weekOverWeek(logs, now);
+  const rhythmLabel =
+    rhythm === null ? '' : rhythm.stdMin < 30 ? '稳' : rhythm.stdMin < 60 ? '一般' : rhythm.stdMin < 90 ? '偏乱' : '很乱';
+  const debtLabel = debt === null ? '' : debt.debtHours === 0 ? '没欠' : debt.debtHours < 3 ? '略欠' : debt.debtHours < 6 ? '欠了一些' : '欠得多';
 
   async function save() {
     const h = Number(hours);
@@ -314,6 +323,54 @@ export default function Health() {
               <div className="rounded-lg border p-2.5">
                 <p className="text-[11px] text-muted-foreground">平均入睡</p>
                 <p className="text-lg font-semibold">{fmtBed(avgBed)}</p>
+              </div>
+            </div>
+
+            {/* 一周尺度：欠多少 / 稳不稳 / 比上周 */}
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="rounded-lg border p-2.5">
+                <p className="text-[11px] text-muted-foreground">
+                  睡眠债 <span className="text-muted-foreground/70">· {debtLabel || '—'}</span>
+                </p>
+                <p className={`text-lg font-semibold ${debt && debt.debtHours >= 6 ? 'text-destructive' : ''}`}>
+                  {debt === null ? '—' : debt.debtHours.toFixed(1)}
+                  {debt !== null && <span className="text-xs font-normal text-muted-foreground">h</span>}
+                </p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                  {debt === null ? '没有记录' : `近 ${debt.covered} 晚按 7.5h 算`}
+                </p>
+              </div>
+              <div className="rounded-lg border p-2.5">
+                <p className="text-[11px] text-muted-foreground">
+                  入睡波动 <span className="text-muted-foreground/70">· {rhythmLabel || '—'}</span>
+                </p>
+                <p className={`text-lg font-semibold ${rhythm && rhythm.stdMin >= 90 ? 'text-destructive' : ''}`}>
+                  {rhythm === null ? '—' : `±${rhythm.stdMin}`}
+                  {rhythm !== null && <span className="text-xs font-normal text-muted-foreground">分</span>}
+                </p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                  {rhythm === null ? '不足两晚记录' : `<30 稳 · 30–60 一般 · >90 乱`}
+                </p>
+              </div>
+              <div className="rounded-lg border p-2.5">
+                <p className="text-[11px] text-muted-foreground">比上周</p>
+                <p
+                  className={`text-lg font-semibold ${
+                    compare.delta === null ? 'text-muted-foreground' : compare.delta >= 0 ? '' : 'text-destructive'
+                  }`}
+                >
+                  {compare.delta === null
+                    ? '—'
+                    : `${compare.delta >= 0 ? '+' : ''}${compare.delta.toFixed(1)}`}
+                  {compare.delta !== null && <span className="text-xs font-normal text-muted-foreground">h</span>}
+                </p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                  {compare.thisWeek === null
+                    ? '本周没有记录'
+                    : `本周 ${compare.thisWeek.toFixed(1)}h${
+                        compare.lastWeek === null ? ' · 上周没有记录' : ` · 上周 ${compare.lastWeek.toFixed(1)}h`
+                      }`}
+                </p>
               </div>
             </div>
             <p className="mt-2 text-[11px] text-muted-foreground">
