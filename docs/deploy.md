@@ -1,6 +1,7 @@
 # 部署与演示保障（A9）
 
 > 线上 Demo（2026-10-24 已验收）：<https://ccuner-xiaoshan.vercel.app>，已连接 GitHub，push 到 `main` 自动部署最新版
+> 兜底镜像（2026-10-25 已验收，六路由 200）：<https://ccuner-xiaoshan-mirror.netlify.app>，防止评委网络访问不了 vercel.app；更新方式：`npm run build` 后 `npx netlify-cli deploy --dir=dist --prod`（需本机已 `netlify login`）
 >
 > 目标：线上 URL 可访问 + 断网时仍能演示。两步互相独立——Vercel 只是「评委自己点开看看」的入口，**现场演示永远用本地 + 离线**，这样不赌会场网络。
 

@@ -5,6 +5,7 @@
 > 校园黑客松参赛项目 🏔️🌼
 
 **[打开在线 Demo](https://ccuner-xiaoshan.vercel.app)** · Vercel 部署，已连接 GitHub（push 到 `main` 自动部署最新版），无需账号，数据只保存在当前浏览器。
+**[国内镜像](https://ccuner-xiaoshan-mirror.netlify.app)** · Netlify 兜底镜像；更新方式：本机 `npm run build` 后 `npx netlify-cli deploy --dir=dist --prod`。
 
 ## 为什么是小山
 
