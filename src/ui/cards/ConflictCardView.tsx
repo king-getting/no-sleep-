@@ -1,6 +1,7 @@
-import { Scale } from 'lucide-react';
+import { Scale, Salad } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { nutritionLabel, nutritionTip } from '@/lib/nutrition';
 import { cn } from '@/lib/utils';
 import { AGENT_META } from '@/ui/agentMeta';
 import type { ConflictCard, ConflictPlan } from '@/types/contract';
@@ -8,7 +9,7 @@ import type { ConflictCard, ConflictPlan } from '@/types/contract';
 function PlanView({ plan, side, chosen, onChoose }: { plan: ConflictPlan; side: 'A' | 'B'; chosen: boolean; onChoose?: () => void }) {
   const meta = AGENT_META[plan.agentId];
   return (
-    <div className={cn('flex-1 rounded-xl border bg-card p-4', chosen && 'border-primary bg-primary/5')}>
+    <div className={cn('min-w-0 flex-1 basis-0 rounded-xl border bg-card p-4', chosen && 'border-primary bg-primary/5')}>
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className={cn('gap-1.5 font-normal', meta.color)}>
           <span className={cn('h-1.5 w-1.5 rounded-full', meta.bg)} />
@@ -21,6 +22,16 @@ function PlanView({ plan, side, chosen, onChoose }: { plan: ConflictPlan; side: 
         )}
       </div>
       <p className="mt-2 font-medium">{plan.title}</p>
+      {plan.nutrition && (
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <Salad className="h-3 w-3" />
+            这一餐
+          </span>
+          <span className="text-foreground/80">{nutritionLabel(plan.nutrition)}</span>
+          {nutritionTip(plan.nutrition) && <span>· {nutritionTip(plan.nutrition)}</span>}
+        </p>
+      )}
       <div className="mt-2 space-y-1 text-sm">
         {plan.pros.map((t) => (
           <p key={t}><span className="mr-1.5 text-primary">优势</span>{t}</p>

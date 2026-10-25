@@ -1,10 +1,26 @@
 import { queryAdapters } from '@/data/adapters';
 import { dailyBudget } from '@/types/contract';
-import type { AgentModule, AgentResult, Finding, OptionCard, RawItem } from '@/types/contract';
+import type {
+  AgentModule,
+  AgentResult,
+  Finding,
+  MealNutrition,
+  OptionCard,
+  RawItem,
+} from '@/types/contract';
 
 /** 餐标占比标注：餐饮类选项卡标注占今日餐标的比例 */
 function budgetText(price: number, daily: number): string {
   return `¥${price}，占今日餐标（¥${daily.toFixed(0)}）的 ${Math.round((price / daily) * 100)}%`;
+}
+
+/** 从窗口 payload 里读结构标签；数据源没标就返回 undefined（不猜） */
+function nutritionOf(w: RawItem | undefined): MealNutrition | undefined {
+  const n = w?.payload?.nutrition as MealNutrition | undefined;
+  if (!n || typeof n.veg !== 'number' || typeof n.protein !== 'number' || typeof n.oil !== 'number') {
+    return undefined;
+  }
+  return n;
 }
 
 function queueMin(w: RawItem, now: Date): number {
@@ -31,6 +47,7 @@ export const lifeAgent: AgentModule = {
   async run(ctx) {
     const findings: Finding[] = [];
     const suggestions: NonNullable<AgentResult['suggestions']> = [];
+    const claims: NonNullable<AgentResult['conflictClaims']> = [];
     const daily = dailyBudget(ctx.user);
     const hour = ctx.now.getHours() + ctx.now.getMinutes() / 60;
 
@@ -94,11 +111,15 @@ export const lifeAgent: AgentModule = {
 
     if (hour >= 10 && hour < 14 && w1 && w2 && cvs) {
       // 午饭（§5.2 示例）
+      const n1 = nutritionOf(w1);
+      const n2 = nutritionOf(w2);
+      const n3 = nutritionOf(cvs);
       const lunchOptions: OptionCard[] = [
         {
           id: 'lunch-a',
           title: '一食堂二楼经济窗口',
           cost: { money: Number(w1.payload?.avgPrice ?? 8), timeMin: queueMin(w1, ctx.now) + Number(w1.payload?.walkMin ?? 3) },
+          nutrition: n1,
           pros: ['省钱', '快：排队约 5 分钟、步行 3 分钟'],
           cons: ['口味普通，选择少'],
           impacts: [{ horizon: 'short', text: '预算宽裕，晚餐可以选更想吃的', agentId: 'life' }],
@@ -111,6 +132,7 @@ export const lifeAgent: AgentModule = {
           id: 'lunch-b',
           title: '桂香园轻食',
           cost: { money: Number(w2.payload?.avgPrice ?? 15), timeMin: queueMin(w2, ctx.now) + Number(w2.payload?.walkMin ?? 6) },
+          nutrition: n2,
           pros: ['清淡，午后不犯困'],
           cons: ['贵', '排队约 15 分钟'],
           impacts: [{ horizon: 'long', text: '常选轻食会让本周餐标吃紧', agentId: 'life' }],
@@ -123,6 +145,7 @@ export const lifeAgent: AgentModule = {
           id: 'lunch-c',
           title: '便利店饭团 + 提前去教室',
           cost: { money: Number(cvs.payload?.avgPrice ?? 10), timeMin: 5 },
+          nutrition: n3,
           pros: ['省下约 25 分钟'],
           cons: ['吃得将就'],
           impacts: [{ horizon: 'short', text: '下午预习到位，第一节课听课更轻松', agentId: 'schedule' }],
@@ -140,6 +163,33 @@ export const lifeAgent: AgentModule = {
         sourceFindingIds: ['life:weather'],
         options: lunchOptions,
       });
+
+      // 「省钱」侧主张（契约 §4.5）：与健康 Agent 的「吃好」侧配对成 L2。
+      // 只在日均餐标 30 元以下时成立——预算宽裕时这顿的差价本来就不痛不痒，
+      // 天天弹一张「省 7 元还是吃好点」的卡只会变成噪音。
+      const priceA = Number(w1.payload?.avgPrice ?? 8);
+      const priceB = Number(w2.payload?.avgPrice ?? 15);
+      if (daily < 30 && n1) {
+        claims.push({
+          topic: '今天的午饭',
+          side: 'saving',
+          plan: {
+            agentId: 'life',
+            id: 'lunch-saving',
+            title: `省钱优先：一食堂 ¥${priceA}，比轻食省 ${priceB - priceA} 元`,
+            cost: { money: priceA, timeMin: queueMin(w1, ctx.now) + Number(w1.payload?.walkMin ?? 3) },
+            nutrition: n1,
+            pros: [`一天省 ${priceB - priceA} 元，一个月约 ${(priceB - priceA) * 30} 元`],
+            // 结构由卡上的「这一餐」那行给出，这里不再重复一遍
+            cons: ['下午三四点容易饿', '连吃几天，下午第三节课容易没劲'],
+            impacts: [{ horizon: 'long', text: '守住餐标，月底不用靠泡面收尾', agentId: 'life' }],
+            evidences: [
+              { agentId: 'life', text: budgetText(priceA, daily), confidence: 3 },
+              { agentId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}，低于 30 元时才提这条`, confidence: 2 },
+            ],
+          },
+        });
+      }
     } else if (hour < 9 && w1 && cvs) {
       // 早餐
       suggestions.push({
@@ -202,6 +252,7 @@ export const lifeAgent: AgentModule = {
 
     const result: AgentResult = { agentId: 'life', findings };
     if (suggestions.length > 0) result.suggestions = suggestions;
+    if (claims.length > 0) result.conflictClaims = claims;
     return result;
   },
 };
