@@ -72,14 +72,87 @@ export function lunchCrunch(courses: Course[]): Course | undefined {
   return courses.find((c) => Math.min(c.endMin, 780) - Math.max(c.startMin, 690) >= 45);
 }
 
-export function lastNightSleep(logs: SleepLog[]): SleepLog | undefined {
-  return logs.at(-1);
+// ── 睡眠 ─────────────────────────────────────────────────────
+// 口径：SleepLog.date 是「入睡日期」。昨晚 = 昨天那一条；
+// 断更一天就是没有昨天，不拿更早的记录冒充昨晚。
+
+export function dateKeyOf(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-export function avgSleepHours(logs: SleepLog[], lastN: number): number {
-  const slice = logs.slice(-lastN);
-  if (slice.length === 0) return 8; // 无数据按健康基线，不误报
-  return slice.reduce((s, l) => s + l.hours, 0) / slice.length;
+export function lastNightSleep(logs: SleepLog[], now = new Date()): SleepLog | undefined {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const key = dateKeyOf(yesterday);
+  return logs.find((l) => l.date === key);
+}
+
+/**
+ * 近 N 晚平均睡眠：按日历窗口取「从昨天往前 N 天」，缺记录的日子不计入。
+ * 一条记录都没有时返回 null —— 调用方必须说「没有记录」，
+ * 不能拿 8h 健康基线当实测值（真实模式第一天就会撞上）。
+ */
+export function avgSleepHours(logs: SleepLog[], lastN: number, now = new Date()): number | null {
+  const byDate = new Map(logs.map((l) => [l.date, l.hours]));
+  const values: number[] = [];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const hours = byDate.get(dateKeyOf(d));
+    if (typeof hours === 'number') values.push(hours);
+  }
+  if (values.length === 0) return null;
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+/** 近 N 晚里有几晚有记录：把「平均」和「缺口」一起说清楚，免得平均掩盖断更 */
+export function sleepCoverage(logs: SleepLog[], lastN: number, now = new Date()): number {
+  const keys = new Set(logs.map((l) => l.date));
+  let hit = 0;
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    if (keys.has(dateKeyOf(d))) hit += 1;
+  }
+  return hit;
+}
+
+export interface WakePlan {
+  /** 起床时刻（当天 0:00 起的分钟数） */
+  wakeMin: number;
+  reason: 'class' | 'default';
+  firstClass?: Course;
+  /** 0 = 今天（凌晨还没睡，指今天早上）；1 = 明天 */
+  dayOffset: 0 | 1;
+}
+
+/**
+ * 起床计划：按「下一次要起床的那天」最早的一节课反推（课前 40 分钟），
+ * 没课默认 8:30；凌晨 5 点前视为还没睡，指向当天早上。
+ * 之前这里硬编码 7:00，没早八的日子「现在睡能睡 X 小时」就是错的。
+ */
+export async function wakePlanOf(now: Date): Promise<WakePlan> {
+  const dayOffset: 0 | 1 = now.getHours() < 5 ? 0 : 1;
+  const target = new Date(now);
+  target.setDate(target.getDate() + dayOffset);
+  const courses = await coursesOfDay(dayOfWeek(target));
+  const first = courses[0]; // coursesOfDay 已按 startMin 排序
+  if (first) {
+    const wakeMin = Math.max(6 * 60, Math.floor((first.startMin - 40) / 5) * 5);
+    return { wakeMin, reason: 'class', firstClass: first, dayOffset };
+  }
+  return { wakeMin: 8 * 60 + 30, reason: 'default', dayOffset };
+}
+
+/** 现在就睡、到 wakeMin 起床能睡几小时（自动跨午夜；只在晚上问才有意义） */
+export function hoursIfSleepNow(now: Date, wakeMin: number): number {
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const diff = wakeMin - nowMin;
+  const total = diff > 0 ? diff : diff + 24 * 60;
+  return Math.round((total / 60) * 10) / 10;
 }
 
 export function describeBlocks(blocks: TimeBlock[]): string {

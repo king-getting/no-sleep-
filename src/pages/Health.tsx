@@ -21,6 +21,13 @@ function dateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** 入睡日期口径：昨晚 = 昨天那条。默认填昨天，因为早上补录的就是昨晚。 */
+function lastNightKey(now: Date): string {
+  const d = new Date(now);
+  d.setDate(d.getDate() - 1);
+  return dateStr(d);
+}
+
 const WEEK_LABEL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const;
 
 function labelOf(date: string): { md: string; wd: string } {
@@ -46,7 +53,7 @@ function energyOf(hours: number): number {
 
 export default function Health() {
   const [logs, setLogs] = useState<SleepLog[] | null>(null);
-  const [date, setDate] = useState(() => dateStr(new Date()));
+  const [date, setDate] = useState(() => lastNightKey(new Date()));
   const [hours, setHours] = useState('7');
   const [bed, setBed] = useState('23:30');
   const [saving, setSaving] = useState(false);
@@ -65,10 +72,10 @@ export default function Health() {
     return <p className="p-10 text-center text-sm text-muted-foreground">正在读本机记录…</p>;
   }
 
-  // 最近 7 天（含今天），没记录的那天留洞
+  // 近 7 晚（到昨晚为止）：入睡日期口径下，今天那一栏是「今晚还没睡」，没有展示价值
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
+    d.setDate(now.getDate() - (7 - i));
     const key = dateStr(d);
     const log = logs.find((l) => l.date === key);
     return { key, log, ...labelOf(key) };
@@ -140,7 +147,7 @@ export default function Health() {
         </h2>
         <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr_auto]">
           <label className="block text-xs text-muted-foreground">
-            日期
+            入睡日期（昨晚就选昨天）
             <input
               type="date"
               value={date}
@@ -178,6 +185,7 @@ export default function Health() {
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
           同一天重复记录会覆盖，不会累加。凌晨 0:40 入睡请选 00:40，系统会自动按「次日」记账。
+          日期按「哪天晚上睡的」算：昨晚那一觉，日期就选昨天。
         </p>
       </section>
 
@@ -186,7 +194,7 @@ export default function Health() {
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-medium">
             <Moon className="h-4 w-4" />
-            近 7 天
+            近 7 晚
           </h2>
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -291,16 +299,16 @@ export default function Health() {
             <div className="mt-3 grid grid-cols-3 gap-2">
               <div className="rounded-lg border p-2.5">
                 <p className="text-[11px] text-muted-foreground">平均睡眠</p>
-                <p className={`text-lg font-semibold ${avg < LOW_SLEEP ? 'text-destructive' : ''}`}>
-                  {avg.toFixed(1)}
-                  <span className="text-xs font-normal text-muted-foreground">h</span>
+                <p className={`text-lg font-semibold ${filled.length === 0 ? 'text-muted-foreground' : avg < LOW_SLEEP ? 'text-destructive' : ''}`}>
+                  {filled.length === 0 ? '—' : avg.toFixed(1)}
+                  {filled.length > 0 && <span className="text-xs font-normal text-muted-foreground">h</span>}
                 </p>
               </div>
               <div className="rounded-lg border p-2.5">
-                <p className="text-[11px] text-muted-foreground">缺觉天数</p>
+                <p className="text-[11px] text-muted-foreground">不足 7h</p>
                 <p className={`text-lg font-semibold ${lowDays > 0 ? 'text-destructive' : ''}`}>
                   {lowDays}
-                  <span className="text-xs font-normal text-muted-foreground">/{filled.length} 天</span>
+                  <span className="text-xs font-normal text-muted-foreground">/{filled.length} 晚</span>
                 </p>
               </div>
               <div className="rounded-lg border p-2.5">
