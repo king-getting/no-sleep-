@@ -130,8 +130,9 @@ export default function Home() {
       </div>
 
       {/* 手机端（<lg）报告在前、编排时间轴在后：375px 上先看到结论而不是先看一屏动效 */}
-      <main className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <div className="order-2 lg:order-1">
+      <main className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+        {/* 桌面端把编排时间轴钉住：报告很长，往下翻时左侧一直能看到「谁在什么时候说了什么」 */}
+        <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:self-start">
           <OrchestrationTimeline />
         </div>
         <div className="order-1 lg:order-2">

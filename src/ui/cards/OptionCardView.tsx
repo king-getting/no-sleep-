@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Check, ChevronDown, Clock, Coins, Salad } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,9 +69,11 @@ export function OptionCardView({
         )}
       </div>
 
-      <div className="mt-3 space-y-1.5 text-sm">
+      {/* 定宽标签列：优势/代价/影响 的文字都从同一条竖线开始。
+          之前是行内前缀，长句换行后第二行会顶到卡片最左边，读起来像两段不相干的话。 */}
+      <div className="mt-3 grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-[13px] leading-relaxed">
         {option.nutrition && (
-          <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+          <p className="col-span-2 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Salad className="h-3 w-3" />
               这一餐
@@ -81,22 +83,22 @@ export function OptionCardView({
           </p>
         )}
         {option.pros.map((t) => (
-          <p key={t} className="text-foreground/90">
-            <span className="mr-1.5 text-primary">优势</span>
-            {t}
-          </p>
+          <Fragment key={`pro-${t}`}>
+            <span className="text-primary">优势</span>
+            <span className="text-foreground/90">{t}</span>
+          </Fragment>
         ))}
         {option.cons.map((t) => (
-          <p key={t} className="text-muted-foreground">
-            <span className="mr-1.5 text-muted-foreground/70">代价</span>
-            {t}
-          </p>
+          <Fragment key={`con-${t}`}>
+            <span className="text-muted-foreground/70">代价</span>
+            <span className="text-muted-foreground">{t}</span>
+          </Fragment>
         ))}
         {option.impacts.map((impact) => (
-          <p key={impact.text} className="text-muted-foreground">
-            <span className="mr-1.5 text-accent-foreground/80">{impact.horizon === 'short' ? '短期影响' : '长期影响'}</span>
-            {impact.text}
-          </p>
+          <Fragment key={`impact-${impact.text}`}>
+            <span className="text-muted-foreground/60">{impact.horizon === 'short' ? '短期影响' : '长期影响'}</span>
+            <span className="text-muted-foreground">{impact.text}</span>
+          </Fragment>
         ))}
       </div>
 

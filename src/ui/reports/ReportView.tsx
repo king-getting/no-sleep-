@@ -1,12 +1,12 @@
 import { Badge } from '@/components/ui/badge';
-import type { Report, ReportBlock } from '@/types/contract';
+import type { AgentId, Report, ReportBlock } from '@/types/contract';
 import { ConflictCardView } from '@/ui/cards/ConflictCardView';
 import { ChecklistBlock } from './ChecklistBlock';
 import { OverviewBlock } from './OverviewBlock';
 import { PreviewBlock } from './PreviewBlock';
 import { RecapBlock } from './RecapBlock';
 import { SuggestionGroupBlock } from './SuggestionGroupBlock';
-import { WarningBlock } from './WarningBlock';
+import { WarningListBlock } from './WarningListBlock';
 
 const REPORT_TITLE: Record<Report['type'], string> = {
   morning: '晨间报告',
@@ -28,6 +28,8 @@ function blockLabel(block: ReportBlock): string | null {
       return block.suggestion.topic;
     case 'conflict':
       return block.conflict.topic;
+    case 'warning':
+      return '风险项';
     case 'recap':
       return '今日总结';
     case 'preview':
@@ -74,13 +76,33 @@ export function ReportView({
   /** 晚间闭环：做了 / 没做 */
   onMark?: (suggestionId: string, topic: string, done: boolean) => void;
 }) {
-  const navs = report.blocks.map((block, i) => ({ id: `block-${i}`, label: blockLabel(block) })).filter((n) => n.label);
+  // 连续的 warning 合成一个「风险项」区块：6 条各占一张琥珀卡，整屏都是黄块，
+  // 反而看不出哪条更要紧。分组后既省版面，也能在锚点里只占一格。
+  const units: { key: number; block: ReportBlock; warnings?: { text: string; agentId: AgentId }[] }[] = [];
+  report.blocks.forEach((block, i) => {
+    const last = units.at(-1);
+    if (block.kind === 'warning' && last?.warnings) {
+      last.warnings.push({ text: block.text, agentId: block.agentId });
+      return;
+    }
+    units.push(
+      block.kind === 'warning'
+        ? { key: i, block, warnings: [{ text: block.text, agentId: block.agentId }] }
+        : { key: i, block },
+    );
+  });
+
+  const navs = units
+    .map((u, i) => ({ id: `block-${i}`, label: blockLabel(u.block) }))
+    .filter((n) => n.label);
   const survival = SURVIVAL_TYPES.includes(report.type);
+  const hasWarnings = report.blocks.some((b) => b.kind === 'warning');
 
   const renderBlock = (block: ReportBlock) => {
     switch (block.kind) {
       case 'overview':
-        return <OverviewBlock items={block.items} />;
+        // 风险项已经有独立的列表卡（带条数），概览里再写一句「N 项需留意」是重复
+        return <OverviewBlock items={block.items} hideLabels={hasWarnings ? ['风险项'] : undefined} />;
       case 'suggestionGroup':
         return (
           <SuggestionGroupBlock
@@ -100,7 +122,7 @@ export function ReportView({
           />
         );
       case 'warning':
-        return <WarningBlock text={block.text} agentId={block.agentId} />;
+        return <WarningListBlock items={[{ text: block.text, agentId: block.agentId }]} />;
       case 'recap':
         return <RecapBlock stats={block.stats} />;
       case 'preview':
@@ -147,14 +169,14 @@ export function ReportView({
         key={new Date(report.generatedAt).getTime()}
         className="space-y-4 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
       >
-        {report.blocks.map((block, i) => (
+        {units.map((u, i) => (
           <div
-            key={i}
+            key={u.key}
             id={`block-${i}`}
             className="scroll-mt-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:fill-mode-both motion-safe:duration-300"
             style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
           >
-            {renderBlock(block)}
+            {u.warnings ? <WarningListBlock items={u.warnings} /> : renderBlock(u.block)}
           </div>
         ))}
       </div>
