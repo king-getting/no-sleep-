@@ -53,6 +53,14 @@ export interface ReviewBlockRecord {
   at: string; // 生成/修改时间 ISO
 }
 
+/** 「没做」归因记录（§4.7 问为什么不问怎么办）：点「没做」后选原因时落一条 */
+export interface MissReasonRecord {
+  id?: number;
+  topic: string;
+  date: string; // 'YYYY-MM-DD'
+  reason: string; // 起晚了 / 不饿 / 没时间 / 忘了
+}
+
 export const db = new Dexie('xiaoshan') as Dexie & {
   profiles: EntityTable<UserProfile, 'id'>;
   prefs: EntityTable<PrefsRecord, 'id'>;
@@ -64,6 +72,7 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   feedMuted: EntityTable<FeedMutedRecord, 'id'>;
   feedFav: EntityTable<FeedFavRecord, 'id'>;
   reviewBlocks: EntityTable<ReviewBlockRecord, 'id'>;
+  missReasons: EntityTable<MissReasonRecord, 'id'>;
 };
 
 db.version(1).stores({
@@ -89,4 +98,9 @@ db.version(3).stores({
 // v4：复习计划草案落库（B4——草案要能拖、能勾、刷新还在）
 db.version(4).stores({
   reviewBlocks: 'id, date',
+});
+
+// v5：「没做」归因落库（§4.7 问为什么不问怎么办——归因要跨天读到，才能转成次日建议）
+db.version(5).stores({
+  missReasons: '++id, topic, date',
 });

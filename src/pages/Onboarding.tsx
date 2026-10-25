@@ -59,6 +59,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [level, setLevel] = useState<'undergrad' | 'grad'>('undergrad');
   const [grade, setGrade] = useState('大二');
   const [college, setCollege] = useState('计算机学院');
+  const [major, setMajor] = useState('');
   const [campus, setCampus] = useState<Campus>('guizishan');
 
   // 身体基线（知情选填）
@@ -81,7 +82,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
   const profile: UserProfile = {
     id: 'me',
-    identity: { level, grade, college, campus },
+    identity: { level, grade, college, major: major.trim() || undefined, campus },
     mealBudgetMonthly: Number(mealBudget) || 1200,
     bodyBaseline:
       heightCm || weightKg
@@ -179,6 +180,15 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="text-muted-foreground">专业（选填）</span>
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={major}
+                onChange={(e) => setMajor(e.target.value)}
+                placeholder="如：计算机科学与技术"
+              />
             </label>
             <div className="flex gap-2">
               {(Object.keys(CAMPUS_LABEL) as Campus[]).map((c) => (
@@ -376,7 +386,8 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
               <div className="flex justify-between gap-4 border-b pb-2">
                 <dt className="text-muted-foreground">身份</dt>
                 <dd>
-                  {grade} · {college} · {CAMPUS_LABEL[campus]}
+                  {grade} · {college}
+                  {major.trim() ? ` · ${major.trim()}` : ''} · {CAMPUS_LABEL[campus]}
                 </dd>
               </div>
               <div className="flex justify-between gap-4 border-b pb-2">

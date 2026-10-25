@@ -62,19 +62,27 @@ export function ReportView({
   picks,
   resolutions,
   marks,
+  markReasons,
+  noAsk,
   onPick,
   onResolve,
   onMark,
+  onNoAsk,
 }: {
   report: Report;
   picks: Record<string, string>; // suggestionId -> optionId
   resolutions: Record<string, 'A' | 'B'>; // conflictId -> choice
   /** 晚间闭环：suggestionId -> 是否做了 */
   marks?: Record<string, boolean>;
+  /** 晚间闭环：topic -> 已记录的「没做」归因 */
+  markReasons?: Record<string, string>;
+  /** 一键「不再追问」的主题：这些主题不渲染闭环入口 */
+  noAsk?: Record<string, true>;
   onPick?: (suggestionId: string, optionId: string, topic: string) => void;
   onResolve?: (conflictId: string, topic: string, choice: 'A' | 'B') => void;
-  /** 晚间闭环：做了 / 没做 */
-  onMark?: (suggestionId: string, topic: string, done: boolean) => void;
+  /** 晚间闭环：做了 / 没做（没做可带归因原因） */
+  onMark?: (suggestionId: string, topic: string, done: boolean, reason?: string) => void;
+  onNoAsk?: (topic: string) => void;
 }) {
   // 连续的 warning 合成一个「风险项」区块：6 条各占一张琥珀卡，整屏都是黄块，
   // 反而看不出哪条更要紧。分组后既省版面，也能在锚点里只占一格。
@@ -109,8 +117,11 @@ export function ReportView({
             suggestion={block.suggestion}
             pickedOptionId={picks[block.suggestion.id]}
             marked={marks?.[block.suggestion.id]}
+            reason={markReasons?.[block.suggestion.topic]}
+            noAsked={noAsk?.[block.suggestion.topic]}
             onPick={onPick ? (optionId) => onPick(block.suggestion.id, optionId, block.suggestion.topic) : undefined}
-            onMark={onMark ? (done) => onMark(block.suggestion.id, block.suggestion.topic, done) : undefined}
+            onMark={onMark ? (done, reason) => onMark(block.suggestion.id, block.suggestion.topic, done, reason) : undefined}
+            onNoAsk={onNoAsk ? () => onNoAsk(block.suggestion.topic) : undefined}
           />
         );
       case 'conflict':
