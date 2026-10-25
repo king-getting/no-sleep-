@@ -8,8 +8,7 @@ import Plan from './pages/Plan';
 import Health from './pages/Health';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
-import { agentRegistry } from '@/agents/registry';
-import { bootMode, readAgentEnabled } from '@/data/store/boot';
+import { bootMode } from '@/data/store/boot';
 import { hasProfile } from '@/data/store/profile';
 
 /**
@@ -33,11 +32,8 @@ export default function App() {
   const [needOnboarding, setNeedOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // 恢复设置页里改过的 Agent 启停（注册表是模块级单例，持久化只能靠 localStorage）
-    const persisted = readAgentEnabled();
-    for (const agent of agentRegistry) {
-      if (persisted[agent.id] !== undefined) agent.enabled = persisted[agent.id];
-    }
+    // Agent 的启停与权重已在 registry 模块加载时恢复（见 @/agents/restore），
+    // 这里不再重复——放在 effect 里会晚于 Home 的首次报告，导致首屏用默认设置生成。
 
     void (async () => {
       if (bootMode() === 'real' && !(await hasProfile())) {

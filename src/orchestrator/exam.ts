@@ -25,19 +25,6 @@ import { collectTopicStats } from './compliance';
  *   3. health × schedule：考前一晚的「保底睡眠」L2 冲突卡（两条主张配对，用户拍板）
  */
 
-/** 生存模式下的 Agent 权重（契约 AgentModule.defaultWeight 的「动态调整」落地处） */
-const EXAM_WEIGHT: Record<'academic' | 'life' | 'health' | 'schedule', number> = {
-  academic: 1.2,
-  life: 1.0,
-  health: 1.3,
-  schedule: 1.4,
-};
-
-/** 权重 ≥1.3 的建议整体上浮一级优先级（1 最紧急） */
-function priorityWithWeight(base: 1 | 2 | 3, weight: number): 1 | 2 | 3 {
-  const lifted = weight >= 1.3 ? base - 1 : base;
-  return Math.max(1, Math.min(3, lifted)) as 1 | 2 | 3;
-}
 
 /** 掌握度 → 基准优先级：越不熟越靠前 */
 function priorityOfMastery(mastery: ExamItem['mastery']): 1 | 2 | 3 {
@@ -52,7 +39,6 @@ function reviewSuggestionOf(exam: ExamItem, now: Date): Suggestion {
   const mastery = exam.mastery;
   const drillsFirst = (mastery ?? 3) >= 4;
   const days = countdownText(exam, now);
-  const weight = EXAM_WEIGHT.schedule;
 
   const blockOption = {
     id: `${exam.id}-block`,
@@ -99,7 +85,7 @@ function reviewSuggestionOf(exam: ExamItem, now: Date): Suggestion {
   return {
     id: `sug-exam-${exam.id}`,
     topic: `${exam.title} 复习`,
-    priority: priorityWithWeight(priorityOfMastery(mastery), weight),
+    priority: priorityOfMastery(mastery),
     slot: 'evening',
     sourceFindingIds: ['exam:countdown'],
     options: (drillsFirst
