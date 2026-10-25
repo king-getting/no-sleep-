@@ -140,7 +140,7 @@ export default function Health() {
   }
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-3xl px-4 py-6 pb-24">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 py-6 pb-24 sm:px-6">
       <header className="mb-4">
         <h1 className="text-2xl font-semibold tracking-tight">健康</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -148,14 +148,15 @@ export default function Health() {
         </p>
       </header>
 
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
       {/* ── 录入 ── */}
-      <section className="mb-5 rounded-xl border bg-card p-4">
+      <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium">
           <BedDouble className="h-4 w-4" />
           补一条睡眠记录
         </h2>
-        <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr_auto]">
-          <label className="block text-xs text-muted-foreground">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+          <label className="col-span-2 block text-xs text-muted-foreground lg:col-span-1">
             入睡日期（昨晚就选昨天）
             <input
               type="date"
@@ -186,7 +187,7 @@ export default function Health() {
               className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
             />
           </label>
-          <div className="flex items-end">
+          <div className="col-span-2 flex items-end lg:col-span-1">
             <Button onClick={() => void save()} disabled={saving} className="w-full">
               {saving ? '保存中…' : '记下'}
             </Button>
@@ -198,8 +199,9 @@ export default function Health() {
         </p>
       </section>
 
+      <div className="space-y-4">
       {/* ── 趋势 ── */}
-      <section className="mb-5 rounded-xl border bg-card p-4">
+      <section className="rounded-xl border bg-card p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-medium">
             <Moon className="h-4 w-4" />
@@ -421,6 +423,8 @@ export default function Health() {
           ))}
         </ul>
       </section>
+      </div>
+      </div>
     </div>
   );
 }

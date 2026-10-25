@@ -91,7 +91,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-6xl px-4 pb-24">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 pb-24">
       <header className="flex flex-wrap items-center justify-between gap-3 py-6">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">

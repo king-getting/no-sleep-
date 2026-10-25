@@ -151,7 +151,7 @@ export default function Plan() {
   };
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-4xl px-4 pb-24 pt-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">复习安排</h1>
@@ -215,7 +215,7 @@ export default function Plan() {
           </Button>
         </div>
       ) : (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 grid items-start gap-4 xl:grid-cols-2">
           {days.map(({ date, items }) => {
             const { week, md } = dateLabel(date);
             const isToday = date === dateKey(new Date());
