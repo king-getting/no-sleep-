@@ -1,4 +1,4 @@
-import { avgSleepHours, computeTimeBlocks, coursesOfDay, describeBlocks } from '@/data/queries';
+import { avgSleepHours, computeTimeBlocks, coursesOfDay, describeBlocks, lastNightSleep } from '@/data/queries';
 import { getSleepLogs } from '@/data/store/profile';
 import { dayOfWeek } from '@/types/contract';
 import type {
@@ -167,8 +167,8 @@ export async function buildExamResults(ctx: AgentContext, w: ExamWindow): Promis
   if (!next) return [];
 
   const logs = await getSleepLogs();
-  const avg7 = avgSleepHours(logs, 7);
-  const lastNight = logs.at(-1)?.hours ?? 0;
+  const avg7 = avgSleepHours(logs, 7, now);
+  const lastNight = lastNightSleep(logs, now)?.hours ?? 0;
 
   const blocks = describeBlocks(computeTimeBlocks(await coursesOfDay(dayOfWeek(now))));
 
@@ -211,7 +211,7 @@ export async function buildExamResults(ctx: AgentContext, w: ExamWindow): Promis
     });
   }
 
-  if (avg7 < 6.5) {
+  if (avg7 !== null && avg7 < 6.5) {
     findings.push({
       id: 'exam:sleep-debt',
       type: 'warning',

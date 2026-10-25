@@ -1,6 +1,20 @@
 import { getSleepLogs } from '@/data/store/profile';
-import { avgSleepHours, hasBackToBack, hasEarlyEight, lastNightSleep, todayCourses } from '@/data/queries';
+import {
+  avgSleepHours,
+  hasBackToBack,
+  hasEarlyEight,
+  hoursIfSleepNow,
+  lastNightSleep,
+  todayCourses,
+  wakePlanOf,
+} from '@/data/queries';
+import { fmtMin } from '@/types/contract';
 import type { AgentModule, AgentResult, Finding, OptionCard } from '@/types/contract';
+
+/** 没有记录就说没有记录，不拿健康基线冒充实测；中文里「平均 没有记录」读着别扭，所以整句换掉 */
+function avg3Phrase(v: number | null): string {
+  return v === null ? '近 3 天没有记录' : `近 3 天平均 ${v.toFixed(1)}h`;
+}
 
 /**
  * 健康 Agent：睡眠 × 课表联动
@@ -23,23 +37,39 @@ export const healthAgent: AgentModule = {
     const claims: AgentResult['conflictClaims'] = [];
 
     const logs = await getSleepLogs();
-    const lastNight = lastNightSleep(logs);
-    const avg3 = avgSleepHours(logs, 3);
-    const avg7 = avgSleepHours(logs, 7);
+    const lastNight = lastNightSleep(logs, ctx.now);
+    const avg3 = avgSleepHours(logs, 3, ctx.now);
+    const avg7 = avgSleepHours(logs, 7, ctx.now);
     const courses = await todayCourses(ctx.now);
     const hour = ctx.now.getHours() + ctx.now.getMinutes() / 60;
+    const wake = await wakePlanOf(ctx.now);
+    const wakeText = `明早 ${fmtMin(wake.wakeMin)} 起${
+      wake.reason === 'class' && wake.firstClass ? `（有 ${wake.firstClass.name}）` : ''
+    }`;
+    const avg3Text = avg3 === null ? '近 3 天没有记录' : `近 3 天平均 ${avg3.toFixed(1)}h`;
+    const avg7Text = avg7 === null ? '近一周没有记录' : `近一周平均 ${avg7.toFixed(1)}h`;
 
     findings.push({
       id: 'health:sleep-overview',
       type: 'fact',
       topic: '睡眠',
       confidence: 3,
-      summary: `昨晚睡 ${lastNight?.hours ?? '-'}h，近 3 天平均 ${avg3.toFixed(1)}h，近一周平均 ${avg7.toFixed(1)}h`,
-      evidences: [{ agentId: 'health', text: '数据来源：本地睡眠记录（示例数据）', confidence: 3 }],
+      summary: `昨晚${lastNight ? `睡 ${lastNight.hours}h` : '没有记录'}，${avg3Text}，${avg7Text}；${wakeText}`,
+      evidences: [
+        {
+          agentId: 'health',
+          text:
+            wake.reason === 'class'
+              ? '起床时间按次日课表最早一节反推（课前 40 分钟），数据来源：本地课表'
+              : '次日没有课，按 8:30 起床估算',
+          confidence: 3,
+        },
+      ],
     });
 
     // ── 午间小憩建议 ──
-    if ((lastNight?.hours ?? 8) < 6 && (hasEarlyEight(courses) || hasBackToBack(courses))) {
+    const sleepForNap = lastNight?.hours ?? avg3 ?? 8;
+    if (sleepForNap < 6 && (hasEarlyEight(courses) || hasBackToBack(courses))) {
       findings.push({
         id: 'health:fatigue-3d',
         type: 'warning',
@@ -59,7 +89,9 @@ export const healthAgent: AgentModule = {
         pros: ['下午前两节课注意力明显回升'],
         cons: ['占用 20 分钟空档'],
         impacts: [{ horizon: 'short', text: '14:00 第一节课犯困概率显著降低', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: `昨晚睡眠 ${lastNight?.hours}h < 6h`, confidence: 3 }],
+        evidences: [
+          { agentId: 'health', text: `昨晚${lastNight ? `睡眠 ${lastNight.hours}h` : '没有记录'} < 6h`, confidence: 3 },
+        ],
       };
       const light: OptionCard = {
         id: 'nap-light',
@@ -77,7 +109,7 @@ export const healthAgent: AgentModule = {
         pros: ['多 20 分钟自习时间'],
         cons: ['下午犯困风险高'],
         impacts: [{ horizon: 'short', text: '14:00–16:00 注意力下降风险高', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: `近 3 天平均睡眠 ${avg3.toFixed(1)}h`, confidence: 3 }],
+        evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 }],
       };
 
       suggestions.push({
@@ -92,8 +124,7 @@ export const healthAgent: AgentModule = {
 
     // ── 晚间熬夜提醒 ──
     if (hour >= 18) {
-      const wakeAt = 7 * 60; // 假设明早 7:00 起（有早八时）
-      const sleepNowHours = (((24 * 60 - ctx.now.getHours() * 60 - ctx.now.getMinutes()) + wakeAt) / 60).toFixed(1);
+      const sleepNowHours = hoursIfSleepNow(ctx.now, wake.wakeMin).toFixed(1);
       const laterHours = (Number(sleepNowHours) - 1).toFixed(1);
       suggestions.push({
         id: 'sug-sleep-tonight',
@@ -104,12 +135,24 @@ export const healthAgent: AgentModule = {
         options: [
           {
             id: 'sleep-now',
-            title: '现在就准备睡（23:00 前上床）',
+            title: '现在就准备睡',
             cost: {},
-            pros: [`今晚能睡约 ${sleepNowHours} 小时`],
+            pros: [`能睡约 ${sleepNowHours} 小时，到 ${fmtMin(wake.wakeMin)} 起床`],
             cons: ['晚上的娱乐 / 刷机时间取消'],
-            impacts: [{ horizon: 'short', text: '明早起床状态恢复，早八不痛苦', agentId: 'health' }],
-            evidences: [{ agentId: 'health', text: `近 3 天平均 ${avg3.toFixed(1)}h，已处于缺觉状态`, confidence: 3 }],
+            impacts: [
+              {
+                horizon: 'short',
+                text:
+                  wake.reason === 'class' && wake.firstClass
+                    ? `${fmtMin(wake.firstClass.startMin)} 有 ${wake.firstClass.name}，早起状态能撑住`
+                    : '明早按自己的节奏起床，不至于睡过头',
+                agentId: 'health',
+              },
+            ],
+            evidences: [
+              { agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 },
+              { agentId: 'health', text: `${wakeText}（按课表反推）`, confidence: 3 },
+            ],
           },
           {
             id: 'sleep-later',
@@ -128,14 +171,14 @@ export const healthAgent: AgentModule = {
     }
 
     // ── 对今晚空档的「提前睡」主张（真冲突的健康方） ──
-    if (avg3 < 6) {
+    if (avg3 !== null && avg3 < 6) {
       claims.push({
         topic: 'tonight-slot',
         side: 'health',
         plan: {
           id: 'plan-health-first',
           agentId: 'health',
-          title: '健康优先：23:00 睡，明早 7:00 起补 1h',
+          title: `健康优先：今晚早睡，${fmtMin(wake.wakeMin)} 起`,
           cost: { timeMin: 60 },
           pros: ['睡眠恢复，明早状态好'],
           cons: ['复习时间 −1h'],
@@ -143,7 +186,7 @@ export const healthAgent: AgentModule = {
             { horizon: 'short', text: '需挪用明晚 1h 整块时间补复习', agentId: 'schedule' },
             { horizon: 'long', text: '打断连续缺觉，周末考试状态回升', agentId: 'health' },
           ],
-          evidences: [{ agentId: 'health', text: `近 3 天平均睡眠 ${avg3.toFixed(1)}h，连续不足`, confidence: 3 }],
+          evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 }],
         },
       });
     }

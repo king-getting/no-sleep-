@@ -92,10 +92,10 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
 async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: string }[]> {
   const courses = await todayCourses(ctx.now);
   const logs = await getSleepLogs();
-  const lastNight = lastNightSleep(logs);
-  const avg7 = avgSleepHours(logs, 7);
-  // 没有录入记录时不要把「健康基线 8h」当实测值展示（真实模式首跑会撞上）
-  const avg7Text = logs.length === 0 ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
+  const lastNight = lastNightSleep(logs, ctx.now);
+  const avg7 = avgSleepHours(logs, 7, ctx.now);
+  // 没有任何记录时 avg7 为 null，明确写「尚未录入」，不拿健康基线 8h 当实测
+  const avg7Text = avg7 === null ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
   const todayStr = ctx.now.toDateString();
   const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
   // A8：本周执行率直接来自「做了 / 没做」的点击记录，没有记录就不编数字
