@@ -1,5 +1,6 @@
 import { queryAdapters } from '@/data/adapters';
 import { getSleepLogs } from '@/data/store/profile';
+import { fmtHours, fmtMoney } from '@/lib/format';
 import { nutritionLabel } from '@/lib/nutrition';
 import {
   SLEEP_NEED_HOURS,
@@ -160,30 +161,38 @@ export const healthAgent: AgentModule = {
 
       const normal: OptionCard = {
         id: 'nap-20',
-        title: '午间小憩 20 分钟',
-        cost: { timeMin: 20 },
+        title: '趴 20 分钟（下午不犯困）',
+        note: '空教室或宿舍 · 定个闹钟',
+        when: '13:00 前',
+        cost: { timeMin: 20, effort: 1 },
         pros: ['下午前两节课注意力明显回升'],
         cons: ['占用 20 分钟空档'],
-        impacts: [{ horizon: 'short', text: '14:00 第一节课犯困概率显著降低', agentId: 'health' }],
+        fallback: '下午第一节课大概率犯困，靠咖啡硬撑',
+        impacts: [{ horizon: 'short', text: '14:00 那节课不容易走神', agentId: 'health' }],
         evidences: [
           { agentId: 'health', text: `昨晚${lastNight ? `睡眠 ${lastNight.hours}h` : '没有记录'} < 6h`, confidence: 3 },
         ],
       };
       const light: OptionCard = {
         id: 'nap-light',
-        title: '闭眼听首歌 10 分钟',
-        cost: { timeMin: 10 },
-        pros: ['几乎不占时间', '心理负担最小'],
+        title: '闭眼听首歌（10 分钟）',
+        note: '随便找个没人的地方',
+        when: '13:20 前',
+        cost: { timeMin: 10, effort: 1 },
+        pros: ['几乎不占时间，也不用真睡着'],
         cons: ['恢复效果弱于完整小憩'],
+        fallback: '下午状态平平，但不至于趴桌上睡着',
         impacts: [{ horizon: 'short', text: '下午状态略有改善', agentId: 'health' }],
         evidences: [{ agentId: 'health', text: '上次的小憩建议对你太重，已自动降级为轻量版', confidence: 2 }],
       };
       const skip: OptionCard = {
         id: 'nap-skip',
-        title: '不休息，直接去自习',
-        cost: { timeMin: 0 },
+        title: '不睡，直接去自习（多 20 分钟）',
+        when: '13:00 前',
+        cost: { timeMin: 0, effort: 1 },
         pros: ['多 20 分钟自习时间'],
         cons: ['下午犯困风险高'],
+        fallback: '下午效率打折，晚上还得补回来',
         impacts: [{ horizon: 'short', text: '14:00–16:00 注意力下降风险高', agentId: 'health' }],
         evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 }],
       };
@@ -211,10 +220,17 @@ export const healthAgent: AgentModule = {
         options: [
           {
             id: 'sleep-now',
-            title: '现在就准备睡',
-            cost: {},
-            pros: [`能睡约 ${sleepNowHours} 小时，到 ${fmtMin(wake.wakeMin)} 起床`],
-            cons: ['晚上的娱乐 / 刷机时间取消'],
+            title: `现在就睡（到 ${fmtMin(wake.wakeMin)} 起，${sleepNowHours} 小时）`,
+            note: `闹钟 ${fmtMin(wake.wakeMin)}`,
+            when: '现在',
+            cost: { timeMin: 0, effort: 1 },
+            pros: [
+              lastNight
+                ? `比昨晚多睡 ${fmtHours(Number(sleepNowHours) - lastNight.hours)}`
+                : `能睡足 ${fmtHours(Number(sleepNowHours))}`,
+            ],
+            cons: ['今晚的娱乐 / 刷手机时间取消'],
+            fallback: '再拖一小时，明早就少睡整整一小时',
             impacts: [
               {
                 horizon: 'short',
@@ -232,10 +248,12 @@ export const healthAgent: AgentModule = {
           },
           {
             id: 'sleep-later',
-            title: '再刷 1 小时手机',
-            cost: { timeMin: 60 },
+            title: '再刷 1 小时手机（少睡 1 小时）',
+            when: '现在 → 00:00',
+            cost: { timeMin: 60, effort: 1 },
             pros: ['今晚放松'],
-            cons: [`今晚只剩约 ${laterHours} 小时睡眠`],
+            cons: [`今晚只剩 ${laterHours} 小时睡眠`],
+            fallback: '明早照旧 7 点起，睡眠债继续涨',
             impacts: [
               { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'health' },
               { horizon: 'long', text: '缺觉累积，本周精力趋势继续走低', agentId: 'health' },
@@ -269,7 +287,8 @@ export const healthAgent: AgentModule = {
           id: 'plan-health-first',
           agentId: 'health',
           title: `健康优先：今晚 ${fmtMin(stopAt)} 收工，${fmtMin(bedtimeMin)} 睡、明早 ${fmtMin(wake.wakeMin)} 起（约 ${hoursAt23.toFixed(1)} 小时）`,
-          cost: { timeMin: cutMin },
+          when: `今晚 ${fmtMin(stopAt)} 收工`,
+          cost: { timeMin: cutMin, effort: 1 },
           pros: [
             lastNight ? `比昨晚多睡 ${moreThanLastNight}` : '把这一周的缺口补一点',
             wake.reason === 'class' && wake.firstClass
@@ -277,6 +296,7 @@ export const healthAgent: AgentModule = {
               : '明早按自己的节奏起床，不至于睡过头',
           ],
           cons: [cutMin > 0 ? `今晚的复习整块少 ${cutMin} 分钟（${fmtMin(stopAt)} 之后不再开工）` : `${fmtMin(stopAt)} 之后不再开工`],
+          fallback: '照旧熬到 23:30，睡眠债继续往上涨',
           impacts: [
             {
               horizon: 'short',
@@ -314,12 +334,15 @@ export const healthAgent: AgentModule = {
           plan: {
             id: 'lunch-balanced',
             agentId: 'health',
-            title: `吃好优先：桂香园 ¥${price}，蔬菜和蛋白都到位`,
-            cost: { money: price },
+            title: `吃好优先：桂香园 ${fmtMoney(price)}，蔬菜和蛋白都到位`,
+            note: '桂香园 · 现做，要等 15 分钟',
+            when: '今天 11:40 前',
+            cost: { money: price, timeMin: 15, effort: 2 },
             nutrition: n2,
             // 结构由卡上的「这一餐」那行给出，这里只留取舍本身
             pros: ['午后不容易犯困，下午那节课撑得住'],
-            cons: [over > 0 ? `这顿比日均餐标多 ¥${over.toFixed(0)}` : '贵一点，但还在今天的餐标内'],
+            cons: [over > 0 ? `这顿比日均餐标多 ${fmtMoney(over)}` : '贵一点，但还在今天的餐标内'],
+            fallback: '继续吃油重的那家，下午第二节课容易困',
             impacts: [
               { horizon: 'short', text: `近 3 天平均 ${avg3.toFixed(1)}h，吃完这顿不至于下午第一节就发呆`, agentId: 'health' },
               { horizon: 'long', text: '连续几天吃到蔬菜，比靠咖啡硬撑划算', agentId: 'health' },

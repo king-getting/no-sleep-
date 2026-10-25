@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { orchestrator, type Trigger } from '@/orchestrator';
 import { atTime, currentSlot, slotKey } from '@/lib/reportSlot';
-import { ensureSeeded, getPreferences, markCompliance, optOutNoAsk, recordChoice, rememberConflictChoice } from '@/data/store/profile';
+import { ensureSeeded, markCompliance, recordChoice, rememberConflictChoice } from '@/data/store/profile';
 import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { ReportView } from '@/ui/reports/ReportView';
@@ -24,10 +24,6 @@ export default function Home() {
   const [resolutions, setResolutions] = useState<Record<string, 'A' | 'B'>>({});
   /** 晚间闭环：suggestionId -> 是否做了（只做记录，不追责） */
   const [marks, setMarks] = useState<Record<string, boolean>>({});
-  /** 晚间闭环：topic -> 已记录的「没做」归因（起晚了/不饿/没时间/忘了） */
-  const [markReasons, setMarkReasons] = useState<Record<string, string>>({});
-  /** §4.7「不再追问」的主题集合 */
-  const [noAsk, setNoAsk] = useState<Record<string, true>>({});
   const [running, setRunning] = useState(false);
 
   const run = useCallback(async (trigger: Trigger, now: Date) => {
@@ -36,9 +32,6 @@ export default function Home() {
       const r = await orchestrator.run(trigger, { now });
       setReport(r);
       setMarks({}); // 新一轮报告 = 新一轮闭环，上一轮的「已记录」不再展示
-      const prefs = await getPreferences();
-      setMarkReasons(prefs.missReasons ?? {});
-      setNoAsk(prefs.noAsk ?? {});
     } finally {
       setRunning(false);
     }
@@ -87,29 +80,13 @@ export default function Home() {
     });
   }, []);
 
-  /** 晚间闭环（§4.6/§4.7）：做了 / 没做 一键标记；没做时带归因，次日换成更轻的选项卡 */
-  const handleMark = useCallback((suggestionId: string, topic: string, done: boolean, reason?: string) => {
+  /** 晚间闭环（§4.6/§4.7）：做了 / 没做 一键标记，写回遵从度画像；措辞中性，不追责 */
+  const handleMark = useCallback((suggestionId: string, topic: string, done: boolean) => {
     setMarks((m) => ({ ...m, [suggestionId]: done }));
-    setMarkReasons((r) => {
-      const next = { ...r };
-      if (!done && reason) next[topic] = reason;
-      if (done) delete next[topic];
-      return next;
-    });
-    void markCompliance(topic, done, reason).then(() => {
-      toast(done ? '已记录：做完了' : reason ? `已记录：这次没做（${reason}）` : '已记录：这次没做', {
-        description: done
-          ? '只用来调整下次建议的轻重，不用于评价你。'
-          : '明天晨间会给你一张为这个原因准备的更轻选项。',
+    void markCompliance(topic, done).then(() => {
+      toast(done ? '已记录：做完了' : '已记录：这次没做', {
+        description: '只用来调整下次建议的轻重，不用于评价你。',
       });
-    });
-  }, []);
-
-  /** §4.7：一键「不再追问」，关闭即停 */
-  const handleNoAsk = useCallback((topic: string) => {
-    setNoAsk((n) => ({ ...n, [topic]: true }));
-    void optOutNoAsk(topic).then(() => {
-      toast('好的，这个主题以后不再追问', { description: '随时可以清掉数据重来。' });
     });
   }, []);
 
@@ -153,7 +130,7 @@ export default function Home() {
       </div>
 
       {/* 手机端（<lg）报告在前、编排时间轴在后：375px 上先看到结论而不是先看一屏动效 */}
-      <main className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+      <main className="grid items-start gap-5 lg:grid-cols-[340px_1fr]">
         {/* 桌面端把编排时间轴钉住：报告很长，往下翻时左侧一直能看到「谁在什么时候说了什么」 */}
         <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:self-start">
           <OrchestrationTimeline />
@@ -165,12 +142,9 @@ export default function Home() {
               picks={picks}
               resolutions={resolutions}
               marks={marks}
-              markReasons={markReasons}
-              noAsk={noAsk}
               onPick={handlePick}
               onResolve={handleResolve}
               onMark={handleMark}
-              onNoAsk={handleNoAsk}
             />
           ) : (
             <p className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
