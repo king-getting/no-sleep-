@@ -35,28 +35,30 @@ export function SuggestionGroupBlock({
         {onMark && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {marked === undefined ? (
+              // 主操作是「选这个」。做没做是事后记账，所以压成安静的小字，
+              // 别和卡片上的按钮抢注意力（演示时观众会同时看到两组按钮，容易读成两件事）
               <>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] font-normal text-muted-foreground/70 hover:text-foreground"
                   onClick={() => onMark(true)}
                 >
-                  <Check className="mr-1 h-3.5 w-3.5" /> 做了
+                  <Check className="mr-0.5 h-3 w-3" /> 做了
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] font-normal text-muted-foreground/70 hover:text-foreground"
                   onClick={() => onMark(false)}
                 >
-                  <Minus className="mr-1 h-3.5 w-3.5" /> 没做
+                  <Minus className="mr-0.5 h-3 w-3" /> 没做
                 </Button>
               </>
             ) : (
               <span
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-xs',
+                  'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
                   marked ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground',
                 )}
               >
@@ -73,6 +75,7 @@ export function SuggestionGroupBlock({
             key={option.id}
             option={option}
             picked={pickedOptionId === option.id}
+            dimmed={!!pickedOptionId && pickedOptionId !== option.id}
             onPick={onPick}
           />
         ))}

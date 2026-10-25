@@ -153,6 +153,16 @@
   - 顺带修：冲突卡两列改成 `min-w-0 flex-1 basis-0`，此前列宽随内容伸缩，一边长一边短
   - 实测（示例数据）：午饭三卡结构行正确；「今天的午饭」卡出现，两侧数字为「省 7 元／一个月约 210 元」与「日均餐标 ¥25，这顿多 ¥0」；375px `scrollW=375`
 
+### B12. 报告界面动效与可读性 ✅ 已完成（2026-10-25）
+- **口径**：动画只用于「状态变化」与「层级进入」；不做持续脉冲、数字滚动、假加载——这个产品的卖点是「断网也能在本地算出来」，假装在算会毁掉它
+- `ReportView`：换时段时整块淡入（外层按 `report.generatedAt` 走 `key`）；区块错峰进入（`animate-in fade-in slide-in-from-bottom-1`，`animationDelay = min(i,8)*60ms`，`fill-mode-both`）；区块数 >2 时在标题下给一排锚点 chip（`aria-label="报告区块"`）；生存模式报告标题旁加「生存模式」徽标
+- `OptionCardView`：选中态 `border-primary bg-primary/5 ring-1`，其余同组选项 `opacity-70`（**压暗不禁用**，随时能改主意），按钮加 `active:scale-95`
+- `SuggestionGroupBlock`：「做了 / 没做」从等同按钮压成次要小标（`text-[11px] text-muted-foreground/70`）
+- `ConflictCardView`：**只有已经做过选择时**才压暗另一边（没选时两侧一样重，谁也别装成默认答案）
+- 统一走 `motion-safe:` 前缀，`prefers-reduced-motion: reduce` 时锚点滚动改为 `behavior: 'auto'`
+- 实测：`#block-1` 计算样式 `animationName: enter / 0.3s / delay 0.06s / fill both`；点「今日总结」锚点滚动 0→784；选中后同组另一张 `opacity 0.7`；375px 无横向溢出
+
+
 ### B7. 设置页 ✅ 已完成（2026-10-22）
 - 已实现：`src/pages/Settings.tsx` 六组——Agent 启停（写 `localStorage['xiaoshan:agents']` 并即时改注册表 `enabled`）、画像编辑、外观三选（跟随系统/浅色/深色）、演示旋钮（强制关闭生存模式）、LLM API Key 选填（标明当前不接模型）、数据（恢复示例 / 清除全部 → `clearAllData()` + 回 onboarding）
 - 验收：关掉健康 Agent 后报告不再含健康建议 ✅；清除数据后刷新回到 onboarding ✅（浏览器实测）
