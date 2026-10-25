@@ -3,7 +3,6 @@ import {
   computeTimeBlocks,
   describeBlocks,
   hasBackToBack,
-  hasEarlyEight,
   hasFreeBlockBefore,
   lastNightSleep,
   lunchCrunch,
@@ -41,21 +40,32 @@ export const scheduleAgent: AgentModule = {
       evidences: [{ agentId: 'schedule', text: '切分规则：上课 / 整块空档(≥2h) / 碎片(<2h)', confidence: 3 }],
     });
 
-    if (hasEarlyEight(courses) && hasBackToBack(courses)) {
-      findings.push({
-        id: 'schedule:early8-back2back',
-        type: 'warning',
-        topic: '早八连排',
-        confidence: 3,
-        summary: '今天早八且连排：上午节奏紧张，早餐建议在 7:40 前解决',
-      });
-    } else if (hasEarlyEight(courses)) {
+    // 早八与连排是两件独立的事，各报一条。
+    // 原来是 if / else if：两个都成立时只报「早八连排」，单独那条早八预警被吞掉。
+    const firstClass = courses.find((c) => c.startMin <= 480);
+    if (firstClass) {
       findings.push({
         id: 'schedule:early8',
         type: 'warning',
         topic: '早八',
         confidence: 3,
-        summary: '今天有早八（8:00 上课），明晚别熬太晚',
+        summary: `今天有早八（${fmtMin(firstClass.startMin)} 上「${firstClass.name}」），前一晚早点收工`,
+        evidences: [
+          {
+            agentId: 'schedule',
+            text: `${fmtMin(firstClass.startMin)} 开始，地点「${firstClass.location}」`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+    if (hasBackToBack(courses)) {
+      findings.push({
+        id: 'schedule:back2back',
+        type: 'warning',
+        topic: '连排',
+        confidence: 3,
+        summary: '上午两节课连排，课间不到 15 分钟，几乎没有喘息的空隙',
       });
     }
 
@@ -92,6 +102,88 @@ export const scheduleAgent: AgentModule = {
     }
 
     const result: AgentResult = { agentId: 'schedule', findings };
+
+    // 日程 Agent 的第二条真建议：早八那一早的时间怎么排。
+    // 原来它只会报「今天有早八」，报完就没了——预警不等于调度。
+    // 这里按「课上几点开始」倒推起床时间，三个档位的差别只有一件事：愿意花多久在早饭和路上。
+    if (firstClass) {
+      const WALK_MIN = 10; // 从宿舍走到教室，按 10 分钟估
+      const CUSHION_MIN = 5; // 进教室后留 5 分钟缓冲
+      const plans = [
+        {
+          id: 'early8-canteen',
+          prep: 35,
+          label: '食堂坐着吃',
+          pros: ['热乎，能坐下来', '上午不容易饿到第三节课'],
+          cons: ['这是三个档里起得最早的一档'],
+          shortImpact: '坐得下来，第一节课的状态最稳',
+        },
+        {
+          id: 'early8-grab',
+          prep: 15,
+          label: '路上买着吃',
+          pros: ['比食堂多睡 20 分钟', '不耽误上课'],
+          cons: ['边走边吃，狼吞虎咽', '第三节课前容易饿'],
+          shortImpact: '缓冲只有 5 分钟，路上不能出岔子',
+        },
+        {
+          id: 'early8-skip',
+          prep: 5,
+          label: '不吃直接去',
+          pros: ['睡到最后一刻', '不会迟到'],
+          cons: ['第三节课大概率饿得听不进去', '整个上午的注意力靠硬撑'],
+          shortImpact: '饿感大概在第三节课前来',
+        },
+      ];
+      const options = plans.map((plan) => {
+        const wakeMin = firstClass.startMin - CUSHION_MIN - WALK_MIN - plan.prep;
+        return {
+          id: plan.id,
+          title: `${fmtMin(wakeMin)} 起，${plan.label}`,
+          cost: { timeMin: firstClass.startMin - wakeMin },
+          pros: plan.pros,
+          cons:
+            plan.id === 'early8-canteen'
+              ? [`比「${plans[2].label}」早起 ${plans[0].prep - plans[2].prep} 分钟`]
+              : plan.cons,
+          impacts: [
+            { horizon: 'short' as const, text: plan.shortImpact, agentId: 'schedule' as const },
+            { horizon: 'long' as const, text: '早八这天的上午状态，多半由这一顿决定', agentId: 'health' as const },
+          ],
+          evidences: [
+            {
+              agentId: 'schedule' as const,
+              text: `${fmtMin(firstClass.startMin)} 上「${firstClass.name}」；按步行 ${WALK_MIN} 分钟、进教室留 ${CUSHION_MIN} 分钟倒推`,
+              confidence: 3 as const,
+            },
+          ],
+        };
+      });
+      findings.push({
+        id: 'schedule:early8-plan',
+        type: 'fact',
+        topic: '早八怎么起',
+        confidence: 2,
+        summary: `早八那一早，从起床到进教室要留出 ${plans[0].prep + WALK_MIN + CUSHION_MIN} 到 ${plans[2].prep + WALK_MIN + CUSHION_MIN} 分钟`,
+        evidences: [
+          {
+            agentId: 'schedule',
+            text: '按课表里的上课时间倒推，步行按 10 分钟估',
+            confidence: 2,
+          },
+        ],
+      });
+      result.suggestions = [
+        {
+          id: 'sug-early8-plan',
+          topic: '早八那一早',
+          priority: 1,
+          slot: 'morning',
+          sourceFindingIds: ['schedule:early8-plan'],
+          options,
+        },
+      ];
+    }
     const tonight = await tonightFreeBlock(ctx.now);
     if (nearest && tonight) {
       // L2 真冲突的日程方：主张把今晚这段整块留给复习。

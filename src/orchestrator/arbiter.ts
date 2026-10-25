@@ -41,38 +41,50 @@ export function arbitrateClaims(claims: ConflictClaim[], prefs: Preferences): Co
 
 /**
  * L1 可调和冲突：总控按时间/空间可行性自动合并，不打扰用户。
- * 当前规则：午间「取快递」（生活）×「小憩」（健康）同窗口 → 合并成一条时间线。
+ * 规则 1：午间「取快递」（生活）×「小憩」（健康）同窗口 → 合并成一条时间线。
+ * 规则 2：早上同时有「早餐吃什么」（生活）和「早八那一早」（日程）→ 只留后者。
+ *        早八那天的真问题是「几点起」，而日程那组已经把吃不吃、怎么吃写进了选项；
+ *        两组并排出现等于同一个早晨问两遍。
  */
 export function mergeSuggestions(suggestions: Suggestion[]): { suggestions: Suggestion[]; merges: string[] } {
-  const nap = suggestions.find((s) => s.topic === '午间小憩');
-  const errand = suggestions.find((s) => s.topic === '取快递');
-  if (!nap || !errand) return { suggestions, merges: [] };
+  let list = suggestions;
+  const merges: string[] = [];
 
-  const merged: Suggestion = {
-    id: 'sug-noon-merged',
-    topic: '午后空档安排',
-    priority: 2,
-    slot: 'noon',
-    sourceFindingIds: [...nap.sourceFindingIds, ...errand.sourceFindingIds],
-    options: [
-      {
-        id: 'merged-a',
-        title: '先取快递（顺路），回来眯 15 分钟',
-        cost: { timeMin: 25 },
-        pros: ['两件事都办了', '顺路，不单独跑一趟'],
-        cons: ['小憩缩短到 15 分钟'],
-        impacts: [
-          { horizon: 'short', text: '下午犯困概率降低，快递也不会忘', agentId: 'life' },
-        ],
-        evidences: [...(nap.options[0]?.evidences ?? []), ...(errand.options[0]?.evidences ?? [])],
-      },
-      nap.options[0],
-      errand.options[0],
-    ].filter(Boolean) as Suggestion['options'],
-  };
+  const nap = list.find((s) => s.topic === '午间小憩');
+  const errand = list.find((s) => s.topic === '取快递');
+  if (nap && errand) {
+    const merged: Suggestion = {
+      id: 'sug-noon-merged',
+      topic: '午后空档安排',
+      priority: 2,
+      slot: 'noon',
+      sourceFindingIds: [...nap.sourceFindingIds, ...errand.sourceFindingIds],
+      options: [
+        {
+          id: 'merged-a',
+          title: '先取快递（顺路），回来眯 15 分钟',
+          cost: { timeMin: 25 },
+          pros: ['两件事都办了', '顺路，不单独跑一趟'],
+          cons: ['小憩缩短到 15 分钟'],
+          impacts: [
+            { horizon: 'short', text: '下午犯困概率降低，快递也不会忘', agentId: 'life' },
+          ],
+          evidences: [...(nap.options[0]?.evidences ?? []), ...(errand.options[0]?.evidences ?? [])],
+        },
+        nap.options[0],
+        errand.options[0],
+      ].filter(Boolean) as Suggestion['options'],
+    };
+    list = list.filter((s) => s !== nap && s !== errand).concat(merged);
+    merges.push('L1 自动合并：生活「取快递」× 健康「午间小憩」→ 一条时间线：先取快递（顺路），回来眯 15 分钟');
+  }
 
-  return {
-    suggestions: suggestions.filter((s) => s !== nap && s !== errand).concat(merged),
-    merges: ['L1 自动合并：生活「取快递」× 健康「午间小憩」→ 一条时间线：先取快递（顺路），回来眯 15 分钟'],
-  };
+  const early = list.find((s) => s.topic === '早八那一早');
+  const breakfast = list.find((s) => s.topic === '早餐吃什么');
+  if (early && breakfast) {
+    list = list.filter((s) => s !== breakfast);
+    merges.push('L1 自动合并：日程「早八那一早」已含吃什么 → 生活「早餐吃什么」并入时间安排，不再单独出现');
+  }
+
+  return { suggestions: list, merges };
 }
