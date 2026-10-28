@@ -146,7 +146,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[1280px] px-4 pb-24 pt-6 sm:px-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1280px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
       <header className="mb-5">
         <h1 className="text-2xl font-semibold tracking-tight">设置</h1>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -109,7 +109,7 @@ export default function Feed() {
   const types = useMemo(() => [...new Set(items.map((x) => x.item.type))], [items]);
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 pt-6 sm:px-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
       {/* 顶部固定在视口里：一屏能看三四条，翻到下面还能切「收藏」 */}
       <header className="sticky top-0 z-10 -mx-4 mb-3 bg-background/95 px-4 pb-2 pt-1 backdrop-blur">
         <div className="flex items-end justify-between gap-3">
