@@ -91,8 +91,8 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 pb-24">
-      <header className="flex flex-wrap items-center justify-between gap-3 py-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 pb-24 lg:pb-10">
+      <header className="flex flex-wrap items-center justify-between gap-3 pt-4 pb-3 lg:hidden">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
             <Mountain className="h-6 w-6" />
@@ -112,7 +112,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-xs">
+      <div className="mb-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-xs lg:mt-2">
         <span className="px-1 text-sm text-muted-foreground">
           {bootMode() === 'demo' ? '演示模式 · 手动唤出：' : '手动唤出报告：'}
         </span>

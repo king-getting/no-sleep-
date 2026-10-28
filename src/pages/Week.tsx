@@ -210,7 +210,7 @@ export default function Week() {
   const freeCount = days.reduce((s, d) => s + d.blocks.filter((b) => b.kind === 'free').length, 0);
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 py-6 pb-24">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 py-6 pb-24 lg:pb-10">
       <header className="mb-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>

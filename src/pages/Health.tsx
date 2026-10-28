@@ -140,7 +140,7 @@ export default function Health() {
   }
 
   return (
-    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 py-6 pb-24 sm:px-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 py-6 pb-24 lg:pb-10 sm:px-6">
       <header className="mb-4">
         <h1 className="text-2xl font-semibold tracking-tight">健康</h1>
         <p className="mt-1 text-sm text-muted-foreground">
