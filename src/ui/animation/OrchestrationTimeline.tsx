@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, GitMerge, Loader2, Mountain, RotateCcw, Scale } from 'lucide-react';
+import { Check, ChevronDown, GitMerge, Loader2, Mountain, RotateCcw, Scale } from 'lucide-react';
 import { orchestratorEvents } from '@/orchestrator/events';
 import { cn } from '@/lib/utils';
 import { AGENT_META } from '@/ui/agentMeta';
-import type { AgentId, ConflictCard, OrchestratorEvent } from '@/types/contract';
+import type {
+  AgentId,
+  AgentResult,
+  ConflictCard,
+  Finding,
+  OrchestratorEvent,
+} from '@/types/contract';
 
 const TRIGGER_LABEL: Record<string, string> = {
   'morning-report': '晨间报告触发',
@@ -47,6 +53,7 @@ type AgentBeat = {
   dur: number;
   findings: number;
   extra: number;
+  result: AgentResult | null;
 };
 
 type Script = {
@@ -63,6 +70,8 @@ type AgentView = {
   findings: number;
   extra: number;
   progress: number;
+  /** 该 Agent 这一轮的真实产出：展开后才看得到「它到底发现了什么」 */
+  result?: AgentResult | null;
 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -74,7 +83,7 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
   );
   if (!started) return null;
 
-  const finished = new Map<AgentId, { findings: number; extra: number }>();
+  const finished = new Map<AgentId, AgentResult>();
   const dispatched = new Set<AgentId>();
   const conflicts: ConflictCard[] = [];
   const merges: string[] = [];
@@ -84,10 +93,7 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
     if (e.type === 'agent:start') dispatched.add(e.agentId);
     if (e.type === 'agent:done') {
       dispatched.add(e.agentId);
-      finished.set(e.agentId, {
-        findings: e.result.findings.length,
-        extra: (e.result.suggestions?.length ?? 0) + (e.result.conflictClaims?.length ?? 0),
-      });
+      finished.set(e.agentId, e.result);
     }
     if (e.type === 'conflict:detected') conflicts.push(e.conflict);
     if (e.type === 'merge:applied') merges.push(e.text);
@@ -99,7 +105,8 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
   if (ids.length === 0) return null;
 
   const agents: AgentBeat[] = ids.map((id, i) => {
-    const d = finished.get(id) ?? { findings: 0, extra: 0 };
+    const result = finished.get(id) ?? null;
+    const d = { findings: result?.findings.length ?? 0, extra: (result?.suggestions?.length ?? 0) + (result?.conflictClaims?.length ?? 0) };
     return {
       id,
       start: INTRO_MS + i * STAGGER_MS,
@@ -110,6 +117,7 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
       ),
       findings: d.findings,
       extra: d.extra,
+      result,
     };
   });
 
@@ -218,6 +226,7 @@ export function OrchestrationTimeline() {
             extra:
               (e.result.suggestions?.length ?? 0) + (e.result.conflictClaims?.length ?? 0),
             progress: 1,
+            result: e.result,
           });
           break;
         case 'conflict:detected':
@@ -272,6 +281,7 @@ export function OrchestrationTimeline() {
           findings: beat.findings,
           extra: beat.extra,
           progress: 1,
+          result: beat.result,
         });
       }
     }
@@ -292,6 +302,17 @@ export function OrchestrationTimeline() {
 
   const replay = useCallback(() => setReplayToken((t) => t + 1), []);
   const canReplay = Boolean(script && composedEvent);
+
+  /** 展开中的 Agent：点一下「完成 · N 条发现」就能看它究竟发现了什么 */
+  const [expanded, setExpanded] = useState<Set<AgentId>>(() => new Set());
+  const toggle = useCallback((id: AgentId) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   return (
     <aside className="rounded-2xl border bg-card p-4 shadow-xs">
@@ -379,6 +400,8 @@ export function OrchestrationTimeline() {
               const inConflict = view.conflicts.some(
                 (c) => c.planA.agentId === id || c.planB.agentId === id,
               );
+              const detail = state.result;
+              const open = Boolean(detail) && expanded.has(id);
               return (
                 <Row
                   key={id}
@@ -400,7 +423,12 @@ export function OrchestrationTimeline() {
                   pulse={state.status === 'running'}
                   animate={state.status !== 'waiting'}
                   rail
-                />
+                  expanded={open}
+                  onToggle={detail ? () => toggle(id) : undefined}
+                  toggleHint={detail ? '展开看它产出了什么' : undefined}
+                >
+                  {detail && <AgentDetail result={detail} />}
+                </Row>
               );
             })}
 
@@ -474,6 +502,10 @@ function Row({
   animate,
   rail,
   progress,
+  expanded,
+  onToggle,
+  toggleHint,
+  children,
 }: {
   icon: ReactNode;
   tone: RowTone;
@@ -486,8 +518,46 @@ function Row({
   rail?: boolean;
   /** 0–1：执行中显示一条细进度条，让「并行推进」看得见 */
   progress?: number;
+  /** 该行可展开：完成的行点开能看它到底发现了什么 */
+  expanded?: boolean;
+  onToggle?: () => void;
+  toggleHint?: string;
+  children?: ReactNode;
 }) {
   const style = ROW_STYLE[tone];
+  const clickable = Boolean(onToggle);
+  const header = (
+    <>
+      <div className="flex items-center gap-1.5">
+        <span className={cn('truncate text-[13px] font-medium', colorClass)}>{title}</span>
+        {badge && (
+          <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] font-medium text-amber-700">
+            {badge}
+          </span>
+        )}
+        {clickable && (
+          <ChevronDown
+            className={cn(
+              'ml-auto h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform duration-200',
+              expanded && 'rotate-180',
+            )}
+          />
+        )}
+      </div>
+      <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+        {detail}
+      </p>
+      {typeof progress === 'number' && progress < 1 && (
+        <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-border" aria-hidden>
+          <div
+            className="h-full rounded-full bg-primary/60"
+            style={{ width: `${Math.round(clamp(progress, 0, 1) * 100)}%` }}
+          />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div
       className={cn(
@@ -513,26 +583,74 @@ function Row({
         </span>
       </span>
       <div className="min-w-0 flex-1 pt-0.5">
-        <div className="flex items-center gap-1.5">
-          <span className={cn('truncate text-[13px] font-medium', colorClass)}>{title}</span>
-          {badge && (
-            <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] font-medium text-amber-700">
-              {badge}
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-          {detail}
-        </p>
-        {typeof progress === 'number' && progress < 1 && (
-          <div className="mt-1 h-0.5 w-full overflow-hidden rounded-full bg-border" aria-hidden>
-            <div
-              className="h-full rounded-full bg-primary/60"
-              style={{ width: `${Math.round(clamp(progress, 0, 1) * 100)}%` }}
-            />
+        {clickable ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            title={toggleHint}
+            className={cn(
+              '-mx-1.5 w-[calc(100%+0.75rem)] rounded-md px-1.5 py-1 text-left transition-colors',
+              'hover:bg-secondary/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              expanded && 'bg-secondary/50',
+            )}
+          >
+            {header}
+          </button>
+        ) : (
+          header
+        )}
+        {clickable && expanded && children && (
+          <div className="animate-in fade-in slide-in-from-top-1 mt-1.5 duration-200">
+            {children}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+const FINDING_DOT: Record<Finding['type'], string> = {
+  fact: 'bg-muted-foreground/40',
+  warning: 'bg-amber-500',
+  suggestion: 'bg-primary',
+  conflict: 'bg-destructive',
+};
+
+/** 展开后看到的东西：这个 Agent 一轮里真正看到了什么、提了什么 */
+function AgentDetail({ result }: { result: AgentResult }) {
+  const findings = result.findings ?? [];
+  const suggestions = result.suggestions ?? [];
+
+  if (findings.length + suggestions.length === 0) {
+    return <p className="text-[11px] text-muted-foreground">这一轮没有产出。</p>;
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {findings.map((f) => (
+        <div key={f.id} className="flex gap-1.5 text-[11px] leading-relaxed">
+          <span
+            className={cn('mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full', FINDING_DOT[f.type])}
+            aria-hidden
+          />
+          <span className="min-w-0 text-muted-foreground">
+            <span className="text-foreground/70">{f.topic}</span>
+            <span className="mx-1 opacity-50">·</span>
+            {f.summary}
+          </span>
+        </div>
+      ))}
+      {suggestions.map((s) => (
+        <div key={s.id} className="flex gap-1.5 text-[11px] leading-relaxed">
+          <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+          <span className="min-w-0 text-muted-foreground">
+            <span className="font-medium text-foreground/80">{s.topic}</span>
+            <span className="mx-1 opacity-50">·</span>
+            {s.options.length} 个选项，等你选
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
