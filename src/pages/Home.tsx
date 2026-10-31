@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { orchestrator, type Trigger } from '@/orchestrator';
 import { atTime, currentSlot, slotKey } from '@/lib/reportSlot';
 import { ensureSeeded, markCompliance, recordChoice, rememberConflictChoice } from '@/data/store/profile';
+import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { ReportView } from '@/ui/reports/ReportView';
 import type { Report } from '@/types/contract';
@@ -90,8 +91,8 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-4 pb-16">
-      <header className="flex flex-wrap items-center justify-between gap-3 py-6">
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1320px] px-4 sm:px-6 pb-24 lg:pb-10">
+      <header className="flex flex-wrap items-center justify-between gap-3 pt-4 pb-3 lg:hidden">
         <div className="flex items-center gap-3">
           <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
             <Mountain className="h-6 w-6" />
@@ -107,12 +108,14 @@ export default function Home() {
             <ShieldCheck className="h-3 w-3 text-primary" />
             本地优先 · 数据不出设备
           </Badge>
-          <Badge variant="secondary" className="font-normal">示例数据</Badge>
+          {bootMode() === 'demo' && <Badge variant="secondary" className="font-normal">示例数据</Badge>}
         </div>
       </header>
 
-      <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-xs">
-        <span className="px-1 text-sm text-muted-foreground">演示模式 · 手动唤出：</span>
+      <div className="mb-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-xs lg:mt-2">
+        <span className="px-1 text-sm text-muted-foreground">
+          {bootMode() === 'demo' ? '演示模式 · 手动唤出：' : '手动唤出报告：'}
+        </span>
         {TRIGGERS.map((t) => (
           <Button
             key={t.trigger}
@@ -126,9 +129,13 @@ export default function Home() {
         ))}
       </div>
 
-      <main className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <OrchestrationTimeline />
-        <div>
+      {/* 手机端（<lg）报告在前、编排时间轴在后：375px 上先看到结论而不是先看一屏动效 */}
+      <main className="grid items-start gap-5 lg:grid-cols-[340px_1fr]">
+        {/* 桌面端把编排时间轴钉住：报告很长，往下翻时左侧一直能看到「谁在什么时候说了什么」 */}
+        <div className="order-2 lg:sticky lg:top-4 lg:order-1 lg:self-start">
+          <OrchestrationTimeline />
+        </div>
+        <div className="order-1 lg:order-2">
           {report ? (
             <ReportView
               report={report}

@@ -181,12 +181,31 @@ export interface Suggestion {
 
 export interface OptionCard {
   id: string;
-  title: string; // 「一食堂二楼经济窗口」
-  cost: { money?: number; timeMin?: number };
-  pros: string[]; // 优势
-  cons: string[]; // 代价
-  impacts: Impact[]; // 可能影响（决策模拟）
+  /** 动作 + 取舍。例：「去一食堂吃（省 7 元）」。只写对象名的话，用户得自己从 pros 里拼出取舍 */
+  title: string;
+  /** 对象与地点。例：「一食堂二楼 · 12:10 前是低峰」 */
+  note?: string;
+  /** 时间锚：「今天 12:00 前」「明早 7:40 出门」。跨时段看报告时，没有它不知道还来不来得及 */
+  when?: string;
+  cost: { money?: number; timeMin?: number; effort?: 1 | 2 | 3 };
+  /** 一餐的结构标签（v1.7）：只讲蔬菜 / 蛋白 / 油这类能自查的层级，**不报热量** */
+  nutrition?: MealNutrition;
+  pros: string[]; // 优势（≤2 条，与 cons 逐条对应）
+  cons: string[]; // 代价（≤2 条）
+  /** 不选这一项时，默认会发生什么。不替人决定，但要让人知道「什么都不做」的后果 */
+  fallback?: string;
+  impacts: Impact[]; // 可能影响：必须可观察，禁止「概率更高」这类套话
   evidences: Evidence[]; // 「为什么」展开渲染
+}
+
+/**
+ * 结构标签，0/1/2 三级。刻意不引入 kcal：
+ * 食堂菜品没有可信的热量数据来源，编一个数字写进产品比不写更糟。
+ */
+export interface MealNutrition {
+  veg: 0 | 1 | 2; // 0 没有蔬菜 / 1 偏少 / 2 到位
+  protein: 0 | 1 | 2; // 0 偏少 / 1 够 / 2 充足
+  oil: 0 | 1 | 2; // 0 偏重 / 1 适中 / 2 偏轻
 }
 
 export interface Impact {
@@ -210,16 +229,20 @@ export interface ConflictCard {
   resolvedBy?: 'user' | 'orchestrator';
   /** 是否按历史偏好预填（裁决一次，不重复打扰） */
   preset?: boolean;
+  /** 上次选过的方案，用于把「预填」真正高亮出来（契约 v1.6） */
+  presetChoice?: 'A' | 'B';
 }
 
 // ── 报告 = 区块拼装（契约 §4）─────────────────────────────────
 
-export type ReportType = 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week';
+export type ReportType = 'morning' | 'noon' | 'evening' | 'exam-day' | 'exam-week' | 'exam-done';
 
 export interface OverviewItem {
   label: string;
   value: string;
   tone?: 'default' | 'warn' | 'danger';
+  /** 可选：这一行点得动，跳到站内某个路由（如「今日课程」→ `/week?dow=3`）。v1.3 */
+  link?: string;
 }
 
 export interface RecapStats {
@@ -232,7 +255,9 @@ export type ReportBlock =
   | { kind: 'conflict'; conflict: ConflictCard }
   | { kind: 'warning'; text: string; agentId: AgentId }
   | { kind: 'recap'; stats: RecapStats }
-  | { kind: 'preview'; items: string[] };
+  | { kind: 'preview'; items: string[] }
+  // 契约 v1.2（补丁新增）：考场物品清单，仅生存模式考试日使用
+  | { kind: 'checklist'; title: string; items: string[] };
 
 export type BlockKind = ReportBlock['kind'];
 

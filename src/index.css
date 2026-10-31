@@ -80,4 +80,49 @@
       -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
       'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   }
+  html {
+    /* iOS 横竖屏切换 / 微信 WebView 不擅自放大字号 */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ---------- iOS Safari / 微信内置 WebView 专项 ---------- */
+  body {
+    /* 点按不再出现整块灰色高光（微信里尤其明显） */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    /* 去掉双击缩放带来的点击延迟 */
+    touch-action: manipulation;
+  }
+
+  /* 底部导航是固定控件，长按不该弹出「拷贝/选择」菜单 */
+  nav {
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
+
+/* ---------- 手机端专项（375px 真机尺寸 / iOS 微信内置 WebView）---------- */
+@media (max-width: 640px) {
+  /*
+   * iOS Safari 与微信 WebView 的经典坑：输入框字号小于 16px 时，聚焦会强制放大整页，
+   * 且不会自动缩回。桌面端维持原字号，只在小屏兜底。
+   */
+  input,
+  select,
+  textarea {
+    /* !important 是必要的：控件上的 .text-sm（类选择器）优先级高于元素选择器 */
+    font-size: 16px !important;
+  }
+
+  /*
+   * 拇指够得着：实测「做了 / 没做」只有 28px 高、「为什么推荐这个」只有 16px，
+   * 在手机上很难点中。这里只加最小高度，不改布局。
+   */
+  button {
+    min-height: 36px !important;
+  }
+  summary {
+    min-height: 32px !important;
+  }
+}
+

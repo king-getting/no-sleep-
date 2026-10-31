@@ -1,6 +1,28 @@
+import { queryAdapters } from '@/data/adapters';
 import { getSleepLogs } from '@/data/store/profile';
-import { avgSleepHours, hasBackToBack, hasEarlyEight, lastNightSleep, todayCourses } from '@/data/queries';
-import type { AgentModule, AgentResult, Finding, OptionCard } from '@/types/contract';
+import { fmtHours, fmtMoney } from '@/lib/format';
+import { nutritionLabel } from '@/lib/nutrition';
+import {
+  SLEEP_NEED_HOURS,
+  avgSleepHours,
+  bedtimeRegularity,
+  hasBackToBack,
+  hasEarlyEight,
+  hoursIfSleepNow,
+  lastNightSleep,
+  sleepDebt,
+  todayCourses,
+  tonightFreeBlock,
+  wakePlanOf,
+  weekOverWeek,
+} from '@/data/queries';
+import { dailyBudget, fmtMin } from '@/types/contract';
+import type { AgentModule, AgentResult, Finding, MealNutrition, OptionCard } from '@/types/contract';
+
+/** 没有记录就说没有记录，不拿健康基线冒充实测；中文里「平均 没有记录」读着别扭，所以整句换掉 */
+function avg3Phrase(v: number | null): string {
+  return v === null ? '近 3 天没有记录' : `近 3 天平均 ${v.toFixed(1)}h`;
+}
 
 /**
  * 健康 Agent：睡眠 × 课表联动
@@ -23,23 +45,108 @@ export const healthAgent: AgentModule = {
     const claims: AgentResult['conflictClaims'] = [];
 
     const logs = await getSleepLogs();
-    const lastNight = lastNightSleep(logs);
-    const avg3 = avgSleepHours(logs, 3);
-    const avg7 = avgSleepHours(logs, 7);
+    const lastNight = lastNightSleep(logs, ctx.now);
+    const avg3 = avgSleepHours(logs, 3, ctx.now);
+    const avg7 = avgSleepHours(logs, 7, ctx.now);
     const courses = await todayCourses(ctx.now);
     const hour = ctx.now.getHours() + ctx.now.getMinutes() / 60;
+    const wake = await wakePlanOf(ctx.now);
+    const wakeText = `明早 ${fmtMin(wake.wakeMin)} 起${
+      wake.reason === 'class' && wake.firstClass ? `（有 ${wake.firstClass.name}）` : ''
+    }`;
+    const avg3Text = avg3 === null ? '近 3 天没有记录' : `近 3 天平均 ${avg3.toFixed(1)}h`;
+    const avg7Text = avg7 === null ? '近一周没有记录' : `近一周平均 ${avg7.toFixed(1)}h`;
 
     findings.push({
       id: 'health:sleep-overview',
       type: 'fact',
       topic: '睡眠',
       confidence: 3,
-      summary: `昨晚睡 ${lastNight?.hours ?? '-'}h，近 3 天平均 ${avg3.toFixed(1)}h，近一周平均 ${avg7.toFixed(1)}h`,
-      evidences: [{ agentId: 'health', text: '数据来源：本地睡眠记录（示例数据）', confidence: 3 }],
+      summary: `昨晚${lastNight ? `睡 ${lastNight.hours}h` : '没有记录'}，${avg3Text}，${avg7Text}；${wakeText}`,
+      evidences: [
+        {
+          agentId: 'health',
+          text:
+            wake.reason === 'class'
+              ? '起床时间按次日课表最早一节反推（课前 40 分钟），数据来源：本地课表'
+              : '次日没有课，按 8:30 起床估算',
+          confidence: 3,
+        },
+      ],
     });
 
+    // ── 睡眠债 / 规律性 / 本周对比 ──
+    // 这三条是「一周尺度」的判断，和上面「昨晚」的即时判断分开说，
+    // 免得一句话里既有 5.5h 又有 6.1h 却没交代清楚各自的口径。
+    const debt = sleepDebt(logs, 7, ctx.now);
+    const rhythm = bedtimeRegularity(logs, 7, ctx.now);
+    const week = weekOverWeek(logs, ctx.now);
+
+    const loadParts: string[] = [];
+    if (debt) loadParts.push(`睡眠债 ${debt.debtHours}h（近 ${debt.covered} 晚按 ${SLEEP_NEED_HOURS}h 算）`);
+    if (rhythm) loadParts.push(`入睡时间波动 ±${rhythm.stdMin} 分钟`);
+    if (week.delta !== null && week.thisWeek !== null) {
+      const dir = week.delta >= 0 ? '多' : '少';
+      loadParts.push(`本周平均 ${week.thisWeek.toFixed(1)}h，比上周${dir} ${Math.abs(week.delta).toFixed(1)}h`);
+    }
+    if (loadParts.length > 0) {
+      findings.push({
+        id: 'health:sleep-load',
+        type: 'fact',
+        topic: '睡眠',
+        confidence: 3,
+        summary: loadParts.join('；'),
+        evidences: [
+          {
+            agentId: 'health',
+            text: `口径：每晚报 7.5h 记一次缺口；入睡时间波动是近 7 晚入睡时刻的标准差${debt ? `，只算有记录的 ${debt.covered} 晚` : ''}`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+
+    // 欠得多才报，不把「某一晚少睡一小时」也写成风险
+    if (debt && debt.debtHours >= 6) {
+      const worstText = debt.worst
+        ? `，欠得最多的是 ${debt.worst.date} 那晚只睡 ${debt.worst.hours}h`
+        : '';
+      findings.push({
+        id: 'health:sleep-debt-warn',
+        type: 'warning',
+        topic: '睡眠',
+        confidence: 2,
+        summary: `近 ${debt.covered} 晚累计睡眠债 ${debt.debtHours}h${worstText}`,
+        evidences: [
+          {
+            agentId: 'health',
+            text: `欠得最多的是 ${debt.worst?.date ?? '—'} 那晚 ${debt.worst?.hours ?? 0}h`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+
+    if (rhythm && rhythm.stdMin >= 90) {
+      findings.push({
+        id: 'health:sleep-irregular',
+        type: 'warning',
+        topic: '睡眠',
+        confidence: 2,
+        summary: `入睡时间波动 ±${rhythm.stdMin} 分钟，作息不太规律`,
+        evidences: [
+          {
+            agentId: 'health',
+            text: `近 ${rhythm.covered} 晚入睡时刻的标准差为 ${rhythm.stdMin} 分钟（<30 稳 / 30–60 一般 / >90 乱）`,
+            confidence: 3,
+          },
+        ],
+      });
+    }
+
     // ── 午间小憩建议 ──
-    if ((lastNight?.hours ?? 8) < 6 && (hasEarlyEight(courses) || hasBackToBack(courses))) {
+    const sleepForNap = lastNight?.hours ?? avg3 ?? 8;
+    if (sleepForNap < 6 && (hasEarlyEight(courses) || hasBackToBack(courses))) {
       findings.push({
         id: 'health:fatigue-3d',
         type: 'warning',
@@ -54,30 +161,40 @@ export const healthAgent: AgentModule = {
 
       const normal: OptionCard = {
         id: 'nap-20',
-        title: '午间小憩 20 分钟',
-        cost: { timeMin: 20 },
+        title: '趴 20 分钟（下午不犯困）',
+        note: '空教室或宿舍 · 定个闹钟',
+        when: '13:00 前',
+        cost: { timeMin: 20, effort: 1 },
         pros: ['下午前两节课注意力明显回升'],
         cons: ['占用 20 分钟空档'],
-        impacts: [{ horizon: 'short', text: '14:00 第一节课犯困概率显著降低', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: `昨晚睡眠 ${lastNight?.hours}h < 6h`, confidence: 3 }],
+        fallback: '下午第一节课大概率犯困，靠咖啡硬撑',
+        impacts: [{ horizon: 'short', text: '14:00 那节课不容易走神', agentId: 'health' }],
+        evidences: [
+          { agentId: 'health', text: `昨晚${lastNight ? `睡眠 ${lastNight.hours}h` : '没有记录'} < 6h`, confidence: 3 },
+        ],
       };
       const light: OptionCard = {
         id: 'nap-light',
-        title: '闭眼听首歌 10 分钟',
-        cost: { timeMin: 10 },
-        pros: ['几乎不占时间', '心理负担最小'],
+        title: '闭眼听首歌（10 分钟）',
+        note: '随便找个没人的地方',
+        when: '13:20 前',
+        cost: { timeMin: 10, effort: 1 },
+        pros: ['几乎不占时间，也不用真睡着'],
         cons: ['恢复效果弱于完整小憩'],
+        fallback: '下午状态平平，但不至于趴桌上睡着',
         impacts: [{ horizon: 'short', text: '下午状态略有改善', agentId: 'health' }],
         evidences: [{ agentId: 'health', text: '上次的小憩建议对你太重，已自动降级为轻量版', confidence: 2 }],
       };
       const skip: OptionCard = {
         id: 'nap-skip',
-        title: '不休息，直接去自习',
-        cost: { timeMin: 0 },
+        title: '不睡，直接去自习（多 20 分钟）',
+        when: '13:00 前',
+        cost: { timeMin: 0, effort: 1 },
         pros: ['多 20 分钟自习时间'],
         cons: ['下午犯困风险高'],
+        fallback: '下午效率打折，晚上还得补回来',
         impacts: [{ horizon: 'short', text: '14:00–16:00 注意力下降风险高', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: `近 3 天平均睡眠 ${avg3.toFixed(1)}h`, confidence: 3 }],
+        evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 }],
       };
 
       suggestions.push({
@@ -92,8 +209,7 @@ export const healthAgent: AgentModule = {
 
     // ── 晚间熬夜提醒 ──
     if (hour >= 18) {
-      const wakeAt = 7 * 60; // 假设明早 7:00 起（有早八时）
-      const sleepNowHours = (((24 * 60 - ctx.now.getHours() * 60 - ctx.now.getMinutes()) + wakeAt) / 60).toFixed(1);
+      const sleepNowHours = hoursIfSleepNow(ctx.now, wake.wakeMin).toFixed(1);
       const laterHours = (Number(sleepNowHours) - 1).toFixed(1);
       suggestions.push({
         id: 'sug-sleep-tonight',
@@ -104,19 +220,40 @@ export const healthAgent: AgentModule = {
         options: [
           {
             id: 'sleep-now',
-            title: '现在就准备睡（23:00 前上床）',
-            cost: {},
-            pros: [`今晚能睡约 ${sleepNowHours} 小时`],
-            cons: ['晚上的娱乐 / 刷机时间取消'],
-            impacts: [{ horizon: 'short', text: '明早起床状态恢复，早八不痛苦', agentId: 'health' }],
-            evidences: [{ agentId: 'health', text: `近 3 天平均 ${avg3.toFixed(1)}h，已处于缺觉状态`, confidence: 3 }],
+            title: `现在就睡（到 ${fmtMin(wake.wakeMin)} 起，${sleepNowHours} 小时）`,
+            note: `闹钟 ${fmtMin(wake.wakeMin)}`,
+            when: '现在',
+            cost: { timeMin: 0, effort: 1 },
+            pros: [
+              lastNight
+                ? `比昨晚多睡 ${fmtHours(Number(sleepNowHours) - lastNight.hours)}`
+                : `能睡足 ${fmtHours(Number(sleepNowHours))}`,
+            ],
+            cons: ['今晚的娱乐 / 刷手机时间取消'],
+            fallback: '再拖一小时，明早就少睡整整一小时',
+            impacts: [
+              {
+                horizon: 'short',
+                text:
+                  wake.reason === 'class' && wake.firstClass
+                    ? `${fmtMin(wake.firstClass.startMin)} 有 ${wake.firstClass.name}，早起状态能撑住`
+                    : '明早按自己的节奏起床，不至于睡过头',
+                agentId: 'health',
+              },
+            ],
+            evidences: [
+              { agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 },
+              { agentId: 'health', text: `${wakeText}（按课表反推）`, confidence: 3 },
+            ],
           },
           {
             id: 'sleep-later',
-            title: '再刷 1 小时手机',
-            cost: { timeMin: 60 },
+            title: '再刷 1 小时手机（少睡 1 小时）',
+            when: '现在 → 00:00',
+            cost: { timeMin: 60, effort: 1 },
             pros: ['今晚放松'],
-            cons: [`今晚只剩约 ${laterHours} 小时睡眠`],
+            cons: [`今晚只剩 ${laterHours} 小时睡眠`],
+            fallback: '明早照旧 7 点起，睡眠债继续涨',
             impacts: [
               { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'health' },
               { horizon: 'long', text: '缺觉累积，本周精力趋势继续走低', agentId: 'health' },
@@ -128,24 +265,96 @@ export const healthAgent: AgentModule = {
     }
 
     // ── 对今晚空档的「提前睡」主张（真冲突的健康方） ──
-    if (avg3 < 6) {
+    // 和日程 Agent 的「今晚整块拿来复习」主张同 topic → arbiter 生成 L2 卡。
+    // 只有三个条件同时成立才开这张卡：近 3 天睡不够、今晚确实有可支配的空档、明天还要早起。
+    const tonightSlot = await tonightFreeBlock(ctx.now);
+    const debt7 = sleepDebt(logs, 7, ctx.now);
+    if (avg3 !== null && avg3 < 6 && tonightSlot) {
+      // 冲突点在「几点收工」：日程想用整晚空档，健康想 22:00 收工、23:00 睡下。
+      // 空档常常从早上就开始（没课的一天），所以只取 18:00 之后那段，别把白天算进「今晚」。
+      const eveningFrom = Math.max(tonightSlot.startMin, 18 * 60);
+      const eveningTo = Math.min(tonightSlot.endMin, 23 * 60);
+      const bedtimeMin = 23 * 60;
+      const stopAt = 22 * 60;
+      const cutMin = Math.max(0, eveningTo - stopAt);
+      const hoursAt23 = ((((wake.wakeMin - bedtimeMin) % 1440) + 1440) % 1440) / 60;
+      const moreThanLastNight = lastNight ? `${(hoursAt23 - lastNight.hours).toFixed(1)}h` : '—';
+      const debtAfter = debt7 ? Math.max(0, debt7.debtHours - hoursAt23).toFixed(1) : null;
       claims.push({
-        topic: 'tonight-slot',
+        topic: '今晚的空档',
         side: 'health',
         plan: {
           id: 'plan-health-first',
           agentId: 'health',
-          title: '健康优先：23:00 睡，明早 7:00 起补 1h',
-          cost: { timeMin: 60 },
-          pros: ['睡眠恢复，明早状态好'],
-          cons: ['复习时间 −1h'],
-          impacts: [
-            { horizon: 'short', text: '需挪用明晚 1h 整块时间补复习', agentId: 'schedule' },
-            { horizon: 'long', text: '打断连续缺觉，周末考试状态回升', agentId: 'health' },
+          title: `健康优先：今晚 ${fmtMin(stopAt)} 收工，${fmtMin(bedtimeMin)} 睡、明早 ${fmtMin(wake.wakeMin)} 起（约 ${hoursAt23.toFixed(1)} 小时）`,
+          when: `今晚 ${fmtMin(stopAt)} 收工`,
+          cost: { timeMin: cutMin, effort: 1 },
+          pros: [
+            lastNight ? `比昨晚多睡 ${moreThanLastNight}` : '把这一周的缺口补一点',
+            wake.reason === 'class' && wake.firstClass
+              ? `明早 ${fmtMin(wake.firstClass.startMin)} 有 ${wake.firstClass.name}，不缺觉才听得进去`
+              : '明早按自己的节奏起床，不至于睡过头',
           ],
-          evidences: [{ agentId: 'health', text: `近 3 天平均睡眠 ${avg3.toFixed(1)}h，连续不足`, confidence: 3 }],
+          cons: [cutMin > 0 ? `今晚的复习整块少 ${cutMin} 分钟（${fmtMin(stopAt)} 之后不再开工）` : `${fmtMin(stopAt)} 之后不再开工`],
+          fallback: '照旧熬到 23:30，睡眠债继续往上涨',
+          impacts: [
+            {
+              horizon: 'short',
+              text: wake.reason === 'class' && wake.firstClass
+                ? `${fmtMin(wake.firstClass.startMin)} 那节课不至于走神`
+                : '明早起来不至于发懵',
+              agentId: 'health',
+            },
+            { horizon: 'long', text: debtAfter !== null ? `这周睡眠债从 ${debt7?.debtHours.toFixed(1)}h 降到约 ${debtAfter}h` : '把这周的缺口压下去', agentId: 'health' },
+          ],
+          evidences: [
+            { agentId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 },
+            { agentId: 'health', text: debt7 ? `近 7 晚累计睡债 ${debt7.debtHours.toFixed(1)}h` : `${wakeText}`, confidence: 2 },
+            { agentId: 'schedule', text: `今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`, confidence: 2 },
+          ],
         },
       });
+    }
+
+    // 午饭的「吃好」侧（契约 §4.5）：与生活 Agent 的「省钱」侧配对成 L2。
+    // 缺觉的时候更需要蛋白和蔬菜撑住下午——这不是营养学结论，是「欠觉 → 饭后更困」的常识推论，
+    // 所以只在近 3 天平均 < 6.5h 时才提，睡够的日子不打扰。
+    const lunchHour = ctx.now.getHours() >= 10 && ctx.now.getHours() < 14;
+    if (lunchHour && avg3 !== null && avg3 < 6.5) {
+      const windows = await queryAdapters('canteen-window', ctx);
+      const light = windows.find((w) => w.id === 'ct-gxy-light');
+      const n2 = light?.payload?.nutrition as MealNutrition | undefined;
+      const price = Number(light?.payload?.avgPrice ?? 15);
+      const daily = dailyBudget(ctx.user);
+      if (light && n2) {
+        const over = price - daily;
+        claims.push({
+          topic: '今天的午饭',
+          side: 'balanced',
+          plan: {
+            id: 'lunch-balanced',
+            agentId: 'health',
+            title: `吃好优先：桂香园 ${fmtMoney(price)}，蔬菜和蛋白都到位`,
+            note: '桂香园 · 现做，要等 15 分钟',
+            when: '今天 11:40 前',
+            cost: { money: price, timeMin: 15, effort: 2 },
+            nutrition: n2,
+            // 结构由卡上的「这一餐」那行给出，这里只留取舍本身
+            pros: ['午后不容易犯困，下午那节课撑得住'],
+            cons: [over > 0 ? `这顿比日均餐标多 ${fmtMoney(over)}` : '贵一点，但还在今天的餐标内'],
+            fallback: '继续吃油重的那家，下午第二节课容易困',
+            impacts: [
+              { horizon: 'short', text: `近 3 天平均 ${avg3.toFixed(1)}h，吃完这顿不至于下午第一节就发呆`, agentId: 'health' },
+              { horizon: 'long', text: '连续几天吃到蔬菜，比靠咖啡硬撑划算', agentId: 'health' },
+            ],
+            evidences: [
+              { agentId: 'health', text: `${avg3Phrase(avg3)}，缺觉时更需要蛋白和蔬菜`, confidence: 2 },
+              { agentId: 'health', text: `结构：${nutritionLabel(n2)}（按常识标的，不是营养学测量）`, confidence: 2 },
+              { agentId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}`, confidence: 3 },
+            ],
+          },
+        });
+      }
     }
 
     const result: AgentResult = { agentId: 'health', findings };

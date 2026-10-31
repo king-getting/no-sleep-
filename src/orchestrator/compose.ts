@@ -1,11 +1,14 @@
 import { coursesOfDay, todayCourses } from '@/data/queries';
 import { db } from '@/data/store/db';
 import { getSleepLogs } from '@/data/store/profile';
-import { avgSleepHours, lastNightSleep } from '@/data/queries';
+import { SLEEP_NEED_HOURS, avgSleepHours, lastNightSleep, sleepDebt } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
+import { examEveChecklist } from './exam';
+import { weeklyComplianceText } from './compliance';
 import type {
   AgentContext,
+  AgentId,
   AgentResult,
   ConflictCard,
   OverviewItem,
@@ -26,12 +29,15 @@ const SLOT_OF: Record<ReportType, Suggestion['slot'] | null> = {
   evening: 'evening',
   'exam-day': null, // 生存模式报告聚合全部时段的建议
   'exam-week': null,
+  'exam-done': 'evening',
 };
 
 async function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentContext): Promise<OverviewItem[]> {
   const findings = results.flatMap((r) => r.findings);
   const fact = (id: string) => findings.find((f) => f.id === id)?.summary ?? '—';
   const warnings = findings.filter((f) => f.type === 'warning');
+  // 「今日课程」这一行点得动：跳到周历并定位到今天（v1.3）
+  const weekLink = `/week?dow=${dayOfWeek(ctx.now)}`;
 
   if (type === 'noon') {
     const nowMin = ctx.now.getHours() * 60 + ctx.now.getMinutes();
@@ -46,6 +52,36 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
     ];
   }
 
+  // 考后小结（B10）：不再给倒计时，改成「刚考完 / 昨晚睡了几小时 / 复习执行了几次 / 下一场」
+  if (type === 'exam-done') {
+    return [
+      { label: '刚考完', value: fact('exam:done') },
+      { label: '考前一晚', value: fact('exam:sleep-night') },
+      { label: '复习执行', value: fact('exam:review') },
+      { label: '下一场', value: fact('exam:next') },
+      {
+        label: '风险项',
+        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        tone: warnings.length > 0 ? 'warn' : 'default',
+      },
+    ];
+  }
+
+  // 生存模式（A6）：overview 换成「倒计时 + 复习窗口」，风险项在考前 3 天内变红
+  if (type === 'exam-day' || type === 'exam-week') {
+    const urgent = warnings.some((w) => w.id === 'exam:lead');
+    return [
+      { label: '倒计时', value: fact('exam:countdown') },
+      { label: '今日课程', value: fact('academic:today-courses'), link: weekLink },
+      { label: '复习窗口', value: fact('exam:blocks') },
+      {
+        label: '风险项',
+        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        tone: urgent ? 'danger' : warnings.length > 0 ? 'warn' : 'default',
+      },
+    ];
+  }
+
   return [
     { label: '今日课程', value: fact('academic:today-courses') },
     { label: '时间块', value: fact('schedule:timeblocks') },
@@ -57,14 +93,25 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
 async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: string }[]> {
   const courses = await todayCourses(ctx.now);
   const logs = await getSleepLogs();
-  const lastNight = lastNightSleep(logs);
-  const avg7 = avgSleepHours(logs, 7);
+  const lastNight = lastNightSleep(logs, ctx.now);
+  const avg7 = avgSleepHours(logs, 7, ctx.now);
+  // 没有任何记录时 avg7 为 null，明确写「尚未录入」，不拿健康基线 8h 当实测
+  const avg7Text = avg7 === null ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
   const todayStr = ctx.now.toDateString();
   const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
+  // A8：本周执行率直接来自「做了 / 没做」的点击记录，没有记录就不编数字
+  const weekRate = await weeklyComplianceText(ctx.now);
+  // 一周尺度的睡眠债：和「昨晚」分开说，免得两个口径混在一行里
+  const debt = sleepDebt(logs, 7, ctx.now);
+  const debtText = debt === null
+    ? '—（尚未录入）'
+    : `${debt.debtHours}h（近 ${debt.covered} 晚按 ${SLEEP_NEED_HOURS}h 算）`;
   return [
     { label: '今日课程', value: `${courses.length} 节` },
-    { label: '昨晚睡眠', value: `${lastNight?.hours ?? '—'}h` },
-    { label: '近 7 天平均睡眠', value: `${avg7.toFixed(1)}h` },
+    { label: '昨晚睡眠', value: lastNight ? `${lastNight.hours}h` : '—（尚未录入）' },
+    { label: '近 7 天平均睡眠', value: avg7Text },
+    { label: '睡眠债', value: debtText },
+    { label: '本周建议执行率', value: weekRate ?? '—（还没点过「做了 / 没做」）' },
     { label: '今日点选', value: `${choicesToday} 个选项（已记入本地偏好）` },
   ];
 }
@@ -103,6 +150,13 @@ export async function composeReport(
     .filter((s) => slot === null || s.slot === slot)
     .sort((a, b) => a.priority - b.priority);
   const warnings = results.flatMap((r) => r.findings).filter((f) => f.type === 'warning');
+  const facts = results.flatMap((r) => r.findings);
+  // 警告卡上的「—— 健康 Agent」要认得出是谁出的：先看证据，再看它落在哪个 Agent 的结果里。
+  // 之前只认证据，没有证据的警告一律显示成「日程 Agent」，会张冠李戴。
+  const agentOfFinding = (f: (typeof facts)[number]): AgentId =>
+    f.evidences?.[0]?.agentId ??
+    results.find((r) => r.findings.some((x) => x.id === f.id))?.agentId ??
+    'schedule';
 
   const blocks: ReportBlock[] = [];
   for (const kind of RECIPES[type]) {
@@ -117,7 +171,7 @@ export async function composeReport(
         for (const conflict of conflicts) blocks.push({ kind: 'conflict', conflict });
         break;
       case 'warning':
-        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, agentId: w.evidences?.[0]?.agentId ?? 'schedule' });
+        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, agentId: agentOfFinding(w) });
         break;
       case 'recap':
         blocks.push({ kind: 'recap', stats: { items: await buildRecap(ctx) } });
@@ -125,6 +179,15 @@ export async function composeReport(
       case 'preview':
         blocks.push({ kind: 'preview', items: await buildPreview(ctx) });
         break;
+      case 'checklist': {
+        const examTitle = facts.find((f) => f.id === 'exam:title')?.summary ?? '考试';
+        blocks.push({
+          kind: 'checklist',
+          title: `${examTitle} · 考场物品清单`,
+          items: examEveChecklist(examTitle),
+        });
+        break;
+      }
     }
   }
   return { type, generatedAt: ctx.now, blocks };

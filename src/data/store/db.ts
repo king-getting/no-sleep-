@@ -28,6 +28,31 @@ export interface ComplianceRecord {
   done: boolean;
 }
 
+/** 信息流「与我无关」负反馈（A7）：被屏蔽的 RawItem id，落库后刷新仍生效 */
+export interface FeedMutedRecord {
+  id: string;
+  at: string; // ISO
+}
+
+/** 信息流收藏（B2）：收藏只存在本机 */
+export interface FeedFavRecord {
+  id: string;
+  at: string; // ISO
+}
+
+/** 复习计划草案（B4）：一块 = 某天某个时段专门给某门考试 */
+export interface ReviewBlockRecord {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  startMin: number;
+  endMin: number;
+  topic: string; // 考试名
+  examId?: string;
+  mastery?: number;
+  done: boolean;
+  at: string; // 生成/修改时间 ISO
+}
+
 export const db = new Dexie('xiaoshan') as Dexie & {
   profiles: EntityTable<UserProfile, 'id'>;
   prefs: EntityTable<PrefsRecord, 'id'>;
@@ -36,6 +61,9 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   compliance: EntityTable<ComplianceRecord, 'id'>;
   courses: EntityTable<Course, 'id'>;
   exams: EntityTable<ExamItem, 'id'>;
+  feedMuted: EntityTable<FeedMutedRecord, 'id'>;
+  feedFav: EntityTable<FeedFavRecord, 'id'>;
+  reviewBlocks: EntityTable<ReviewBlockRecord, 'id'>;
 };
 
 db.version(1).stores({
@@ -50,4 +78,15 @@ db.version(1).stores({
 db.version(2).stores({
   courses: 'id, dayOfWeek',
   exams: 'id, at',
+});
+
+// v3：信息流负反馈 / 收藏落库（A7 + B2——「与我无关」要跨刷新生效）
+db.version(3).stores({
+  feedMuted: 'id, at',
+  feedFav: 'id, at',
+});
+
+// v4：复习计划草案落库（B4——草案要能拖、能勾、刷新还在）
+db.version(4).stores({
+  reviewBlocks: 'id, date',
 });

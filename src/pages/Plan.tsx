@@ -1,0 +1,359 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
+import { ArrowRight, CalendarClock, Check, GripVertical, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { ExamManager } from '@/ui/exams/ExamManager';
+import { fmtMin, type ExamItem } from '@/types/contract';
+import { listExams } from '@/data/store/courses';
+import {
+  clearReviewBlocks,
+  dateKey,
+  deleteReviewBlock,
+  generateReviewPlan,
+  listReviewBlocks,
+  moveReviewBlockToDate,
+  reviewTargetMinOf,
+  swapReviewBlocks,
+  updateReviewBlock,
+  type ReviewBlock,
+} from '@/data/store/review';
+
+const WEEK_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+function dateLabel(date: string): { week: string; md: string } {
+  const d = new Date(`${date}T00:00:00`);
+  const idx = (d.getDay() + 6) % 7;
+  return { week: WEEK_LABEL[idx], md: `${d.getMonth() + 1}/${d.getDate()}` };
+}
+
+function durText(block: ReviewBlock): string {
+  return `${block.endMin - block.startMin} 分钟`;
+}
+
+export default function Plan() {
+  const [blocks, setBlocks] = useState<ReviewBlock[]>([]);
+  const [exams, setExams] = useState<ExamItem[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [overDate, setOverDate] = useState<string | null>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+
+  const load = useCallback(async () => {
+    const [blockRows, examRows] = await Promise.all([listReviewBlocks(), listExams()]);
+    setBlocks(blockRows);
+    setExams(examRows);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const days = useMemo(() => {
+    const map = new Map<string, ReviewBlock[]>();
+    for (const b of blocks) {
+      const arr = map.get(b.date) ?? [];
+      arr.push(b);
+      map.set(b.date, arr);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, items]) => ({ date, items: items.sort((a, b) => a.startMin - b.startMin) }));
+  }, [blocks]);
+
+  const shortfalls = useMemo(() => {
+    const now = Date.now();
+    return exams
+      .filter((exam) => exam.kind === 'exam' && new Date(exam.at).getTime() > now)
+      .map((exam) => {
+        const actualMin = blocks
+          .filter((block) => block.examId === exam.id)
+          .reduce((sum, block) => sum + (block.endMin - block.startMin), 0);
+        const targetMin = reviewTargetMinOf(exam.mastery);
+        return actualMin < targetMin
+          ? { exam, actualMin, targetMin, gapMin: targetMin - actualMin }
+          : null;
+      })
+      .filter((item) => item !== null);
+  }, [blocks, exams]);
+
+  const total = blocks.reduce((sum, b) => sum + (b.endMin - b.startMin), 0);
+  const doneCount = blocks.filter((b) => b.done).length;
+
+  const regenerate = async () => {
+    setBusy(true);
+    try {
+      const rows = await generateReviewPlan(new Date());
+      await load();
+      toast.success(rows.length > 0 ? `已按考试重排 ${rows.length} 段复习` : '近 7 天没有要准备的考试，草案没有改动');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearAll = async () => {
+    await clearReviewBlocks();
+    await load();
+    toast.success('草案已清空');
+  };
+
+  const toggleDone = async (block: ReviewBlock) => {
+    await updateReviewBlock(block.id, { done: !block.done });
+    await load();
+  };
+
+  const remove = async (block: ReviewBlock) => {
+    await deleteReviewBlock(block.id);
+    await load();
+    toast.success('已删掉这一段');
+  };
+
+  const onPointerDown = (e: React.PointerEvent, block: ReviewBlock) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    dragStart.current = { x: e.clientX, y: e.clientY };
+    setDragId(block.id);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragId || !dragStart.current) return;
+    const moved = Math.abs(e.clientX - dragStart.current.x) + Math.abs(e.clientY - dragStart.current.y);
+    if (moved < 6) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const card = el?.closest('[data-block-id]') as HTMLElement | null;
+    const day = el?.closest('[data-day-date]') as HTMLElement | null;
+    setOverId(card?.dataset.blockId ?? null);
+    setOverDate(day?.dataset.dayDate ?? null);
+  };
+
+  const finishDrag = async () => {
+    const target = overId;
+    const targetDate = overDate;
+    const from = dragId;
+    setDragId(null);
+    setOverId(null);
+    setOverDate(null);
+    dragStart.current = null;
+    if (!from) return;
+    if (target && target !== from) {
+      await swapReviewBlocks(from, target);
+      await load();
+      toast.success('已和那一段互换时段');
+      return;
+    }
+    if (!target && targetDate) {
+      const ok = await moveReviewBlockToDate(from, targetDate);
+      await load();
+      toast[ok ? 'success' : 'error'](ok ? '已挪到这一天' : '这一天排不下了，换个时间试试');
+    }
+  };
+
+  return (
+    <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">复习安排</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            按掌握度和考试先后排进空档，可以拖动互换时段，也可以勾掉已经做完的。
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={busy} size="sm">
+                <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+                {busy ? '重排中' : '按考试重排'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>按考试重新排一遍？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  已勾「完成」的 {doneCount} 段会保留；其余块按最新考试重新计算位置，手动拖动过的落点会被覆盖。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void regenerate()}>重排</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                清空
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>清空全部复习草案？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  共 {blocks.length} 段会被删掉，包括已勾「完成」的 {doneCount} 段。这一步不能撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void clearAll()}>清空</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </header>
+
+      <ExamManager onChanged={load} />
+
+      {blocks.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm">
+          <span className="font-medium">
+            共 {blocks.length} 段 · {Math.round(total / 60)} 小时
+          </span>
+          <span className="text-muted-foreground">已完成 {doneCount} 段</span>
+          <span className="text-muted-foreground">拖动卡片可互换时段，拖到某一天的分组里可以整块挪过去</span>
+        </div>
+      )}
+
+      {shortfalls.length > 0 && (
+        <div
+          className="mt-3 flex gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+          role="alert"
+          aria-live="polite"
+        >
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+            <p className="font-medium">
+              复习目标还有 {shortfalls.reduce((sum, item) => sum + item.gapMin, 0)} 分钟没排进草案
+            </p>
+            <p className="mt-0.5">
+              {shortfalls
+                .map((item) => `「${item.exam.title}」已排 ${item.actualMin} / 目标 ${item.targetMin} 分钟`)
+                .join('；')}。这通常是可用空档不足；请拖动现有复习块，或手动给这些考试补排时间。
+            </p>
+          </div>
+        </div>
+      )}
+
+      {blocks.length === 0 ? (
+        <div className="mt-10 rounded-2xl border border-dashed bg-card/50 px-6 py-12 text-center">
+          <CalendarClock className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-3 text-sm font-medium">还没有复习草案</p>
+          <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+            考试临近时，小山会把手边的整块空档排成复习块；现在也可以手动点「按考试重排」生成一份。
+          </p>
+          <Button className="mt-4" size="sm" onClick={regenerate}>
+            生成草案
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-4 grid items-start gap-4 xl:grid-cols-2">
+          {days.map(({ date, items }) => {
+            const { week, md } = dateLabel(date);
+            const isToday = date === dateKey(new Date());
+            return (
+              <section
+                key={date}
+                data-day-date={date}
+                className={`rounded-xl border bg-card p-3 transition ${
+                  overDate === date && !overId ? 'border-primary/60 bg-primary/5' : ''
+                }`}
+              >
+                <h2 className="mb-2 flex items-center gap-2 px-1 text-sm font-medium">
+                  {week}
+                  <span className="text-xs font-normal text-muted-foreground">{md}</span>
+                  {isToday && <Badge variant="secondary" className="text-[10px]">今天</Badge>}
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">{items.length} 段</span>
+                </h2>
+                <ul className="space-y-2">
+                  {items.map((block) => {
+                    const dragging = dragId === block.id;
+                    const isOver = overId === block.id && dragId !== block.id;
+                    return (
+                      <li
+                        key={block.id}
+                        data-block-id={block.id}
+                        className={`flex items-start gap-3 rounded-lg border bg-background px-3 py-2 transition ${
+                          dragging ? 'opacity-50' : ''
+                        } ${isOver ? 'ring-2 ring-primary/60' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          aria-label="拖动调整"
+                          className="mt-0.5 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-accent active:cursor-grabbing"
+                          onPointerDown={(e) => onPointerDown(e, block)}
+                          onPointerMove={onPointerMove}
+                          onPointerUp={finishDrag}
+                          onPointerCancel={finishDrag}
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </button>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <span className={`text-sm font-medium ${block.done ? 'text-muted-foreground line-through' : ''}`}>
+                              {block.topic}
+                            </span>
+                            {typeof block.mastery === 'number' && (
+                              <span className="text-[11px] text-muted-foreground">掌握度自评 {block.mastery}/5</span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {fmtMin(block.startMin)}–{fmtMin(block.endMin)} · {durText(block)}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={block.done ? 'secondary' : 'outline'}
+                            className="h-7 px-2 text-xs"
+                            onClick={() => toggleDone(block)}
+                            aria-label={block.done ? '标记为未完成' : '标记为已完成'}
+                          >
+                            <Check className="mr-0.5 h-3 w-3" />
+                            {block.done ? '已完成' : '做完'}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-muted-foreground"
+                            onClick={() => remove(block)}
+                            aria-label="删除这一段"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="mt-6 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <TriangleAlert className="h-3.5 w-3.5" />
+        草案只排到 22:30，不占上课时间也不占午饭；考前夜会被健康 Agent 拦一次，而不是默默让你熬。
+      </p>
+
+      <Link to="/week" className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+        看看这周的真实课表
+        <ArrowRight className="h-3 w-3" />
+      </Link>
+    </div>
+  );
+}

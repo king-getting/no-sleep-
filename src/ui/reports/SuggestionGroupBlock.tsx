@@ -23,39 +23,42 @@ export function SuggestionGroupBlock({
   onMark?: (done: boolean) => void;
 }) {
   return (
-    <section className="space-y-3">
+    <section className="space-y-2">
       <div className="flex items-center gap-2">
-        <h3 className="flex items-center gap-2 font-medium">
-          <Sparkles className="h-4 w-4 text-accent-foreground" />
-          {suggestion.topic}
-          <span className="text-xs font-normal text-muted-foreground">给选项，不替你决定</span>
+        <h3 className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-medium">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
+          <span className="whitespace-nowrap">{suggestion.topic}</span>
+          {/* 375px 上这行提示会把「主题」和右侧「做了/没做」挤成两行，小屏隐藏，桌面保留 */}
+          <span className="hidden text-[11px] font-normal text-muted-foreground sm:inline">给选项，不替你决定</span>
         </h3>
 
         {onMark && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {marked === undefined ? (
+              // 主操作是「选这个」。做没做是事后记账，所以压成安静的小字，
+              // 别和卡片上的按钮抢注意力（演示时观众会同时看到两组按钮，容易读成两件事）
               <>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] font-normal text-muted-foreground/70 hover:text-foreground"
                   onClick={() => onMark(true)}
                 >
-                  <Check className="mr-1 h-3.5 w-3.5" /> 做了
+                  <Check className="mr-0.5 h-3 w-3" /> 做了
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs text-muted-foreground"
+                  className="h-6 px-1.5 text-[11px] font-normal text-muted-foreground/70 hover:text-foreground"
                   onClick={() => onMark(false)}
                 >
-                  <Minus className="mr-1 h-3.5 w-3.5" /> 没做
+                  <Minus className="mr-0.5 h-3 w-3" /> 没做
                 </Button>
               </>
             ) : (
               <span
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-xs',
+                  'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
                   marked ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground',
                 )}
               >
@@ -66,12 +69,15 @@ export function SuggestionGroupBlock({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={`grid gap-2 sm:grid-cols-2 ${suggestion.options.length >= 3 ? 'lg:grid-cols-3' : ''}`}
+      >
         {suggestion.options.map((option) => (
           <OptionCardView
             key={option.id}
             option={option}
             picked={pickedOptionId === option.id}
+            dimmed={!!pickedOptionId && pickedOptionId !== option.id}
             onPick={onPick}
           />
         ))}

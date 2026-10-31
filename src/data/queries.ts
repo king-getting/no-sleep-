@@ -72,14 +72,182 @@ export function lunchCrunch(courses: Course[]): Course | undefined {
   return courses.find((c) => Math.min(c.endMin, 780) - Math.max(c.startMin, 690) >= 45);
 }
 
-export function lastNightSleep(logs: SleepLog[]): SleepLog | undefined {
-  return logs.at(-1);
+// ── 睡眠 ─────────────────────────────────────────────────────
+// 口径：SleepLog.date 是「入睡日期」。昨晚 = 昨天那一条；
+// 断更一天就是没有昨天，不拿更早的记录冒充昨晚。
+
+export function dateKeyOf(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-export function avgSleepHours(logs: SleepLog[], lastN: number): number {
-  const slice = logs.slice(-lastN);
-  if (slice.length === 0) return 8; // 无数据按健康基线，不误报
-  return slice.reduce((s, l) => s + l.hours, 0) / slice.length;
+export function lastNightSleep(logs: SleepLog[], now = new Date()): SleepLog | undefined {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const key = dateKeyOf(yesterday);
+  return logs.find((l) => l.date === key);
+}
+
+/**
+ * 近 N 晚平均睡眠：按日历窗口取「从昨天往前 N 天」，缺记录的日子不计入。
+ * 一条记录都没有时返回 null —— 调用方必须说「没有记录」，
+ * 不能拿 8h 健康基线当实测值（真实模式第一天就会撞上）。
+ */
+export function avgSleepHours(logs: SleepLog[], lastN: number, now = new Date()): number | null {
+  const byDate = new Map(logs.map((l) => [l.date, l.hours]));
+  const values: number[] = [];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const hours = byDate.get(dateKeyOf(d));
+    if (typeof hours === 'number') values.push(hours);
+  }
+  if (values.length === 0) return null;
+  return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+/** 近 N 晚里有几晚有记录：把「平均」和「缺口」一起说清楚，免得平均掩盖断更 */
+export function sleepCoverage(logs: SleepLog[], lastN: number, now = new Date()): number {
+  const keys = new Set(logs.map((l) => l.date));
+  let hit = 0;
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    if (keys.has(dateKeyOf(d))) hit += 1;
+  }
+  return hit;
+}
+
+export interface WakePlan {
+  /** 起床时刻（当天 0:00 起的分钟数） */
+  wakeMin: number;
+  reason: 'class' | 'default';
+  firstClass?: Course;
+  /** 0 = 今天（凌晨还没睡，指今天早上）；1 = 明天 */
+  dayOffset: 0 | 1;
+}
+
+/**
+ * 起床计划：按「下一次要起床的那天」最早的一节课反推（课前 40 分钟），
+ * 没课默认 8:30；凌晨 5 点前视为还没睡，指向当天早上。
+ * 之前这里硬编码 7:00，没早八的日子「现在睡能睡 X 小时」就是错的。
+ */
+export async function wakePlanOf(now: Date): Promise<WakePlan> {
+  const dayOffset: 0 | 1 = now.getHours() < 5 ? 0 : 1;
+  const target = new Date(now);
+  target.setDate(target.getDate() + dayOffset);
+  const courses = await coursesOfDay(dayOfWeek(target));
+  const first = courses[0]; // coursesOfDay 已按 startMin 排序
+  if (first) {
+    const wakeMin = Math.max(6 * 60, Math.floor((first.startMin - 40) / 5) * 5);
+    return { wakeMin, reason: 'class', firstClass: first, dayOffset };
+  }
+  return { wakeMin: 8 * 60 + 30, reason: 'default', dayOffset };
+}
+
+/** 现在就睡、到 wakeMin 起床能睡几小时（自动跨午夜；只在晚上问才有意义） */
+export function hoursIfSleepNow(now: Date, wakeMin: number): number {
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const diff = wakeMin - nowMin;
+  const total = diff > 0 ? diff : diff + 24 * 60;
+  return Math.round((total / 60) * 10) / 10;
+}
+
+// ── 睡眠债 / 作息规律性 / 本周对比 ───────────────────────────
+// 三条都只用「有记录的那几晚」算，并且同时报出覆盖晚数，
+// 免得 2 条记录算出来的「欠了 1.4 小时」被当成一周的结论。
+
+/** 每晚需要多少小时：取 7.5，与图表里的建议线同一个数 */
+export const SLEEP_NEED_HOURS = 7.5;
+
+export interface SleepDebt {
+  /** 累计欠下的小时数（每晚不足 7.5 的部分相加） */
+  debtHours: number;
+  /** 有记录的晚数 */
+  covered: number;
+  /** 窗口总共几晚 */
+  window: number;
+  /** 欠得最多的那一晚 */
+  worst?: { date: string; hours: number };
+}
+
+export function sleepDebt(logs: SleepLog[], lastN = 7, now = new Date()): SleepDebt | null {
+  const byDate = new Map(logs.map((l) => [l.date, l.hours]));
+  let debt = 0;
+  let covered = 0;
+  let worst: SleepDebt['worst'];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = dateKeyOf(d);
+    const hours = byDate.get(key);
+    if (typeof hours !== 'number') continue;
+    covered += 1;
+    const short = SLEEP_NEED_HOURS - hours;
+    if (short > 0) {
+      debt += short;
+      if (!worst || short > SLEEP_NEED_HOURS - worst.hours) worst = { date: key, hours };
+    }
+  }
+  if (covered === 0) return null;
+  return { debtHours: Math.round(debt * 10) / 10, covered, window: lastN, worst };
+}
+
+export interface SleepRhythm {
+  /** 入睡时间的标准差（分钟）：越小越稳 */
+  stdMin: number;
+  /** 平均入睡时刻（分钟数，>1440 表示次日凌晨） */
+  meanMin: number;
+  covered: number;
+}
+
+/** 凌晨 0–11 点入睡的统一挪到次日，避免 23:50 和 00:10 被算成「差 23 小时」 */
+function normalizeBed(min: number): number {
+  return min < 12 * 60 ? min + 24 * 60 : min;
+}
+
+export function bedtimeRegularity(logs: SleepLog[], lastN = 7, now = new Date()): SleepRhythm | null {
+  const byDate = new Map(logs.map((l) => [l.date, l]));
+  const values: number[] = [];
+  for (let i = 1; i <= lastN; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const log = byDate.get(dateKeyOf(d));
+    if (log && typeof log.bedTimeMin === 'number') values.push(normalizeBed(log.bedTimeMin));
+  }
+  // 只有一晚谈不上「规律」，两天也算不出有意义的波动
+  if (values.length < 2) return null;
+  const mean = values.reduce((s, v) => s + v, 0) / values.length;
+  const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+  return { stdMin: Math.round(Math.sqrt(variance)), meanMin: Math.round(mean), covered: values.length };
+}
+
+export interface WeekCompare {
+  thisWeek: number | null;
+  lastWeek: number | null;
+  /** 本周 − 上周（小时，正数表示这周睡得更多）；两边都有数时才有值 */
+  delta: number | null;
+}
+
+export function weekOverWeek(logs: SleepLog[], now = new Date()): WeekCompare {
+  const avgOf = (from: number, to: number): number | null => {
+    const values: number[] = [];
+    for (let i = from; i <= to; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const log = logs.find((l) => l.date === dateKeyOf(d));
+      if (log) values.push(log.hours);
+    }
+    if (values.length === 0) return null;
+    return values.reduce((s, v) => s + v, 0) / values.length;
+  };
+  const thisWeek = avgOf(1, 7);
+  const lastWeek = avgOf(8, 14);
+  const delta =
+    thisWeek !== null && lastWeek !== null ? Math.round((thisWeek - lastWeek) * 10) / 10 : null;
+  return { thisWeek, lastWeek, delta };
 }
 
 export function describeBlocks(blocks: TimeBlock[]): string {
