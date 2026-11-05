@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { agentRegistry } from '@/agents/registry';
+import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
 import { downloadBackup, restoreBackup } from '@/data/store/backup';
@@ -172,8 +173,16 @@ export default function Settings() {
     setThemeState(next);
   }
 
-  function toggleForceNormal() {
-    const next = !forceNormal;
+  /** 演示用：把示例考试挪到 3 天后，报告立刻切成冲刺模式 */
+  async function mockExamWeek() {
+    const at = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    await db.exams.put({ id: 'exam-ds', title: '数据结构期中考试', kind: 'exam', at, mastery: 3 });
+    localStorage.setItem(FORCE_NORMAL_KEY, '0');
+    toast('示例考试已挪到 3 天后', { description: '重载后报告切成冲刺模式。' });
+    window.setTimeout(() => window.location.reload(), 700);
+  }
+
+  function toggleForceNormal() {    const next = !forceNormal;
     setForceNormal(next);
     localStorage.setItem(FORCE_NORMAL_KEY, next ? '1' : '0');
     toast(next ? '已强制关闭生存模式' : '生存模式按考试自动判定', {
@@ -307,10 +316,17 @@ export default function Settings() {
 
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">演示旋钮</h2>
-        <p className="mb-3 text-xs text-muted-foreground">示例考试是相对当前时间生成的，可能正好落在 7 天窗口里。</p>
-        <Button variant={forceNormal ? 'default' : 'outline'} size="sm" onClick={toggleForceNormal}>
-          {forceNormal ? '已强制关闭生存模式' : '强制关闭生存模式'}
-        </Button>
+        <p className="mb-3 text-xs text-muted-foreground">
+          示例考试默认在 12 天后，所以打开是「平时报告」。想看生存模式，把它挪到考前一周。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => void mockExamWeek()}>
+            演示：考前一周（看冲刺报告）
+          </Button>
+          <Button variant={forceNormal ? 'default' : 'outline'} size="sm" onClick={toggleForceNormal}>
+            {forceNormal ? '已强制关闭生存模式' : '强制关闭生存模式'}
+          </Button>
+        </div>
       </section>
 
       <section className="rounded-2xl border bg-card p-5">

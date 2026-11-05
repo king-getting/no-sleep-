@@ -49,19 +49,21 @@ export function examWindowOf(exams: ExamItem[], now: Date): ExamWindow {
     .filter((e) => new Date(e.at).getTime() + EXAM_DAY_GRACE_MS >= nowMs)
     .sort((a, b) => a.at.localeCompare(b.at));
 
-  const next = upcoming[0];
-  if (!next) {
-    return { mode: 'normal', daysToExam: null, isExamDay: false, nextExam: null, upcoming: [] };
+  // 只有「考试」能把全站切进生存模式。作业 DDL 再紧也只是风险项，
+  // 不能因为一份实验报告没写，就把整天的报告变成冲刺报告。
+  const nextExam = upcoming.find((e) => e.kind === 'exam') ?? null;
+  if (!nextExam) {
+    return { mode: 'normal', daysToExam: null, isExamDay: false, nextExam: null, upcoming };
   }
 
-  const days = dayDiff(nowMs, new Date(next.at).getTime());
+  const days = dayDiff(nowMs, new Date(nextExam.at).getTime());
   const inWindow = days >= 0 && days <= EXAM_LEAD_DAYS;
 
   return {
     mode: inWindow ? 'exam' : 'normal',
-    daysToExam: days,
+    daysToExam: inWindow ? days : null,
     isExamDay: inWindow && days === 0,
-    nextExam: next,
+    nextExam: inWindow ? nextExam : null,
     upcoming,
   };
 }

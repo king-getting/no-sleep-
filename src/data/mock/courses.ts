@@ -27,14 +27,16 @@ export const MOCK_COURSES: Course[] = [
 ];
 
 /**
- * 示例考试 / DDL —— 相对当前时间动态生成，保证演示永远「DDL 在 48h 后」，
- * 从而稳定触发日程 Agent 的复习主张与健康 Agent 的睡眠主张冲突（设计文档 §5.3 示例）。
+ * 示例考试 / DDL —— 相对当前时间动态生成。
+ *
+ * 默认把考试放在 12 天后：示例模式打开就是「平时报告」，不再是永远冲刺。
+ * 想看生存模式，设置页的「演示旋钮」里有一键把考试挪到考前一周的按钮。
  */
 export function buildMockExams(now: Date): ExamItem[] {
   const at = (h: number) => new Date(now.getTime() + h * 3600_000).toISOString();
   return [
-    { id: 'exam-ds', title: '数据结构期中考试', kind: 'exam', at: at(6 * 24), mastery: 3 },
-    { id: 'ddl-os', title: '操作系统实验报告 DDL', kind: 'ddl', at: at(40), mastery: 2 },
-    { id: 'ddl-eng', title: '英语视听说作业 DDL', kind: 'ddl', at: at(3 * 24), mastery: 4 },
+    { id: 'exam-ds', title: '数据结构期中考试', kind: 'exam', at: at(12 * 24), mastery: 3 },
+    { id: 'ddl-os', title: '操作系统实验报告 DDL', kind: 'ddl', at: at(5 * 24), mastery: 2 },
+    { id: 'ddl-eng', title: '英语视听说作业 DDL', kind: 'ddl', at: at(8 * 24), mastery: 4 },
   ];
 }
