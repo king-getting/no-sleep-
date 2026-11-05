@@ -6,6 +6,7 @@ import {
   QUESTIONS,
   TRAIT_LABEL,
   TRAIT_NOTE,
+  archetypeOf,
   effectsOf,
   scoreAnswers,
   traitsLine,
@@ -107,7 +108,14 @@ export default function Assessment({ onDone }: { onDone: () => void }) {
         <section className="space-y-5">
           <div>
             <p className="text-xs text-muted-foreground">你的任务习惯</p>
-            <p className="mt-1 font-serif text-xl font-bold">{traitsLine(result)}</p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-2">
+              <p className="font-serif text-3xl font-bold leading-tight">{archetypeOf(result).name}</p>
+              <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                {archetypeOf(result).kind}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{archetypeOf(result).line}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{traitsLine(result)}</p>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">

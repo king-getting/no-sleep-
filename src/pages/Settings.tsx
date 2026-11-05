@@ -8,7 +8,7 @@ import { downloadBackup, restoreBackup } from '@/data/store/backup';
 import { bootMode, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
-import { effectsOf, traitsLine } from '@/lib/assessment';
+import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
 import type { AgentId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
@@ -317,7 +317,11 @@ export default function Settings() {
         <h2 className="mb-1 text-sm font-semibold">习惯画像</h2>
         {traits ? (
           <>
-            <p className="text-sm font-medium">{traitsLine(traits)}</p>
+            <p className="text-sm font-medium">
+              {archetypeOf(traits).name}
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">{archetypeOf(traits).kind}</span>
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{traitsLine(traits)}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               单块 {effectsOf(traits).focusMinutes} 分钟 · 提前 {effectsOf(traits).horizonDays} 天排 · 每天最多{' '}
               {effectsOf(traits).dayBudget} 分钟 · 优先{effectsOf(traits).preferSlot === 'morning' ? '上午' : '晚上'}

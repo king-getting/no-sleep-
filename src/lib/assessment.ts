@@ -223,3 +223,48 @@ export const TRAIT_NOTE: Record<string, string> = {
 export function traitsLine(traits: HabitTraits): string {
   return [TRAIT_LABEL[traits.rhythm], TRAIT_LABEL[traits.structure], TRAIT_LABEL[traits.focus], TRAIT_LABEL[traits.drive]].join(' · ');
 }
+
+/**
+ * 四维组合的「外号」：24 种，绝大多数是犬，少数组合给更贴切的动物。
+ * 外号只负责好记、好传播；真正生效的永远是 effectsOf() 那几个数。
+ */
+export interface Archetype {
+  name: string;
+  kind: '犬系' | '猫系' | '狐系' | '树懒系';
+  line: string;
+}
+
+const KEY = (t: HabitTraits) => `${t.rhythm}|${t.structure}|${t.focus}|${t.drive}`;
+
+const ARCHETYPES: Record<string, Archetype> = {
+  'morning|planner|deep|steady': { name: '边境牧羊犬', kind: '犬系', line: '天亮就开工，一件事能盯两小时' },
+  'morning|planner|deep|deadline': { name: '杜宾', kind: '犬系', line: '计划做得漂亮，真正发力在最后三天' },
+  'morning|planner|steady|steady': { name: '金毛', kind: '犬系', line: '不抢跑也不掉队，每天推一点' },
+  'morning|planner|steady|deadline': { name: '拉布拉多', kind: '犬系', line: '上午最靠谱，越靠近截止越来劲' },
+  'morning|planner|sprint|steady': { name: '柯基', kind: '犬系', line: '起得早，跑不长，但每一段都认真' },
+  'morning|planner|sprint|deadline': { name: '杰克罗素梗', kind: '犬系', line: '二十分钟热度，一天能热好几次' },
+  'morning|flexible|deep|steady': { name: '萨摩耶', kind: '犬系', line: '早上心情好，一头扎进去就不出来' },
+  'morning|flexible|deep|deadline': { name: '哈士奇', kind: '犬系', line: '状态来了连干三小时，状态没来就拆家' },
+  'morning|flexible|steady|steady': { name: '比格犬', kind: '犬系', line: '跟着鼻子走，走着走着也到了' },
+  'morning|flexible|steady|deadline': { name: '巴哥', kind: '犬系', line: '起得早、慢热，最后一天突然清醒' },
+  'morning|flexible|sprint|steady': { name: '博美', kind: '犬系', line: '精神好、注意力短，一天要跑很多趟' },
+  'morning|flexible|sprint|deadline': { name: '吉娃娃', kind: '犬系', line: '起得早、叫得响，干一会儿就累' },
+
+  'night|planner|deep|steady': { name: '德国牧羊犬', kind: '犬系', line: '晚上排好计划，一坐就是两小时' },
+  'night|planner|deep|deadline': { name: '罗威纳', kind: '犬系', line: '白天不动，夜里一口气推平' },
+  'night|planner|steady|steady': { name: '秋田犬', kind: '犬系', line: '不声不响，每天固定那一段' },
+  'night|planner|steady|deadline': { name: '中华田园犬', kind: '犬系', line: '皮实、计划简单，临门一脚很稳' },
+  'night|planner|sprint|steady': { name: '腊肠犬', kind: '犬系', line: '晚上开工，分段推进，短但不断' },
+  'night|planner|sprint|deadline': { name: '雪纳瑞', kind: '犬系', line: '夜里效率高，一段二十分钟，靠数量取胜' },
+  'night|flexible|deep|steady': { name: '阿拉斯加', kind: '犬系', line: '晚上才出门，一跑就是一大圈' },
+  'night|flexible|deep|deadline': { name: '藏獒', kind: '犬系', line: '不常动，动起来一次顶别人三次' },
+
+  'night|flexible|steady|steady': { name: '英国短毛猫', kind: '猫系', line: '没有计划，但每天那个点自己会来' },
+  'night|flexible|steady|deadline': { name: '赤狐', kind: '狐系', line: '白天装睡，截止前夜突然清醒' },
+  'night|flexible|sprint|steady': { name: '树懒', kind: '树懒系', line: '慢、碎，但从不缺席' },
+  'night|flexible|sprint|deadline': { name: '柴犬', kind: '犬系', line: '白天装死，DDL 前一晚突然爆发' },
+};
+
+export function archetypeOf(traits: HabitTraits): Archetype {
+  return ARCHETYPES[KEY(traits)] ?? { name: '小山雀', kind: '犬系', line: '还没测准，再答一次会更贴' };
+}
