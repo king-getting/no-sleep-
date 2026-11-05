@@ -11,6 +11,9 @@ import { initTheme } from '@/lib/theme'
 // 暗色模式：跟随系统 prefers-color-scheme，可用设置页手动覆盖
 initTheme()
 
+// 申请持久化存储：浏览器空间紧张时默认会清 IndexedDB，申请后不会被静默回收
+void navigator.storage?.persist?.().catch(() => {})
+
 // PWA：注册 Service Worker（离线可用的根基）
 //
 // registerType 是 prompt：新版本装好后先待命，发一条「点此刷新」，

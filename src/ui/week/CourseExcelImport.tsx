@@ -3,6 +3,7 @@ import { FileSpreadsheet, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { addCourse } from '@/data/store/courses';
+import { db } from '@/data/store/db';
 import { fmtMin } from '@/types/contract';
 import { newId, parseCourseExcel } from '@/lib/courseExcel';
 import { formatWeeks } from '@/lib/weeks';
@@ -52,9 +53,13 @@ export default function CourseExcelImport({
     setBusy(true);
     try {
       for (const c of parsed.courses) await addCourse({ ...c, id: newId() });
+      // 写完立刻回读：写失败或写错表时，这里能第一时间露出来
+      const total = await db.courses.count();
       toast.success(`已导入 ${parsed.courses.length} 门课`, {
         description:
-          parsed.errors.length > 0 ? `${parsed.errors.length} 行没导入，见上方提示` : '课表已更新，报告会立刻跟着变。',
+          parsed.errors.length > 0
+            ? `${parsed.errors.length} 行没导入；本机课表现在共 ${total} 门。`
+            : `本机课表现在共 ${total} 门，周历和月历都会跟着变。`,
       });
       setParsed(null);
       setFileName('');

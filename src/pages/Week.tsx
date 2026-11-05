@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { AlertTriangle, CalendarDays, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -124,12 +124,15 @@ function buildRisks(days: DayData[]): Risk[] {
   return risks.sort((a, b) => RISK_ORDER[a.kind] - RISK_ORDER[b.kind] || a.dow - b.dow);
 }
 
-async function fetchDays(week: number | null = null): Promise<DayData[]> {
+async function fetchDays(week: number | null = null, ignoreWeeks = false): Promise<DayData[]> {
   return Promise.all(
     DOWS.map(async (dow) => {
       const all = await coursesOfDay(dow);
-      // 有周次信息就只留「这周真的上」的课；没设学期就照旧全显示
-      const courses = week === null ? all : all.filter((c) => !c.weeks?.length || c.weeks.includes(week));
+      // 有周次信息就只留「这周真的上」的课；没设学期或手动关掉过滤就全显示
+      const courses =
+        week === null || ignoreWeeks
+          ? all
+          : all.filter((c) => !c.weeks?.length || c.weeks.includes(week));
       return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
     }),
   );
@@ -138,6 +141,7 @@ async function fetchDays(week: number | null = null): Promise<DayData[]> {
 export default function Week() {
   const [days, setDays] = useState<DayData[] | null>(null);
   const [week, setWeek] = useState<number | null>(null);
+  const [ignoreWeeks, setIgnoreWeeks] = useState(false);
   const now = useMemo(() => new Date(), []);
   const today = dayOfWeek(now);
   // 从报告里的「今日课程」点进来会带 ?dow=3，落地即停在那一天
@@ -150,8 +154,17 @@ export default function Week() {
   const [draftSeq, setDraftSeq] = useState(0);
 
   const load = useCallback(async () => {
-    setDays(await fetchDays(week));
-  }, [week]);
+    setDays(await fetchDays(week, ignoreWeeks));
+  }, [week, ignoreWeeks]);
+
+  /** 「只看本周 / 显示全部」切换：直接重新取数，不用 effect 二次触发 */
+  const setWeekFilter = useCallback(
+    async (ignore: boolean) => {
+      setIgnoreWeeks(ignore);
+      setDays(await fetchDays(week, ignore));
+    },
+    [week],
+  );
 
   useEffect(() => {
     let active = true;
@@ -160,7 +173,7 @@ export default function Week() {
       const w = weekOfDate(new Date(), prefs?.semesterStart);
       if (!active) return;
       setWeek(w);
-      setDays(await fetchDays(w));
+      setDays(await fetchDays(w, false));
     })();
     return () => {
       active = false;
@@ -260,8 +273,34 @@ export default function Week() {
             <span className="h-2.5 w-2.5 rounded-sm border border-primary/40 bg-primary/10 ring-1 ring-destructive/70" />
             红框＝午休被吃掉
           </span>
+          {week !== null && (
+            <button
+              type="button"
+              onClick={() => void setWeekFilter(!ignoreWeeks)}
+              className="ml-auto rounded-full border px-2 py-0.5 text-[11px] hover:border-foreground/30 hover:text-foreground"
+            >
+              {ignoreWeeks ? `正在显示全部课程（含非本周）` : `只看第 ${week} 周`}
+            </button>
+          )}
         </div>
       </header>
+
+      {week !== null && courseCount === 0 && !ignoreWeeks && (
+        <section className="mb-4 rounded-2xl border border-amber-300/60 bg-amber-50/70 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-950/20">
+          <p className="font-medium">第 {week} 周按课表没有课</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            如果今天应该有课，多半是「学期第一周」设错了——周历按它换算周次，差几周就会把课全过滤掉。
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => void setWeekFilter(true)}>
+              显示全部课程
+            </Button>
+            <Button size="sm" variant="ghost" asChild>
+              <Link to="/month">去改学期第一周</Link>
+            </Button>
+          </div>
+        </section>
+      )}
 
       {risks.length > 0 ? (
         <section className="mb-5 space-y-2">
