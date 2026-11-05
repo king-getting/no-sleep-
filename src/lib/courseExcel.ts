@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { parseWeeks } from '@/lib/weeks';
 import type { Course } from '@/types/contract';
 
 /**
@@ -30,7 +31,7 @@ export function newId(): string {
 
 // ── 表头识别 ────────────────────────────────────────────────
 
-type ColumnKey = 'name' | 'teacher' | 'location' | 'dayOfWeek' | 'startMin' | 'endMin';
+type ColumnKey = 'name' | 'teacher' | 'location' | 'dayOfWeek' | 'startMin' | 'endMin' | 'weeks';
 
 const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   name: ['课程名', '课程名称', '课程', 'name', 'course'],
@@ -39,6 +40,7 @@ const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   dayOfWeek: ['星期', '星期几', '周几', 'day', 'dow', 'weekday'],
   startMin: ['开始', '开始时间', 'start', 'begin', 'from'],
   endMin: ['结束', '结束时间', 'end', 'to'],
+  weeks: ['周次', '周数', 'weeks', 'week'],
 };
 
 function normHeader(h: unknown): string {
@@ -148,6 +150,7 @@ export function parseCourseRows(rows: unknown[][]): ParseResult {
       dayOfWeek: '星期',
       startMin: '开始',
       endMin: '结束',
+      weeks: '周次',
     };
     return {
       courses,
@@ -213,6 +216,17 @@ export function parseCourseRows(rows: unknown[][]): ParseResult {
     }
     seen.add(key);
 
+    let weeks: number[] | undefined;
+    const rawWeeks = String(cell('weeks') ?? '').trim();
+    if (rawWeeks) {
+      const pw = parseWeeks(rawWeeks);
+      if (pw.error) {
+        errors.push(`第 ${excelRow} 行：${rawName} 的周次「${rawWeeks}」${pw.error}`);
+      } else {
+        weeks = pw.weeks;
+      }
+    }
+
     courses.push({
       name: rawName,
       teacher: String(cell('teacher') ?? '').trim() || undefined,
@@ -220,6 +234,7 @@ export function parseCourseRows(rows: unknown[][]): ParseResult {
       dayOfWeek: day as Course['dayOfWeek'],
       startMin: snap(start),
       endMin: snap(end),
+      weeks,
     });
   });
 
@@ -272,20 +287,20 @@ export function detectGridHeader(rows: unknown[][]): { headerRow: number; dayCol
 }
 
 /** 「教师;周次;地点」→ 拆成字段；没有分号时整段当地点 */
-function splitMeta(meta: string): { teacher?: string; location: string } {
+function splitMeta(meta: string): { teacher?: string; location: string; weeksText?: string } {
   const parts = meta
     .split(/[;；]/)
     .map((s) => s.trim())
     .filter(Boolean);
   if (parts.length === 0) return { location: '' };
-  if (parts.length === 1) {
-    return /周/.test(parts[0]) ? { location: '' } : { location: parts[0] };
-  }
   const isWeeks = (s: string) => /周/.test(s) && /\d/.test(s);
-  const rest = parts.filter((p) => !isWeeks(p));
-  if (rest.length === 1) return { teacher: undefined, location: rest[0] };
+  const weeksText = parts.find(isWeeks);
+  const rest = parts.filter((p) => p !== weeksText);
+
+  if (rest.length === 0) return { location: '', weeksText };
+  if (rest.length === 1) return { location: rest[0], weeksText };
   const [teacher, ...restLoc] = rest;
-  return { teacher, location: restLoc.join('；') };
+  return { teacher, location: restLoc.join('；'), weeksText };
 }
 
 /** 一格可能塞了多门课（换周次共用同一节），按「课程名 + 信息行」成对切开 */
@@ -366,7 +381,16 @@ export function parseTimetableGrid(rows: unknown[][], merges: MergeRange[]): Par
       for (const cell of splitCourseCells(raw)) {
         const name = cell.name.replace(/\s+/g, ' ').trim();
         if (!name) continue;
-        const { teacher, location } = cell.meta ? splitMeta(cell.meta) : { teacher: undefined, location: '' };
+        const meta = cell.meta ? splitMeta(cell.meta) : { location: '' };
+        let weeks: number[] | undefined;
+        if (meta.weeksText) {
+          const pw = parseWeeks(meta.weeksText);
+          if (pw.error) {
+            errors.push(`第 ${r + 1} 行：${name} 的周次「${meta.weeksText}」${pw.error}`);
+          } else {
+            weeks = pw.weeks;
+          }
+        }
         const key = `${name}|${day}|${start}|${end}`;
         if (seen.has(key)) {
           duplicates += 1;
@@ -375,11 +399,12 @@ export function parseTimetableGrid(rows: unknown[][], merges: MergeRange[]): Par
         seen.add(key);
         courses.push({
           name,
-          teacher,
-          location,
+          teacher: meta.teacher,
+          location: meta.location,
           dayOfWeek: day as Course['dayOfWeek'],
           startMin: start,
           endMin: end,
+          weeks,
         });
       }
     }

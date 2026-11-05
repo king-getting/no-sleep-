@@ -30,6 +30,10 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    watch: {
+      // 编辑器/代理写入时会在源码目录留瞬时临时文件，监听器跟上去会 EBUSY 崩掉
+      ignored: ['**/*.tmpdir/**', '**/*.tmp', '**/.*.tmp/**'],
+    },
   },
   build: {
     // Windows 下 esbuild 处理大 chunk 时会卡在临时文件删除（Access denied），

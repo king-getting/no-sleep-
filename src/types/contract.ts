@@ -68,6 +68,8 @@ export interface Preferences {
   noAsk?: Record<string, true>;
   /** 习惯测评结果：只用来调排期与建议参数，不是心理诊断 */
   traits?: HabitTraits;
+  /** 学期第一周的周一（YYYY-MM-DD）；月视图用它换算「第几周」 */
+  semesterStart?: string;
 }
 
 /**
@@ -99,6 +101,8 @@ export interface Course {
   dayOfWeek: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   startMin: number;
   endMin: number;
+  /** 上课的教学周（1 起，如 [1,3,5]）；不填 = 每周都上 */
+  weeks?: number[];
 }
 
 export interface ExamItem {

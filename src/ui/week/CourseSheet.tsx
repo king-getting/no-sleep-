@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarPlus, Clock, MapPin, Pencil, Trash2, User, X } from 'lucide-react';
+import { CalendarPlus, CalendarRange, Clock, MapPin, Pencil, Trash2, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fmtMin } from '@/types/contract';
+import { formatWeeks, parseWeeks, weeksToInput } from '@/lib/weeks';
 import type { Course } from '@/types/contract';
 
 /**
@@ -70,6 +71,7 @@ export function CourseSheet({
   const [dow, setDow] = useState<number>(draft.course.dayOfWeek);
   const [start, setStart] = useState(toHHMM(draft.course.startMin));
   const [end, setEnd] = useState(toHHMM(draft.course.endMin));
+  const [weeksText, setWeeksText] = useState(weeksToInput(draft.course.weeks));
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -100,6 +102,8 @@ export function CourseSheet({
     if (startMin === null || endMin === null) return setError('时间格式不对');
     if (endMin <= startMin) return setError('下课时间要晚于上课时间');
     if (endMin - startMin < 20) return setError('一节课至少 20 分钟');
+    const parsedWeeks = parseWeeks(weeksText);
+    if (parsedWeeks.error) return setError(parsedWeeks.error);
     setError(null);
     onSave(
       {
@@ -110,6 +114,7 @@ export function CourseSheet({
         dayOfWeek: dow as Course['dayOfWeek'],
         startMin,
         endMin,
+        weeks: parsedWeeks.weeks,
       },
       draft.mode === 'add',
     );
@@ -184,6 +189,11 @@ export function CourseSheet({
                 教师
               </dt>
               <dd>{course.teacher || <span className="text-muted-foreground">未填</span>}</dd>
+              <dt className="flex items-center gap-1 text-muted-foreground">
+                <CalendarRange className="h-3.5 w-3.5" />
+                周次
+              </dt>
+              <dd>{formatWeeks(course.weeks)}</dd>
             </dl>
 
             {confirmDelete ? (
@@ -258,6 +268,15 @@ export function CourseSheet({
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block text-xs text-muted-foreground">
+              周次（留空就是每周都上）
+              <input
+                value={weeksText}
+                onChange={(e) => setWeeksText(e.target.value)}
+                placeholder="1-16 或 1,3,5,7 或 2-16双"
+                className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
+              />
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               <label className="block text-xs text-muted-foreground">

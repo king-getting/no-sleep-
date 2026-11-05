@@ -10,6 +10,8 @@ import {
   lunchCrunch,
 } from '@/data/queries';
 import { addCourse, deleteCourse, updateCourse } from '@/data/store/courses';
+import { getPreferences } from '@/data/store/profile';
+import { weekOfDate } from '@/lib/weeks';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, TimeBlock } from '@/types/contract';
 import { Button } from '@/components/ui/button';
@@ -122,10 +124,12 @@ function buildRisks(days: DayData[]): Risk[] {
   return risks.sort((a, b) => RISK_ORDER[a.kind] - RISK_ORDER[b.kind] || a.dow - b.dow);
 }
 
-async function fetchDays(): Promise<DayData[]> {
+async function fetchDays(week: number | null = null): Promise<DayData[]> {
   return Promise.all(
     DOWS.map(async (dow) => {
-      const courses = await coursesOfDay(dow);
+      const all = await coursesOfDay(dow);
+      // 有周次信息就只留「这周真的上」的课；没设学期就照旧全显示
+      const courses = week === null ? all : all.filter((c) => !c.weeks?.length || c.weeks.includes(week));
       return { dow, courses, blocks: computeTimeBlocks(courses, DAY_START, DAY_END) };
     }),
   );
@@ -133,6 +137,7 @@ async function fetchDays(): Promise<DayData[]> {
 
 export default function Week() {
   const [days, setDays] = useState<DayData[] | null>(null);
+  const [week, setWeek] = useState<number | null>(null);
   const now = useMemo(() => new Date(), []);
   const today = dayOfWeek(now);
   // 从报告里的「今日课程」点进来会带 ?dow=3，落地即停在那一天
@@ -145,14 +150,18 @@ export default function Week() {
   const [draftSeq, setDraftSeq] = useState(0);
 
   const load = useCallback(async () => {
-    setDays(await fetchDays());
-  }, []);
+    setDays(await fetchDays(week));
+  }, [week]);
 
   useEffect(() => {
     let active = true;
-    void fetchDays().then((loaded) => {
-      if (active) setDays(loaded);
-    });
+    void (async () => {
+      const prefs = await getPreferences().catch(() => null);
+      const w = weekOfDate(new Date(), prefs?.semesterStart);
+      if (!active) return;
+      setWeek(w);
+      setDays(await fetchDays(w));
+    })();
     return () => {
       active = false;
     };
@@ -186,6 +195,7 @@ export default function Week() {
         dayOfWeek: course.dayOfWeek,
         startMin: course.startMin,
         endMin: course.endMin,
+        weeks: course.weeks,
       });
       toast.success('已保存');
     }
@@ -216,6 +226,7 @@ export default function Week() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">我的这一周</h1>
             <p className="mt-1 text-sm text-muted-foreground">
+              {week !== null ? `第 ${week} 周 · ` : ''}
               按你录入的课表切色块：{courseCount} 门次课、{freeCount} 段整块空档。报告里说「午休被吃掉」，这里同一格就是红的。
             </p>
           </div>

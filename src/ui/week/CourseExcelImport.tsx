@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { addCourse } from '@/data/store/courses';
 import { fmtMin } from '@/types/contract';
 import { newId, parseCourseExcel } from '@/lib/courseExcel';
+import { formatWeeks } from '@/lib/weeks';
 import type { CourseInput, ParseResult } from '@/lib/courseExcel';
 
 const WEEK_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const;
@@ -108,6 +109,7 @@ export default function CourseExcelImport({
               {preview.map((c, i) => (
                 <li key={i}>
                   {WEEK_LABEL[c.dayOfWeek - 1]} {fmtMin(c.startMin)}–{fmtMin(c.endMin)} · {c.name}
+                  {c.weeks?.length ? ` · ${formatWeeks(c.weeks)}` : ''}
                   {c.location ? ` · ${c.location}` : ''}
                 </li>
               ))}

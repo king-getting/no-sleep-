@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router';
-import { Apple, CalendarDays, Flower2, HeartPulse, LayoutList, ListChecks, Mountain, Settings2, ShieldCheck } from 'lucide-react';
+import { Apple, CalendarDays, CalendarRange, Flower2, HeartPulse, LayoutList, ListChecks, Mountain, Settings2, ShieldCheck } from 'lucide-react';
 import Home from './pages/Home';
 import Feed from './pages/Feed';
 import Week from './pages/Week';
+import Month from './pages/Month';
 import Plan from './pages/Plan';
 import Health from './pages/Health';
 import Settings from './pages/Settings';
@@ -22,6 +23,7 @@ import { hasProfile } from '@/data/store/profile';
 const TABS = [
   { to: '/', label: '报告', icon: LayoutList },
   { to: '/week', label: '周历', icon: CalendarDays },
+  { to: '/month', label: '月历', icon: CalendarRange },
   { to: '/plan', label: '复习', icon: ListChecks },
   { to: '/feed', label: '信息流', icon: Apple },
   { to: '/health', label: '健康', icon: HeartPulse },
@@ -121,6 +123,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/week" element={<Week />} />
+          <Route path="/month" element={<Month />} />
           <Route path="/plan" element={<Plan />} />
           <Route path="/feed" element={<Feed />} />
           <Route path="/health" element={<Health />} />
