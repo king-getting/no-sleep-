@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { db } from '@/data/store/db';
-import { savePreferences, saveProfile } from '@/data/store/profile';
+import { clearAllData, savePreferences, saveProfile } from '@/data/store/profile';
+import { clearFeedState } from '@/data/store/feed';
 import { setBootMode } from '@/data/store/boot';
 import { MOCK_COURSES } from '@/data/mock/courses';
 import CourseExcelImport from '@/ui/week/CourseExcelImport';
@@ -95,6 +96,9 @@ export default function Onboarding({ onDone }: { onDone: (next?: 'assessment') =
     setSaving(true);
     try {
       const prefs: Preferences = { chronotype, foodPriority, napHabit, compliance: {}, conflictChoices: {} };
+      // 先清掉上一次「示例模式」留下的演示课表 / 考试 / 睡眠，别混进真实画像
+      await clearAllData();
+      await clearFeedState();
       await saveProfile(profile);
       await savePreferences(prefs);
       if (courseMode === 'mock') await db.courses.bulkPut(MOCK_COURSES);
