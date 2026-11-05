@@ -9,6 +9,7 @@ import { ensureSeeded, markCompliance, recordChoice, rememberConflictChoice } fr
 import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { ReportView } from '@/ui/reports/ReportView';
+import OutlookSection from '@/ui/outlook/OutlookSection';
 import type { Report } from '@/types/contract';
 
 /** 演示模式：手动唤出任意时段的报告（§4.9 路演刚需） */
@@ -153,6 +154,8 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      <OutlookSection />
     </div>
   );
 }
