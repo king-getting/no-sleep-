@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { agentRegistry } from '@/agents/registry';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
+import { downloadBackup, restoreBackup } from '@/data/store/backup';
 import { bootMode, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
@@ -20,7 +21,6 @@ import type { AgentId, UserProfile } from '@/types/contract';
  */
 
 const FORCE_NORMAL_KEY = 'xiaoshan:force-normal';
-const LLM_KEY = 'xiaoshan:llm-key';
 
 const AGENT_LABEL: Record<string, string> = {
   academic: '教务 Agent',
@@ -38,8 +38,9 @@ export default function Settings() {
   const [weightTick, setWeightTick] = useState(0);
   const [theme, setThemeState] = useState<ThemeChoice>('system');
   const [forceNormal, setForceNormal] = useState(false);
-  const [llmKey, setLlmKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -62,7 +63,6 @@ export default function Settings() {
       setEnabled(map);
       setThemeState(getThemeChoice());
       setForceNormal(localStorage.getItem(FORCE_NORMAL_KEY) === '1');
-      setLlmKey(localStorage.getItem(LLM_KEY) ?? '');
     })();
   }, []);
 
@@ -115,7 +115,38 @@ export default function Settings() {
     }
   }
 
+  async function exportBackup() {
+    setBusy(true);
+    try {
+      const s = await downloadBackup();
+      toast('备份已导出', { description: `${s.tables} 张表 / ${s.rows} 条记录，已存到下载目录。` });
+    } catch (e) {
+      toast('导出失败', { description: e instanceof Error ? e.message : '未知错误' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importBackup(file: File) {
+    if (file.size > 20 * 1024 * 1024) {
+      toast('文件过大，可能不是小山的备份');
+      return;
+    }
+    const text = await file.text();
+    if (!window.confirm('导入会用备份覆盖这台设备上的全部数据，当前数据不会保留。\n\n继续？')) return;
+    setBusy(true);
+    try {
+      const s = await restoreBackup(text);
+      toast('导入完成，正在重载…', { description: `${s.tables} 张表 / ${s.rows} 条记录` });
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      toast('导入失败，本机数据未改动', { description: e instanceof Error ? e.message : '未知错误' });
+      setBusy(false);
+    }
+  }
+
   async function restoreDemo() {
+    if (!window.confirm('恢复示例数据会覆盖当前内容。要先把现在的数据导出备份吗？\n\n确定覆盖并进入示例模式？')) return;
     await clearAllData();
     await clearFeedState();
     resetBootMode();
@@ -124,6 +155,7 @@ export default function Settings() {
   }
 
   async function wipeAll() {
+    if (!window.confirm('将清空这台设备上的全部数据：课表、考试、睡眠、复习草案、收藏与偏好。\n\n这一步不可撤销，确定继续？')) return;
     await clearAllData();
     await clearFeedState();
     resetBootMode();
@@ -141,7 +173,7 @@ export default function Settings() {
     setForceNormal(next);
     localStorage.setItem(FORCE_NORMAL_KEY, next ? '1' : '0');
     toast(next ? '已强制关闭生存模式' : '生存模式按考试自动判定', {
-      description: '路演时用它切「普通报告 / 冲刺报告」两种形态。',
+      description: '想在普通报告和冲刺报告之间对照时，用这个开关。',
     });
   }
 
@@ -278,46 +310,38 @@ export default function Settings() {
       </section>
 
       <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">模型（选填）</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          本期报告由本地规则生成，不调用任何大模型；此处 key 只存在浏览器 localStorage。
-        </p>
-        <div className="flex gap-2">
-          <input
-            type="password"
-            className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
-            placeholder="sk-…（可留空）"
-            value={llmKey}
-            onChange={(e) => setLlmKey(e.target.value)}
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              localStorage.setItem(LLM_KEY, llmKey);
-              toast('已保存到本机', { description: '不会发送到任何服务器。' });
-            }}
-          >
-            保存
-          </Button>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">数据</h2>
         <p className="mb-3 text-xs text-muted-foreground">
           当前模式：{bootMode() === 'demo' ? '示例数据' : '我的真实录入'}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => void restoreDemo()}>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void exportBackup()}>
+            导出备份
+          </Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()}>
+            从备份导入
+          </Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void restoreDemo()}>
             恢复示例数据
           </Button>
-          <Button variant="outline" size="sm" className="text-destructive" onClick={() => void wipeAll()}>
+          <Button variant="outline" size="sm" className="text-destructive" disabled={busy} onClick={() => void wipeAll()}>
             清除全部本机数据
           </Button>
         </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void importBackup(file);
+          }}
+        />
         <p className="mt-3 text-[11px] text-muted-foreground">
-          清除后回到 30 秒建档流程；IndexedDB + localStorage 一并清空，不保留任何副本。
+          备份是一个 JSON 文件（课表、睡眠、复习、收藏、偏好全在里面），不联网、不含密钥。
+          导入会用备份覆盖本机数据，所以两边都会先确认。
         </p>
       </section>
         </div>
