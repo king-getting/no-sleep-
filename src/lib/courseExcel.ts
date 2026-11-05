@@ -226,7 +226,7 @@ export function parseCourseRows(rows: unknown[][]): ParseResult {
   return { courses, errors, duplicates };
 }
 
-/** 读文件 → 解析。支持 .xlsx / .xls / .csv */
+/** 读文件 → 解析。支持 .xlsx / .xls / .csv；教务系统导出的网格课表会自动识别 */
 export async function parseCourseExcel(file: File): Promise<ParseResult> {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array' });
@@ -234,5 +234,160 @@ export async function parseCourseExcel(file: File): Promise<ParseResult> {
   if (!sheetName) return { courses: [], errors: ['文件里没有工作表'], duplicates: 0 };
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' });
+  const grid = detectGridHeader(rows);
+  if (grid) return parseTimetableGrid(rows, ws['!merges'] ?? []);
   return parseCourseRows(rows);
+}
+
+// ── 教务系统网格课表 ────────────────────────────────────────
+//
+// 国内教务系统（含华师）导出的 .xls 长这样：
+//   第 1–2 行：标题与学籍信息
+//   表头行：星期一 … 星期日
+//   数据行：A 列「一 / 01、02小节 / 08:00~09:40」，其余列是课程格
+//   课程格：「课程名 \n 教师;周次;地点」，跨两节的用合并单元格
+//
+// 这种表没有「课程名 / 星期 / 开始 / 结束」四列，平表解析器必然 0 门，所以单独走网格路径。
+
+const DAY_MAP: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 };
+
+interface MergeRange {
+  s: { r: number; c: number };
+  e: { r: number; c: number };
+}
+
+/** 找「星期一…星期日」表头行；至少认出 3 天才算网格表 */
+export function detectGridHeader(rows: unknown[][]): { headerRow: number; dayCols: Map<number, number> } | null {
+  const limit = Math.min(rows.length, 15);
+  for (let r = 0; r < limit; r += 1) {
+    const dayCols = new Map<number, number>();
+    for (let c = 0; c < (rows[r]?.length ?? 0); c += 1) {
+      const text = String(rows[r][c] ?? '').replace(/\s/g, '');
+      const m = text.match(/(?:星期|周)([一二三四五六日天])/);
+      if (m && text.length <= 8) dayCols.set(c, DAY_MAP[m[1]]);
+    }
+    if (dayCols.size >= 3) return { headerRow: r, dayCols };
+  }
+  return null;
+}
+
+/** 「教师;周次;地点」→ 拆成字段；没有分号时整段当地点 */
+function splitMeta(meta: string): { teacher?: string; location: string } {
+  const parts = meta
+    .split(/[;；]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return { location: '' };
+  if (parts.length === 1) {
+    return /周/.test(parts[0]) ? { location: '' } : { location: parts[0] };
+  }
+  const isWeeks = (s: string) => /周/.test(s) && /\d/.test(s);
+  const rest = parts.filter((p) => !isWeeks(p));
+  if (rest.length === 1) return { teacher: undefined, location: rest[0] };
+  const [teacher, ...restLoc] = rest;
+  return { teacher, location: restLoc.join('；') };
+}
+
+/** 一格可能塞了多门课（换周次共用同一节），按「课程名 + 信息行」成对切开 */
+function splitCourseCells(raw: string): { name: string; meta: string }[] {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const out: { name: string; meta: string }[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const name = lines[i];
+    const next = lines[i + 1];
+    // 信息行带分号或含「周」，才认为是配对；否则这门课只有名字
+    if (next && (/[;；]/.test(next) || /周/.test(next))) {
+      out.push({ name, meta: next });
+      i += 2;
+    } else {
+      out.push({ name, meta: '' });
+      i += 1;
+    }
+  }
+  return out;
+}
+
+/** 解析教务网格课表 */
+export function parseTimetableGrid(rows: unknown[][], merges: MergeRange[]): ParseResult {
+  const courses: CourseInput[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  let duplicates = 0;
+
+  const header = detectGridHeader(rows);
+  if (!header) {
+    return { courses, errors: ['没找到「星期一…星期日」这一行，无法按网格课表解析'], duplicates };
+  }
+  const { headerRow, dayCols } = header;
+  const firstDayCol = Math.min(...dayCols.keys());
+
+  // 合并单元格：同一列跨多行 = 一门课连上几节，时长覆盖到最后一行
+  const spanEnd = new Map<string, number>();
+  const covered = new Set<string>();
+  for (const m of merges) {
+    if (m.s.c !== m.e.c || !dayCols.has(m.s.c) || m.e.r <= m.s.r) continue;
+    spanEnd.set(`${m.s.r},${m.s.c}`, m.e.r);
+    for (let r = m.s.r + 1; r <= m.e.r; r += 1) covered.add(`${r},${m.s.c}`);
+  }
+
+  // 节次行 → 时间窗（从 A 列或表头左侧任意列里找 08:00~09:40）
+  const period = new Map<number, { start: number; end: number }>();
+  for (let r = headerRow + 1; r < rows.length; r += 1) {
+    const left = rows[r]
+      .slice(0, firstDayCol)
+      .map((v) => String(v ?? ''))
+      .join(' ');
+    const m = left.match(/(\d{1,2})\s*[:：]\s*(\d{2})\s*[~～\-–—至]\s*(\d{1,2})\s*[:：]\s*(\d{2})/);
+    if (!m) continue;
+    period.set(r, { start: Number(m[1]) * 60 + Number(m[2]), end: Number(m[3]) * 60 + Number(m[4]) });
+  }
+  if (period.size === 0) {
+    return { courses, errors: ['表头右侧找到了星期，但左边没有「08:00~09:40」这样的节次时间，无法确定上课时间'], duplicates };
+  }
+
+  for (const [col, day] of dayCols) {
+    for (let r = headerRow + 1; r < rows.length; r += 1) {
+      if (covered.has(`${r},${col}`)) continue;
+      const raw = String(rows[r]?.[col] ?? '').trim();
+      if (!raw) continue;
+
+      const lastRow = spanEnd.get(`${r},${col}`) ?? r;
+      const start = period.get(r)?.start;
+      const end = period.get(lastRow)?.end;
+      if (start === undefined || end === undefined) {
+        errors.push(`第 ${r + 1} 行：${raw.split(/\r?\n/)[0]} 所在行没有节次时间，已跳过`);
+        continue;
+      }
+
+      for (const cell of splitCourseCells(raw)) {
+        const name = cell.name.replace(/\s+/g, ' ').trim();
+        if (!name) continue;
+        const { teacher, location } = cell.meta ? splitMeta(cell.meta) : { teacher: undefined, location: '' };
+        const key = `${name}|${day}|${start}|${end}`;
+        if (seen.has(key)) {
+          duplicates += 1;
+          continue;
+        }
+        seen.add(key);
+        courses.push({
+          name,
+          teacher,
+          location,
+          dayOfWeek: day as Course['dayOfWeek'],
+          startMin: start,
+          endMin: end,
+        });
+      }
+    }
+  }
+
+  if (courses.length === 0) {
+    errors.push('认出了网格表头，但没有读到任何课程格，可能这门课表是空的');
+  }
+
+  return { courses, errors, duplicates };
 }

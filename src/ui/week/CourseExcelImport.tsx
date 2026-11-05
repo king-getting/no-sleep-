@@ -90,8 +90,9 @@ export default function CourseExcelImport({
 
       {!fileName && !parsed && (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          表格第一行放表头：<span className="font-medium">课程名 · 星期 · 开始 · 结束</span>（必填），教师 · 地点（可选）。
-          时间写 08:00 这种格式；星期写 1–7 或 周一~周日。
+          两种表都认：<span className="font-medium">教务系统导出的网格课表</span>（星期做列头、节次做行首，直接选文件就行），
+          或者自己整理的表——第一行表头 <span className="font-medium">课程名 · 星期 · 开始 · 结束</span>（必填），教师 · 地点（可选），
+          时间写 08:00 这种格式，星期写 1–7 或 周一~周日。
         </p>
       )}
 
