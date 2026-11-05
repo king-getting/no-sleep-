@@ -9,7 +9,7 @@ import Health from './pages/Health';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
 import Assessment from './pages/Assessment';
-import { bootMode } from '@/data/store/boot';
+import { bootMode, setBootMode } from '@/data/store/boot';
 import { hasProfile } from '@/data/store/profile';
 
 /**
@@ -99,6 +99,23 @@ export default function App() {
           </span>
         </div>
       </header>
+
+      {/* 示例模式常驻提示：点错了也得有路回来，不能只在设置里藏一个出口 */}
+      {bootMode() === 'demo' && (
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
+          <span>你正在看示例数据，不是你自己的档案。</span>
+          <button
+            type="button"
+            className="font-medium underline underline-offset-2 hover:text-amber-950"
+            onClick={() => {
+              setBootMode('real');
+              window.location.reload();
+            }}
+          >
+            开始建档
+          </button>
+        </div>
+      )}
 
       <div className="flex-1">
         <Routes>
