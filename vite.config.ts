@@ -31,6 +31,12 @@ export default defineConfig({
   server: {
     port: 3000,
   },
+  build: {
+    // Windows 下 esbuild 处理大 chunk 时会卡在临时文件删除（Access denied），
+    // 改用 esnext + terser 绕开该路径；产物仍是现代浏览器可用的 ES2022。
+    target: 'esnext',
+    minify: 'terser',
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
