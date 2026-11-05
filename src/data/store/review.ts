@@ -1,5 +1,7 @@
 import { db, type ReviewBlockRecord } from '@/data/store/db';
 import { coursesOfDay, computeTimeBlocks, upcomingExams } from '@/data/queries';
+import { getPreferences } from '@/data/store/profile';
+import { effectsOf, type TraitEffects } from '@/lib/assessment';
 import { dayOfWeek } from '@/types/contract';
 
 /**
@@ -111,14 +113,20 @@ export function reviewTargetMinOf(mastery: number | undefined): number {
 }
 
 /** 生成草案：按「掌握度低优先、离考试近优先」把整块空档排给考试 */
-export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<ReviewBlock[]> {
+export async function generateReviewPlan(now: Date, horizonDays?: number): Promise<ReviewBlock[]> {
+  // 习惯测评（做过的话）决定四件事：块长、提前天数、每日配额、优先时段
+  const prefs = await getPreferences().catch(() => null);
+  const fx: TraitEffects | null = prefs?.traits ? effectsOf(prefs.traits) : null;
+  const horizon = fx?.horizonDays ?? horizonDays ?? 4;
+  const minSlot = fx ? Math.min(REVIEW_MIN_SLOT, fx.focusMinutes) : REVIEW_MIN_SLOT;
+
   const exams = (await upcomingExams(now, 8)).filter((e) => new Date(e.at).getTime() > now.getTime() && e.kind === 'exam');
   await db.reviewBlocks.clear();
   if (exams.length === 0) return [];
 
-  // 候选空档：今天（留 60 分钟缓冲）到 horizonDays 天
+  // 候选空档：今天（留 60 分钟缓冲）到 horizon 天
   const slots: Slot[] = [];
-  for (let d = 0; d <= horizonDays; d += 1) {
+  for (let d = 0; d <= horizon; d += 1) {
     const date = dateKeyOf(now, d);
     const day = new Date(`${date}T00:00:00`);
     const courses = await coursesOfDay(dayOfWeek(day) as 1 | 2 | 3 | 4 | 5 | 6 | 7);
@@ -127,10 +135,18 @@ export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<Re
       if (block.kind === 'class') continue;
       const start = Math.max(block.startMin, from);
       const end = Math.min(block.endMin, REVIEW_DAY_END);
-      if (end - start >= REVIEW_MIN_SLOT) slots.push({ date, start, end });
+      if (end - start >= minSlot) slots.push({ date, start, end });
     }
   }
-  slots.sort((a, b) => (a.date === b.date ? a.start - b.start : a.date.localeCompare(b.date)));
+  // 日期优先；同一天内按画像偏好的时段排（夜间型先看晚上，早间型先看上午）
+  const prefRank = (start: number) => {
+    if (!fx) return 0;
+    if (fx.preferSlot === 'evening') return start >= 17 * 60 ? 0 : 1;
+    return start < 12 * 60 ? 0 : 1;
+  };
+  slots.sort((a, b) =>
+    a.date === b.date ? prefRank(a.start) - prefRank(b.start) || a.start - b.start : a.date.localeCompare(b.date),
+  );
 
   const order = [...exams].sort((a, b) => {
     const ma = a.mastery ?? 3;
@@ -153,8 +169,21 @@ export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<Re
     const mastery = exam.mastery ?? 3;
     // 掌握度越低给的总时长越多；>=4 的只排一块短复习
     const needMin = reviewTargetMinOf(mastery);
-    const maxChunk = mastery >= 4 ? 45 : mastery <= 2 ? 90 : 60;
-    const dayBudget = mastery <= 2 ? 90 : REVIEW_DAY_MAX;
+    // 画像里的专注时长是上限：长跑型整块 90，短跑型最多 30
+    const maxChunk = fx
+      ? Math.min(fx.focusMinutes, mastery >= 4 ? 45 : 90)
+      : mastery >= 4
+        ? 45
+        : mastery <= 2
+          ? 90
+          : 60;
+    const dayBudget = fx
+      ? mastery <= 2
+        ? Math.max(fx.dayBudget, 90)
+        : fx.dayBudget
+      : mastery <= 2
+        ? 90
+        : REVIEW_DAY_MAX;
     const examDate = dateKey(new Date(exam.at));
 
     // 先切成若干块：每块不超过 maxChunk，不足 45 分钟的余量并进上一块，避免出现 30 分钟的碎片
@@ -162,7 +191,7 @@ export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<Re
     let rest = needMin;
     while (rest > 0) {
       const take = Math.min(maxChunk, rest);
-      if (take >= REVIEW_MIN_SLOT || lens.length === 0) lens.push(take);
+      if (take >= minSlot || lens.length === 0) lens.push(take);
       else lens[lens.length - 1] += take;
       rest -= take;
     }
@@ -175,20 +204,20 @@ export async function generateReviewPlan(now: Date, horizonDays = 4): Promise<Re
 
         const dayUsed = perDay.get(slot.date) ?? 0;
         const budget = dayBudget - dayUsed;
-        if (budget < REVIEW_MIN_SLOT) {
+        if (budget < minSlot) {
           advanceSlot();
           continue;
         }
 
         // 避开午饭：压在 12:00–13:00 上就从 13:00 重新开始
-        if (cursor < LUNCH_GUARD[1] && cursor + REVIEW_MIN_SLOT > LUNCH_GUARD[0]) {
+        if (cursor < LUNCH_GUARD[1] && cursor + minSlot > LUNCH_GUARD[0]) {
           cursor = snap15(LUNCH_GUARD[1]);
           continue;
         }
 
         const end = Math.min(slot.end, REVIEW_DAY_END);
         const room = floor15(end - cursor);
-        if (room < REVIEW_MIN_SLOT) {
+        if (room < minSlot) {
           advanceSlot();
           continue;
         }

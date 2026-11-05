@@ -14,9 +14,9 @@ const WEIGHT_KEY = 'xiaoshan:agent-weights';
 
 export type BootMode = 'demo' | 'real';
 
-/** 当前启动模式；默认 demo（保持现有演示行为不变） */
+/** 当前启动模式；默认 real —— 新用户先建档，示例只是可选入口 */
 export function bootMode(): BootMode {
-  return localStorage.getItem(BOOT_KEY) === 'real' ? 'real' : 'demo';
+  return localStorage.getItem(BOOT_KEY) === 'demo' ? 'demo' : 'real';
 }
 
 export function setBootMode(mode: BootMode): void {

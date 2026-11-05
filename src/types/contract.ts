@@ -66,6 +66,27 @@ export interface Preferences {
   missReasons?: Record<string, string>;
   /** v1.10 一键「不再追问」的 topic：不再出现「做了 / 没做」标记 */
   noAsk?: Record<string, true>;
+  /** 习惯测评结果：只用来调排期与建议参数，不是心理诊断 */
+  traits?: HabitTraits;
+}
+
+/**
+ * 任务习惯倾向（测评产出）
+ *
+ * 四个维度都直接对应排期算法里的一个参数，测完不是存着看的：
+ *   rhythm     → 复习时段优先（上午 / 晚上）
+ *   structure  → 排期提前几天（计划型更早铺开）
+ *   focus      → 单块复习时长（30 / 60 / 90 分钟）
+ *   drive      → 提前量与每日配额（压线型不给太早的排期，避免白排）
+ */
+export interface HabitTraits {
+  rhythm: 'morning' | 'night';
+  structure: 'planner' | 'flexible';
+  focus: 'sprint' | 'steady' | 'deep';
+  drive: 'deadline' | 'steady';
+  takenAt: string;
+  /** 各维度原始分（-3..3），阈值以后可以调，不必重新答题 */
+  scores: { rhythm: number; structure: number; focus: number; drive: number };
 }
 
 /** 课程（时间统一用「当日分钟数」表示，如 8:00 = 480） */

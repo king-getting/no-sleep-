@@ -8,6 +8,7 @@ import Plan from './pages/Plan';
 import Health from './pages/Health';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import Assessment from './pages/Assessment';
 import { bootMode } from '@/data/store/boot';
 import { hasProfile } from '@/data/store/profile';
 
@@ -51,9 +52,9 @@ export default function App() {
   if (needOnboarding) {
     return (
       <Onboarding
-        onDone={() => {
-          // 完成后整页重载：Home 的首屏报告逻辑依赖 ensureSeeded() 的时序，重载最省心
-          window.location.reload();
+        onDone={(next) => {
+          // 建完档可以直接去做 2 分钟习惯测评；整页跳转，避开种子数据的时序
+          window.location.href = next === 'assessment' ? '/assessment' : '/';
         }}
       />
     );
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/feed" element={<Feed />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/assessment" element={<Assessment onDone={() => { window.location.href = '/'; }} />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </div>

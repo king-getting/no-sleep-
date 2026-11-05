@@ -8,7 +8,8 @@ import { downloadBackup, restoreBackup } from '@/data/store/backup';
 import { bootMode, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
-import type { AgentId, UserProfile } from '@/types/contract';
+import { effectsOf, traitsLine } from '@/lib/assessment';
+import type { AgentId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
  * 设置页（dev-tasks B7 + B9 的外观开关 + A6 的演示旋钮）
@@ -40,6 +41,7 @@ export default function Settings() {
   const [forceNormal, setForceNormal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [traits, setTraits] = useState<HabitTraits | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -63,6 +65,8 @@ export default function Settings() {
       setEnabled(map);
       setThemeState(getThemeChoice());
       setForceNormal(localStorage.getItem(FORCE_NORMAL_KEY) === '1');
+      const prefs = await getPreferences().catch(() => null);
+      setTraits(prefs?.traits ?? null);
     })();
   }, []);
 
@@ -306,6 +310,33 @@ export default function Settings() {
         <p className="mb-3 text-xs text-muted-foreground">示例考试是相对当前时间生成的，可能正好落在 7 天窗口里。</p>
         <Button variant={forceNormal ? 'default' : 'outline'} size="sm" onClick={toggleForceNormal}>
           {forceNormal ? '已强制关闭生存模式' : '强制关闭生存模式'}
+        </Button>
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <h2 className="mb-1 text-sm font-semibold">习惯画像</h2>
+        {traits ? (
+          <>
+            <p className="text-sm font-medium">{traitsLine(traits)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              单块 {effectsOf(traits).focusMinutes} 分钟 · 提前 {effectsOf(traits).horizonDays} 天排 · 每天最多{' '}
+              {effectsOf(traits).dayBudget} 分钟 · 优先{effectsOf(traits).preferSlot === 'morning' ? '上午' : '晚上'}
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            还没测。12 道题、约 2 分钟，结果会直接改复习块长度、提前天数、每日配额和优先时段。
+          </p>
+        )}
+        <Button
+          className="mt-3"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            window.location.href = '/assessment';
+          }}
+        >
+          {traits ? '重新测评' : '开始测评'}
         </Button>
       </section>
 

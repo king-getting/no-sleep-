@@ -52,7 +52,7 @@ function StepDots({ step }: { step: Step }) {
   );
 }
 
-export default function Onboarding({ onDone }: { onDone: () => void }) {
+export default function Onboarding({ onDone }: { onDone: (next?: 'assessment') => void }) {
   const [step, setStep] = useState<Step>(0);
 
   // 身份（唯一必填）
@@ -91,7 +91,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     isDemo: false,
   };
 
-  async function finish() {
+  async function finish(next?: 'assessment') {
     setSaving(true);
     try {
       const prefs: Preferences = { chronotype, foodPriority, napHabit, compliance: {}, conflictChoices: {} };
@@ -103,7 +103,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       }
       setBootMode('real'); // 从此不再自动灌示例数据
       toast('画像已保存在这台设备上', { description: '数据只存本地 IndexedDB，不上传任何服务器。' });
-      onDone();
+      onDone(next);
     } catch (err) {
       toast('保存失败', { description: err instanceof Error ? err.message : String(err) });
     } finally {
@@ -422,13 +422,24 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             <p className="text-xs text-muted-foreground">
               这些都能在设置里改；任何一个 ✗ 都不用重来一遍流程。
             </p>
-            <div className="flex justify-between pt-2">
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed">
+              <span className="font-medium text-foreground">还差最后一步（可选）</span>
+              <span className="text-muted-foreground">
+                ：12 道题、约 2 分钟，测出你的节奏、计划性、专注长度和推进方式。结果直接决定复习块多长、提前几天排、优先哪个时段。
+              </span>
+            </div>
+            <div className="flex items-center justify-between pt-2">
               <Button variant="ghost" onClick={() => setStep(5)}>
                 改一下
               </Button>
-              <Button disabled={saving} onClick={() => void finish()}>
-                {saving ? '保存中…' : '就用这个'}
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" disabled={saving} onClick={() => void finish()}>
+                  先跳过
+                </Button>
+                <Button disabled={saving} onClick={() => void finish('assessment')}>
+                  {saving ? '保存中…' : '做个测评'}
+                </Button>
+              </div>
             </div>
           </section>
         )}
