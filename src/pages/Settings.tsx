@@ -378,6 +378,10 @@ export default function Settings() {
           备份是一个 JSON 文件（课表、睡眠、复习、收藏、偏好全在里面），不联网、不含密钥。
           导入会用备份覆盖本机数据，所以两边都会先确认。
         </p>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          当前版本构建于 {new Date(__BUILD_TIME__).toLocaleString('zh-CN')}
+          {__BUILD_TIME__ ? '（看到的时间早于预期，说明 Service Worker 还没更新，刷新一次即可）' : ''}
+        </p>
       </section>
         </div>
       </div>

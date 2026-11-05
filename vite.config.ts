@@ -7,12 +7,19 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
+  // 构建时刻：设置页会显示它，用来确认「打开的是不是最新版本」
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     inspectAttr(),
     react(),
     // PWA：离线可用 + 可安装，支撑「断网演示」（设计文档 §6/§8）
     VitePWA({
-      registerType: 'autoUpdate',
+      // prompt：新版本先待命并提示刷新，避免用户一直看到 Service Worker 里的旧缓存
+      registerType: 'prompt',
+      // 注册由 src/main.tsx 的 registerSW 负责，这里不要再自动注入一份
+      injectRegister: false,
       includeAssets: ['icon.svg'],
       manifest: {
         name: '小山 · CCUNER 的本地小助手',

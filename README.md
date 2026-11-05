@@ -2,8 +2,8 @@
 
 专属于华师（CCNU）学生的本地优先 AI 校园助手：**数据不出设备，决策过程看得见。**
 
-**[打开在线 Demo（国内镜像）](https://ccuner-xiaoshan-mirror.netlify.app)** · Netlify 托管，无需账号，数据只保存在当前浏览器。
-**[Vercel 主站](https://ccuner-xiaoshan.vercel.app)** · 连接 GitHub，push 到 `main` 自动部署最新版；部分网络环境可能无法访问，请优先使用上方镜像。
+**[打开在线站点](https://ccuner-xiaoshan-mirror.netlify.app)** · Netlify 托管，国内可直连，无需账号，数据只保存在当前浏览器。
+**[Vercel 备份站](https://ccuner-xiaoshan.vercel.app)** · 连接 GitHub 自动部署；`*.vercel.app` 在国内多地会被 DNS 投毒 + TLS 重置，打不开就用上面那个。
 
 ## 为什么是小山
 
