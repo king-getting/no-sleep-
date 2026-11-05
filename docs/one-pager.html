@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>小山 · CCUNER 的本地小助手 — 项目介绍</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 210mm; height: 297mm;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  body {
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: #1F2A24; background: #F7F4EC;
+    font-size: 8.6pt; line-height: 1.55;
+    display: flex; flex-direction: column;
+  }
+  .pad { padding: 0 13mm; }
+
+  /* ---------- header ---------- */
+  header {
+    background: #2F4A3E; color: #F7F4EC;
+    padding: 11mm 13mm 9mm;
+    position: relative; overflow: hidden;
+  }
+  header::after {
+    content: ""; position: absolute; right: -18mm; top: -26mm;
+    width: 74mm; height: 74mm; border-radius: 50%;
+    background: rgba(247,244,236,.06);
+  }
+  .brand { display: flex; align-items: baseline; gap: 3.2mm; }
+  .brand h1 { font-size: 27pt; letter-spacing: .06em; font-weight: 700; line-height: 1; }
+  .brand .sub { font-size: 10pt; color: #C9D8CE; letter-spacing: .04em; }
+  .tagline {
+    margin-top: 3.4mm; font-size: 11pt; line-height: 1.5;
+    color: #F7F4EC; max-width: 150mm; font-weight: 500;
+  }
+  .tagline em { font-style: normal; color: #E8C79A; }
+  .chips { display: flex; gap: 2.4mm; margin-top: 5.5mm; flex-wrap: wrap; }
+  .chip {
+    border: .3mm solid rgba(247,244,236,.42); border-radius: 20mm;
+    padding: 1.1mm 3.2mm; font-size: 7.4pt; color: #DDE8E1; letter-spacing: .02em;
+  }
+
+  /* ---------- shared ---------- */
+  main { flex: 1; padding: 7.5mm 13mm 0; }
+  .sec-head { display: flex; align-items: center; gap: 2.6mm; margin-bottom: 3mm; }
+  .sec-num {
+    width: 5.4mm; height: 5.4mm; border-radius: 50%;
+    background: #4A6B5C; color: #F7F4EC; font-size: 7.2pt; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .sec-title { font-size: 10.4pt; font-weight: 700; letter-spacing: .05em; }
+  .sec-en { font-size: 6.6pt; color: #8A8271; letter-spacing: .14em; text-transform: uppercase; margin-left: auto; }
+
+  /* ---------- problem ---------- */
+  .problem { margin-bottom: 6mm; }
+  .problem-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .pcard {
+    background: #FFFFFF; border: .25mm solid #E3DCCD; border-left: .9mm solid #C2703F;
+    border-radius: 1.2mm; padding: 3mm 3.2mm;
+  }
+  .pcard h3 { font-size: 8.8pt; margin-bottom: 1.2mm; color: #2F4A3E; }
+  .pcard p { font-size: 7.8pt; color: #554F44; line-height: 1.6; }
+
+  /* ---------- solution ---------- */
+  .solution { margin-bottom: 6mm; }
+  .sol-wrap { display: grid; grid-template-columns: 62mm 1fr; gap: 5mm; align-items: start; }
+  .agents { display: grid; grid-template-columns: 1fr 1fr; gap: 1.8mm; }
+  .agent {
+    background: #2F4A3E; color: #EFF4F0; border-radius: 1mm;
+    padding: 2.2mm 2.4mm; font-size: 7.6pt; text-align: center; letter-spacing: .04em;
+  }
+  .agent span { display: block; font-size: 6.4pt; color: #A9C0B2; letter-spacing: .1em; margin-top: .6mm; }
+  .orchestrator {
+    grid-column: 1 / -1; background: #4A6B5C; color: #FFF;
+    border-radius: 1mm; padding: 2.2mm; text-align: center; font-size: 8.2pt; font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .arrow { text-align: center; color: #A79E8B; font-size: 7pt; line-height: 1; margin: .8mm 0; }
+  .sol-points { list-style: none; }
+  .sol-points li {
+    position: relative; padding-left: 4.6mm; margin-bottom: 2.4mm; font-size: 8.2pt; line-height: 1.6;
+  }
+  .sol-points li::before {
+    content: ""; position: absolute; left: 0; top: 1.55mm;
+    width: 2.1mm; height: 2.1mm; background: #C2703F; border-radius: 50%;
+  }
+  .sol-points b { color: #2F4A3E; }
+
+  /* ---------- innovation ---------- */
+  .innovation { margin-bottom: 5.5mm; }
+  .inno-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; }
+  .icard { border-top: .5mm solid #4A6B5C; padding-top: 2.4mm; }
+  .icard .no { font-size: 15pt; font-weight: 700; color: #CBD3C7; line-height: 1; }
+  .icard h3 { font-size: 8.8pt; margin: 1mm 0 1.2mm; color: #2F4A3E; }
+  .icard p { font-size: 7.6pt; color: #554F44; line-height: 1.6; }
+
+  /* ---------- shots ---------- */
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+  figure { margin: 0; }
+  figure img {
+    width: 100%; display: block; border: .25mm solid #DCD4C4; border-radius: 1mm;
+    background: #fff;
+  }
+  figcaption { font-size: 7pt; color: #7A7364; margin-top: 1.4mm; letter-spacing: .02em; }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: auto; padding: 4mm 13mm 6mm;
+    border-top: .25mm solid #DDD5C5;
+  }
+  .stack { display: flex; gap: 1.8mm; flex-wrap: wrap; margin-bottom: 2.4mm; }
+  .tag {
+    font-size: 6.8pt; color: #4A6B5C; background: #EAE5D8;
+    border-radius: .8mm; padding: .9mm 2.2mm; letter-spacing: .03em;
+  }
+  .foot-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 7pt; color: #7A7364; letter-spacing: .02em;
+  }
+  .foot-row b { color: #2F4A3E; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>小山</h1>
+    <div class="sub">CCUNER 的本地小助手</div>
+  </div>
+  <p class="tagline">
+    专属于华师学生的本地优先 AI 校园助手 —— <em>数据不出设备，决策过程看得见。</em>
+  </p>
+  <div class="chips">
+    <div class="chip">4 个专职 Agent + 总控编排</div>
+    <div class="chip">全本地 · 0 上行请求</div>
+    <div class="chip">断网可用 PWA</div>
+    <div class="chip">6 个功能路由</div>
+  </div>
+</header>
+
+<main>
+  <!-- 01 问题 -->
+  <section class="problem">
+    <div class="sec-head">
+      <div class="sec-num">01</div><div class="sec-title">问题</div>
+      <div class="sec-en">Why it matters</div>
+    </div>
+    <div class="problem-grid">
+      <div class="pcard">
+        <h3>信息散落，没人替你过滤</h3>
+        <p>教务通知、讲座、生活服务分散在群聊与公众号，没有按你的年级、校区、空闲时段筛过。</p>
+      </div>
+      <div class="pcard">
+        <h3>选择很累，代价从没写清</h3>
+        <p>午饭吃什么、今晚复习还是早睡，通用助手只给一句结论，不说它牺牲了什么。</p>
+      </div>
+      <div class="pcard">
+        <h3>云端助手，先交数据再谈服务</h3>
+        <p>课表、作息、健康是敏感信息。上传换取建议，且过程是黑盒。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 方案 -->
+  <section class="solution">
+    <div class="sec-head">
+      <div class="sec-num">02</div><div class="sec-title">方案：可解释的多智能体编排</div>
+      <div class="sec-en">How it works</div>
+    </div>
+    <div class="sol-wrap">
+      <div>
+        <div class="agents">
+          <div class="agent">教务<span>ACADEMIC</span></div>
+          <div class="agent">生活<span>LIFE</span></div>
+          <div class="agent">健康<span>HEALTH</span></div>
+          <div class="agent">日程<span>SCHEDULE</span></div>
+          <div class="orchestrator">总控编排器 · 冲突仲裁</div>
+        </div>
+      </div>
+      <ul class="sol-points">
+        <li><b>各司其职</b>：4 个 Agent 只读自己那部分数据，独立产出结论，互不串联污染。</li>
+        <li><b>每条建议可溯源</b>：点「为什么」展开依据——哪个 Agent、哪条数据、权重多少。</li>
+        <li><b>冲突不折中</b>：L1 可调和的自动合并并说明；L2 真冲突弹卡，两边代价写清，由你二选一，系统记住裁决。</li>
+        <li><b>场景会变</b>：考前 7 天自动切冲刺模式，同一份「昨晚睡 5.5h」平时是小憩建议、考前夜是红线警告。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 03 创新点 -->
+  <section class="innovation">
+    <div class="sec-head">
+      <div class="sec-num">03</div><div class="sec-title">创新点</div>
+      <div class="sec-en">What is new</div>
+    </div>
+    <div class="inno-grid">
+      <div class="icard">
+        <div class="no">01</div>
+        <h3>编排过程是可见的</h3>
+        <p>报告左侧实时事件流：拆任务 → 4 Agent 并行 → 冲突检出 → 汇总成卡。不是「AI 想了想」，而是每一步都留痕。</p>
+      </div>
+      <div class="icard">
+        <div class="no">02</div>
+        <h3>本地优先，不是云优先</h3>
+        <p>课表、睡眠、偏好全部落在浏览器 IndexedDB，无后端、无账号；断网刷新，三个主路由照常打开。</p>
+      </div>
+      <div class="icard">
+        <div class="no">03</div>
+        <h3>选项卡 = 决策模拟</h3>
+        <p>每条建议 2–3 张卡，写明优势、代价与短期/长期影响，把决策成本降下来，而不是替人做决定。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 截图 -->
+  <section class="shots">
+    <figure>
+      <img src="assets/home.png" alt="首页：编排时间轴 + 午间报告">
+      <figcaption>首页 / 编排时间轴 + 午间报告</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/week.png" alt="周历：色块课表 + 风险卡">
+      <figcaption>周历 / 色块课表 + 早八与连排风险卡</figcaption>
+    </figure>
+  </section>
+</main>
+
+<footer>
+  <div class="stack">
+    <div class="tag">React 19</div>
+    <div class="tag">Vite 7</div>
+    <div class="tag">TypeScript</div>
+    <div class="tag">IndexedDB · Dexie</div>
+    <div class="tag">PWA / Service Worker</div>
+    <div class="tag">Tailwind + shadcn/ui</div>
+    <div class="tag">无后端 · 无账号</div>
+  </div>
+  <div class="foot-row">
+    <div><b>ccuner-xiaoshan.vercel.app</b> · 镜像 ccuner-xiaoshan-mirror.netlify.app</div>
+    <div>报告 <b>/</b> · 周历 <b>/week</b> · 复习 <b>/plan</b> · 信息流 <b>/feed</b> · 健康 <b>/health</b> · 设置 <b>/settings</b></div>
+  </div>
+</footer>
+
+</body>
+</html>

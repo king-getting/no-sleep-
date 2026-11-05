@@ -172,7 +172,6 @@ npm run preview    # 以产物方式起服务——断网演示必须用这个�
 - `npm run lint`：0 错误；`npm run build`：通过
 - 断网彩排通过（build + preview 下关网刷新，三路由正常）
 - 课表 Excel 解析经模板文件 + 边界数据（空行 / 错行 / 中文星期 / Excel 时间序列值 / 重复行）实测
-- 待人工确认：iPhone 真机与微信内置浏览器兼容性
 
 ## 隐私
 
