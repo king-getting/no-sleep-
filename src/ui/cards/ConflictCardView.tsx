@@ -130,6 +130,9 @@ export function ConflictCardView({
         {conflict.preset && (
           <Badge variant="secondary" className="font-normal">已按你上次的选择预填，可一键切换</Badge>
         )}
+        {resolved && (
+          <Badge variant="outline" className="font-normal">再点同一侧可取消裁决</Badge>
+        )}
       </header>
       <div className="mt-3 flex flex-col gap-3 sm:flex-row">
         <PlanView

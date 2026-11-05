@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { orchestrator, type Trigger } from '@/orchestrator';
 import { atTime, currentSlot, slotKey } from '@/lib/reportSlot';
-import { ensureSeeded, markCompliance, recordChoice, rememberConflictChoice } from '@/data/store/profile';
+import { ensureSeeded, forgetConflictChoice, markCompliance, recordChoice, rememberConflictChoice, undoChoice, undoCompliance } from '@/data/store/profile';
 import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { ReportView } from '@/ui/reports/ReportView';
@@ -67,19 +67,49 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, [run]);
 
-  const handlePick = useCallback((suggestionId: string, optionId: string, topic: string) => {
-    setPicks((p) => ({ ...p, [suggestionId]: optionId }));
-    void recordChoice(suggestionId, optionId, topic).then(() => {
-      toast('已记入本地偏好', { description: '后续建议会参考你的这次选择，数据只存在这台设备上。' });
-    });
-  }, []);
+  const handlePick = useCallback(
+    (suggestionId: string, optionId: string, topic: string) => {
+      // 再点一次同一张卡 = 取消选择；点别的卡 = 改选
+      if (picks[suggestionId] === optionId) {
+        setPicks((p) => {
+          const next = { ...p };
+          delete next[suggestionId];
+          return next;
+        });
+        void undoChoice(suggestionId, optionId).then(() => {
+          toast('已取消选择', { description: '这次点选不会计入偏好。' });
+        });
+        return;
+      }
+      setPicks((p) => ({ ...p, [suggestionId]: optionId }));
+      void recordChoice(suggestionId, optionId, topic).then(() => {
+        toast('已记入本地偏好', { description: '后续建议会参考你的这次选择，再点一次可以取消。' });
+      });
+    },
+    [picks],
+  );
 
-  const handleResolve = useCallback((conflictId: string, topic: string, choice: 'A' | 'B') => {
-    setResolutions((r) => ({ ...r, [conflictId]: choice }));
-    void rememberConflictChoice(topic, choice).then(() => {
-      toast('裁决已记住', { description: '同类冲突下次默认预填这次的选择，仍可一键切换。' });
-    });
-  }, []);
+  const handleResolve = useCallback(
+    (conflictId: string, topic: string, choice: 'A' | 'B') => {
+      // 再点同一侧 = 取消裁决，连同「下次预填」一起忘掉
+      if (resolutions[conflictId] === choice) {
+        setResolutions((r) => {
+          const next = { ...r };
+          delete next[conflictId];
+          return next;
+        });
+        void forgetConflictChoice(topic).then(() => {
+          toast('已取消裁决', { description: '同类冲突下次不会再预填这个选择。' });
+        });
+        return;
+      }
+      setResolutions((r) => ({ ...r, [conflictId]: choice }));
+      void rememberConflictChoice(topic, choice).then(() => {
+        toast('裁决已记住', { description: '同类冲突下次默认预填这次的选择，仍可一键切换。' });
+      });
+    },
+    [resolutions],
+  );
 
   /** 晚间闭环（§4.6/§4.7）：做了 / 没做 一键标记，写回遵从度画像；措辞中性，不追责 */
   const handleMark = useCallback((suggestionId: string, topic: string, done: boolean) => {
@@ -88,6 +118,18 @@ export default function Home() {
       toast(done ? '已记录：做完了' : '已记录：这次没做', {
         description: '只用来调整下次建议的轻重，不用于评价你。',
       });
+    });
+  }, []);
+
+  /** 点「已记录」徽标可撤销：删掉那条记录，并把遵从度画像退回去 */
+  const handleUnmark = useCallback((suggestionId: string, topic: string, done: boolean) => {
+    setMarks((m) => {
+      const next = { ...m };
+      delete next[suggestionId];
+      return next;
+    });
+    void undoCompliance(topic, done).then(() => {
+      toast('已撤销标记', { description: '这条记录删掉了，画像也退回去了。' });
     });
   }, []);
 
@@ -146,6 +188,7 @@ export default function Home() {
               onPick={handlePick}
               onResolve={handleResolve}
               onMark={handleMark}
+              onUnmark={handleUnmark}
             />
           ) : (
             <p className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">

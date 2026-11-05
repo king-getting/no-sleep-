@@ -14,6 +14,7 @@ export function SuggestionGroupBlock({
   marked,
   onPick,
   onMark,
+  onUnmark,
 }: {
   suggestion: Suggestion;
   pickedOptionId?: string;
@@ -21,6 +22,8 @@ export function SuggestionGroupBlock({
   marked?: boolean;
   onPick?: (optionId: string) => void;
   onMark?: (done: boolean) => void;
+  /** 点「已记录」徽标撤销这次标记 */
+  onUnmark?: (done: boolean) => void;
 }) {
   return (
     <section className="space-y-2">
@@ -56,14 +59,19 @@ export function SuggestionGroupBlock({
                 </Button>
               </>
             ) : (
-              <span
+              <button
+                type="button"
+                title="点一下撤销这次标记"
+                aria-label="撤销标记"
+                onClick={() => onUnmark?.(marked)}
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
+                  'rounded-full border px-2 py-0.5 text-[11px] transition-colors hover:border-destructive/40 hover:text-destructive',
                   marked ? 'border-primary/40 text-primary' : 'border-border text-muted-foreground',
                 )}
               >
                 已记录 · {marked ? '做了' : '没做'}
-              </span>
+                <span className="ml-1 text-muted-foreground/70">撤销</span>
+              </button>
             )}
           </div>
         )}

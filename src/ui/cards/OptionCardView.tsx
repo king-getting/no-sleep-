@@ -42,6 +42,7 @@ export function OptionCardView({
     <div
       role={onPick ? 'radio' : undefined}
       aria-checked={onPick ? !!picked : undefined}
+      title={picked ? '再点一次取消选择' : undefined}
       tabIndex={onPick ? 0 : undefined}
       onClick={pick}
       onKeyDown={(e) => {

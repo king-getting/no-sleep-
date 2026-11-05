@@ -65,6 +65,7 @@ export function ReportView({
   onPick,
   onResolve,
   onMark,
+  onUnmark,
 }: {
   report: Report;
   picks: Record<string, string>; // suggestionId -> optionId
@@ -75,6 +76,8 @@ export function ReportView({
   onResolve?: (conflictId: string, topic: string, choice: 'A' | 'B') => void;
   /** 晚间闭环：做了 / 没做 */
   onMark?: (suggestionId: string, topic: string, done: boolean) => void;
+  /** 撤销刚才的「做了 / 没做」 */
+  onUnmark?: (suggestionId: string, topic: string, done: boolean) => void;
 }) {
   // 连续的 warning 合成一个「风险项」区块：6 条各占一张琥珀卡，整屏都是黄块，
   // 反而看不出哪条更要紧。分组后既省版面，也能在锚点里只占一格。
@@ -111,6 +114,7 @@ export function ReportView({
             marked={marks?.[block.suggestion.id]}
             onPick={onPick ? (optionId) => onPick(block.suggestion.id, optionId, block.suggestion.topic) : undefined}
             onMark={onMark ? (done) => onMark(block.suggestion.id, block.suggestion.topic, done) : undefined}
+            onUnmark={onUnmark ? (done) => onUnmark(block.suggestion.id, block.suggestion.topic, done) : undefined}
           />
         );
       case 'conflict':

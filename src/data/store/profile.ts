@@ -90,6 +90,32 @@ export async function recordChoice(suggestionId: string, optionId: string, topic
   await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString() });
 }
 
+/** 取消刚才那次点选：删掉对应的选择记录，别让「点错了」污染偏好学习 */
+export async function undoChoice(suggestionId: string, optionId: string): Promise<void> {
+  const rows = await db.choices
+    .filter((c) => c.suggestionId === suggestionId && c.optionId === optionId)
+    .toArray();
+  const last = rows[rows.length - 1];
+  if (last?.id !== undefined) await db.choices.delete(last.id);
+}
+
+/** 撤销「做了 / 没做」：删记录并把遵从度画像退回去 */
+export async function undoCompliance(topic: string, done: boolean): Promise<void> {
+  const rows = await db.compliance.filter((c) => c.topic === topic && c.done === done).toArray();
+  const last = rows[rows.length - 1];
+  if (last?.id === undefined) return;
+  await db.compliance.delete(last.id);
+
+  const prefs = await getPreferences();
+  const stat = prefs.compliance[topic];
+  if (stat) {
+    stat.shown = Math.max(0, stat.shown - 1);
+    if (done) stat.done = Math.max(0, stat.done - 1);
+    prefs.compliance[topic] = stat;
+    await savePreferences(prefs);
+  }
+}
+
 /** 晚间报告一键标记「做了 / 没做」，同时更新遵从度画像。
  *  没做时可带归因（§4.7）：原因落 missReasons 表并写进偏好，次日建议据此转化。 */
 export async function markCompliance(topic: string, done: boolean, reason?: string): Promise<void> {
@@ -127,6 +153,16 @@ export async function optOutNoAsk(topic: string): Promise<void> {
 export async function rememberConflictChoice(topic: string, choice: 'A' | 'B'): Promise<void> {
   const prefs = await getPreferences();
   prefs.conflictChoices[topic] = choice;
+  await savePreferences(prefs);
+}
+
+/** 撤销冲突裁决：连同「下次预填」的记忆一起清掉 */
+export async function forgetConflictChoice(topic: string): Promise<void> {
+  const prefs = await getPreferences();
+  if (!prefs.conflictChoices[topic]) return;
+  const next = { ...prefs.conflictChoices };
+  delete next[topic];
+  prefs.conflictChoices = next;
   await savePreferences(prefs);
 }
 
