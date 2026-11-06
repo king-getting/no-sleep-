@@ -93,8 +93,9 @@ export default function ModelSettings() {
         </button>
       </div>
       <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-        填自己的 Key，用来生成今日简报、预报和总结，也能在右下角直接对话改数据。Key 只存在这台设备的
-        localStorage，不经过任何中转。不填也能用：所有内容回落到本地模板。
+        填自己的 Key，用来生成今日简报、预报和总结，让模型在本地算好的边界里排「今晚几点睡」这类建议，
+        也能在右下角直接对话改数据。发送的只有事实清单与画像摘要，Key 只存在这台设备的 localStorage。
+        不填也能用：所有内容回落到本地规则。
       </p>
 
       <div className="flex flex-wrap gap-1.5">

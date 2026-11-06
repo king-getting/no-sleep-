@@ -2,6 +2,8 @@ import { queryAdapters } from '@/data/adapters';
 import { getSleepLogs } from '@/data/store/profile';
 import { fmtHours, fmtMoney } from '@/lib/format';
 import { nutritionLabel } from '@/lib/nutrition';
+import { isLlmReady } from '@/lib/llmSettings';
+import { planSleep } from '@/lib/modelPlanner';
 import {
   SLEEP_NEED_HOURS,
   avgSleepHours,
@@ -279,6 +281,22 @@ export const healthDirection: DirectionModule = {
           },
         ],
       });
+
+      // 配了模型就让它在这个边界里重新排一版；校验不过 / 没网 / 没 Key 都退回上面这版规则
+      if (isLlmReady()) {
+        const planned = await planSleep({
+          now: ctx.now,
+          wakeMin: wake.wakeMin,
+          sleepNowHours,
+          maxDelayMin: 90,
+          lastNightHours: lastNight?.hours ?? null,
+          avg3Hours: avg3,
+          debt7Hours: sleepDebt(logs, 7, ctx.now)?.debtHours ?? null,
+          profileLine: `${ctx.user.identity.grade} · ${ctx.user.identity.college}`,
+        });
+        const last = suggestions[suggestions.length - 1];
+        if (planned && last) last.options = planned;
+      }
     }
 
     // ── 对今晚空档的「提前睡」主张（真冲突的健康方） ──
