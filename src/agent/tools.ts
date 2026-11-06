@@ -16,6 +16,8 @@ import {
 } from '@/data/store/courses';
 import { getProfile, getSleepLogs, saveProfile, upsertSleepLog } from '@/data/store/profile';
 import { listReviewBlocks } from '@/data/store/review';
+import { getPreferences } from '@/data/store/profile';
+import { courseOccursOn, effectiveSemesterStart, weekOfDate } from '@/lib/weeks';
 import { emitDataChanged } from '@/lib/dataEvents';
 import type { ToolSchema } from '@/lib/llm';
 import type { Course, ExamItem } from '@/types/contract';
@@ -104,10 +106,26 @@ export const TOOLS: Record<string, ToolDef> = {
         },
       },
     },
-    async run(args) {
-      const courses = (await listCourses()).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startMin - b.startMin);
-      const day = parseDay(asString(args.day), new Date());
-      const picked = day ? courses.filter((c) => c.dayOfWeek === day) : courses;
+    async run(args, ctx) {
+      const all = (await listCourses()).slice().sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startMin - b.startMin);
+      const day = parseDay(asString(args.day), ctx.now);
+      const prefs = await getPreferences().catch(() => null);
+      const semesterStart = effectiveSemesterStart(prefs?.semesterStart, ctx.now);
+      const thisWeek = weekOfDate(ctx.now, semesterStart);
+
+      // 必须按「这周到底上不上」过滤：1–8 周的课到了第 10 周不能算进今天。
+      // 之前只按星期几筛，于是「今天 1 节课」被说成 3 节。
+      const picked = all.filter((c) => {
+        if (day) {
+          if (c.dayOfWeek !== day) return false;
+          const d = new Date(ctx.now);
+          const todayDow = ctx.now.getDay() === 0 ? 7 : ctx.now.getDay();
+          d.setDate(d.getDate() + ((day - todayDow + 7) % 7));
+          return courseOccursOn(c, d, semesterStart);
+        }
+        return !thisWeek || !c.weeks?.length || c.weeks.includes(thisWeek);
+      });
+
       return {
         ok: true,
         data: picked.map((c) => ({
@@ -119,10 +137,11 @@ export const TOOLS: Record<string, ToolDef> = {
           end: fmtClock(c.endMin),
           location: c.location,
           teacher: c.teacher ?? null,
+          weeks: c.weeks ?? null,
         })),
         summary: day
-          ? `${DAY_LABEL[day]}有 ${picked.length} 节课`
-          : `课表里共 ${picked.length} 节课`,
+          ? `${thisWeek ? `第 ${thisWeek} 周，` : ''}${DAY_LABEL[day]}有 ${picked.length} 节课`
+          : `${thisWeek ? `第 ${thisWeek} 周，` : ''}这周共 ${picked.length} 节课`,
       };
     },
   },
