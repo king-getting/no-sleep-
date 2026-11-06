@@ -1,6 +1,7 @@
 import type { DirectionId } from '@/types/contract';
 import { chatComplete, parseJsonLoose } from '@/lib/llm';
 import { isLlmReady, loadLlmSettings } from '@/lib/llmSettings';
+import { specialDayOf } from '@/lib/special';
 
 /**
  * 报告里的「分析」区块
@@ -39,6 +40,10 @@ export function ruleAnalysis(input: AnalysisInput): AnalysisBlock {
   const pick = (frag: string) => input.findings.find((f) => f.id.includes(frag));
   const lines: AnalysisLine[] = [];
 
+  // 节日 / 纪念日先给一句人话，再谈今天怎么过
+  const special = specialDayOf(input.now);
+  if (special) lines.push({ text: special.greeting });
+
   const sleep = pick('sleep');
   if (sleep) lines.push({ text: sleep.summary, directionId: 'health' });
 
@@ -54,7 +59,7 @@ export function ruleAnalysis(input: AnalysisInput): AnalysisBlock {
   const top = [...input.suggestions].sort((a, b) => a.priority - b.priority)[0];
   return {
     lines: lines.slice(0, 4),
-    advice: top ? `今天最该先处理的是「${top.topic}」。` : '先按课表走，有变化再调整。',
+    advice: top ? `今天最该先处理的是「${top.topic}」，别的先放一放。` : '先按课表走，有空就出去走走。',
     by: 'rules',
   };
 }
@@ -96,11 +101,13 @@ export async function composeAnalysis(input: AnalysisInput): Promise<AnalysisBlo
     .map((f) => `- ${f.id}｜${f.summary}`)
     .join('\n');
   const topics = input.suggestions.slice(0, 6).map((s) => s.topic).join('、');
+  const special = specialDayOf(input.now);
 
   const prompt = `你在给一位大学生写今天的报告分析。只依据下面的事实，不要编造。
 事实：
 ${facts}
 今天会给出的建议主题：${topics || '无'}
+${special ? `今天是：${special.label}，可以用一句自然的问候开场，不要说教` : ''}
 ${input.profileLine ? `画像：${input.profileLine}` : ''}
 ${input.history?.length ? `最近的选择：${input.history.slice(0, 5).join('；')}` : ''}
 

@@ -284,6 +284,59 @@ export const lifeDirection: DirectionModule = {
       });
     }
 
+    // 傍晚不只是吃饭：给一条「出去走走」的建议。
+    // 报告里如果只有吃饭、睡觉、学习，用久了会像个打卡机器。
+    if (hour >= 15 && hour < 21) {
+      suggestions.push({
+        id: 'sug-evening-out',
+        topic: '傍晚出去走走',
+        priority: 3,
+        slot: 'evening',
+        sourceFindingIds: [],
+        options: [
+          {
+            id: 'out-campus',
+            title: '绕桂中路走 20 分钟（不戴耳机）',
+            note: '校园里 · 天还没黑透',
+            when: '晚饭前',
+            cost: { timeMin: 20, effort: 1 },
+            pros: ['坐了一天，眼睛和腰都松一下', '回来吃饭刚好'],
+            cons: ['少刷 20 分钟手机'],
+            fallback: '直接回宿舍，今晚大概率不会再出门',
+            impacts: [
+              { horizon: 'short', text: '晚上坐着的时候没那么燥', directionId: 'life' },
+              { horizon: 'long', text: '一周走三四次，睡眠会稳一点', directionId: 'health' },
+            ],
+            evidences: [{ directionId: 'life', text: '今天到目前没有户外活动记录', confidence: 2 }],
+          },
+          {
+            id: 'out-lake',
+            title: '骑车去南湖转一圈（来回 40 分钟）',
+            note: '南湖校区 · 记得带外套',
+            when: '晚饭前',
+            cost: { timeMin: 40, effort: 2 },
+            pros: ['换换环境，脑子清一点'],
+            cons: ['晚饭会推迟到 18:30 左右'],
+            fallback: '今晚就不出门了',
+            impacts: [{ horizon: 'short', text: '回来胃口会好一点', directionId: 'life' }],
+            evidences: [{ directionId: 'life', text: '今天空档够走一趟', confidence: 2 }],
+          },
+          {
+            id: 'out-rest',
+            title: '今天不出去，在宿舍歇着',
+            note: '也算一种安排',
+            when: '今晚',
+            cost: { timeMin: 0, effort: 1 },
+            pros: ['不用动，省力气'],
+            cons: ['一天没动，晚上可能更难睡着'],
+            fallback: '明天再补',
+            impacts: [{ horizon: 'long', text: '连续几天不动，精力会往下走', directionId: 'health' }],
+            evidences: [{ directionId: 'life', text: '休息也是正当选择', confidence: 1 }],
+          },
+        ],
+      });
+    }
+
     const result: DirectionResult = { directionId: 'life', findings };
     if (suggestions.length > 0) result.suggestions = suggestions;
     if (claims.length > 0) result.conflictClaims = claims;
