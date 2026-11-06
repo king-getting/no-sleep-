@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import ModelSettings from '@/ui/settings/ModelSettings';
 import { agentRegistry } from '@/agents/registry';
 import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
@@ -363,6 +364,8 @@ export default function Settings() {
           {traits ? '重新测评' : '开始测评'}
         </Button>
       </section>
+
+      <ModelSettings />
 
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">数据</h2>
