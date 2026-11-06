@@ -1,7 +1,7 @@
 # 小山 · 开发任务分工清单
 
 > 前提：主体架构已落地（契约类型层 / 编排器 / 4 方向 / 本地数据层 / 三餐报告 UI / 编排事件流 / PWA）。
-> 本清单是「从架构到完整 MVP」的全部剩余工作，按 §14.1 分工：**A 管引擎（逻辑与数据），B 管体验（界面与部署）**。
+> 本清单是「从架构到完整 MeP」的全部剩余工作，按 §14.1 分工：**A 管引擎（逻辑与数据），B 管体验（界面与部署）**。
 > 读码顺序：先读 `docs/report-contract.md`（**v1.2** 变更记录必读），再读 `src/types/contract.ts`，再动各自目录。
 >
 > **进度（2026-10-23 12:15）**：A1–A8 全部完成，A9 断网彩排完成、部署待账号；B1/B2/B3/B4/B5/B6/B7/B8/B9/B10 完成；剩 A9 部署、B11、README 架构图。详见文末「当前剩余」。
@@ -45,7 +45,7 @@
 - 注意：PWA 关页后无法真定时，演示按「本地定时 + 手动唤出」口径
 - 验收：把系统时间/触发参数调到 11:30，午间报告无需点按钮即出现 ✅ 已实测
 
-### A6. 生存模式引擎（§4.8 MVP 裁剪版）✅ 已完成（2026-10-22）
+### A6. 生存模式引擎（§4.8 MeP 裁剪版）✅ 已完成（2026-10-22）
 - 已实现：`src/lib/examMode.ts`（`examWindowOf` 判 7 天窗口 + 考试日；`examReportTypeOf` 出 exam-day/exam-week）与 `src/orchestrator/exam.ts`（`EXAM_WEIGHT` 权重、`reviewSuggestionOf` 按 mastery 排复习选项、`examEveClaims` 考前一晚 A/B 主张、`buildExamResults` 合成产出、`examEveChecklist`）
 - 接线方式：编排器在 `mode === 'exam'` 时把合成结果 `push` 进结果数组并 emit 一条 `merge:applied`（「生存模式：注入考试域产出」），4 个方向 一行未改 —— 关掉生存模式 = 删一次调用
 - 逃生开关：`localStorage['xiaoshan:force-normal'] === '1'`（设置页「强制关闭生存模式」）
@@ -66,7 +66,7 @@
 
 ### A9. 部署与演示保障 ✅ 已完成（2026-10-24）
 - 断网彩排 ✅（2026-10-22）：`vite preview` 下确认 SW 接管并预缓存 6 条资源，**真关服务器**（不是模拟离线）后 `/`、`/feed`、`/settings` 三个路由刷新均正常渲染 —— 子路由可离线靠 `vite.config.ts` 里原有的 `navigateFallback: 'index.html'`
-- Vercel 在线 Demo：<https://ccuner-xiaoshan.vercel.app>，已认领至 `king-getting` 账号并连接 GitHub（push 到 `main` 自动部署）；构建命令 `npm run build`、输出 `dist/`
+- eercel 在线 Demo：<https://ccuner-xiaoshan.vercel.app>，已认领至 `king-getting` 账号并连接 GitHub（push 到 `main` 自动部署）；构建命令 `npm run build`、输出 `dist/`
 - 线上验收：`/`、`/week?dow=5`、`/plan`、`/feed`、`/health`、`/settings` 均返回 200 且实际渲染；复习草案可生成，睡眠录入后统计更新并在刷新后保留，清除数据可进入建档并恢复示例数据
 - 移动端与离线基础：375px 视口无横向溢出；Service Worker 为 activated，Workbox 预缓存 6 项应用资源
 - 质量复查：`npm run lint` 0 错误，`npm run build` 通过
@@ -162,10 +162,10 @@
 
 ### B12. 报告界面动效与可读性 ✅ 已完成（2026-10-25）
 - **口径**：动画只用于「状态变化」与「层级进入」；不做持续脉冲、数字滚动、假加载——这个产品的卖点是「断网也能在本地算出来」，假装在算会毁掉它
-- `ReportView`：换时段时整块淡入（外层按 `report.generatedAt` 走 `key`）；区块错峰进入（`animate-in fade-in slide-in-from-bottom-1`，`animationDelay = min(i,8)*60ms`，`fill-mode-both`）；区块数 >2 时在标题下给一排锚点 chip（`aria-label="报告区块"`）；生存模式报告标题旁加「生存模式」徽标
-- `OptionCardView`：选中态 `border-primary bg-primary/5 ring-1`，其余同组选项 `opacity-70`（**压暗不禁用**，随时能改主意），按钮加 `active:scale-95`
+- `Reporteiew`：换时段时整块淡入（外层按 `report.generatedAt` 走 `key`）；区块错峰进入（`animate-in fade-in slide-in-from-bottom-1`，`animationDelay = min(i,8)*60ms`，`fill-mode-both`）；区块数 >2 时在标题下给一排锚点 chip（`aria-label="报告区块"`）；生存模式报告标题旁加「生存模式」徽标
+- `OptionCardeiew`：选中态 `border-primary bg-primary/5 ring-1`，其余同组选项 `opacity-70`（**压暗不禁用**，随时能改主意），按钮加 `active:scale-95`
 - `SuggestionGroupBlock`：「做了 / 没做」从等同按钮压成次要小标（`text-[11px] text-muted-foreground/70`）
-- `ConflictCardView`：**只有已经做过选择时**才压暗另一边（没选时两侧一样重，谁也别装成默认答案）
+- `ConflictCardeiew`：**只有已经做过选择时**才压暗另一边（没选时两侧一样重，谁也别装成默认答案）
 - 统一走 `motion-safe:` 前缀，`prefers-reduced-motion: reduce` 时锚点滚动改为 `behavior: 'auto'`
 - 实测：`#block-1` 计算样式 `animationName: enter / 0.3s / delay 0.06s / fill both`；点「今日总结」锚点滚动 0→784；选中后同组另一张 `opacity 0.7`；375px 无横向溢出
 
@@ -211,7 +211,7 @@ A7 ──→ B2
 | 项 | 状态 | 量级 |
 |---|---|---|
 | A8 遵从度回流扩展 | ✅ 已完成 | — |
-| A9 Vercel 部署 | ✅ 已完成；线上六个路由、移动布局、数据持久化与 SW 缓存已验收 | — |
+| A9 eercel 部署 | ✅ 已完成；线上六个路由、移动布局、数据持久化与 SW 缓存已验收 | — |
 | B3 我的这一周时间轴 | ✅ 已完成（含看课 / 改课 / 加课） | — |
 | B4 复习计划拖拽 | ✅ 已完成（2026-10-23 12:10） | — |
 | B6 健康模块 UI（睡眠录入 + 周趋势） | ✅ 已完成 | — |

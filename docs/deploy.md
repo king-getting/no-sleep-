@@ -1,6 +1,6 @@
 # 部署与演示保障（A9）
 
-> 线上 Demo（2026-10-24 已验收）：<https://ccuner-xiaoshan.vercel.app>，已连接 GitHub，push 到 `main` 自动部署最新版
+> 线上站点（2026-10-24 已验收）：<https://ccuner-xiaoshan.vercel.app>，已连接 GitHub，push 到 `main` 自动部署最新版
 > 兜底镜像（2026-10-25 已验收，六路由 200）：<https://ccuner-xiaoshan-mirror.netlify.app>，防止国内网络访问不了 vercel.app；更新方式：`npm run build` 后 `npx netlify-cli deploy --dir=dist --prod`（需本机已 `netlify login`）
 >
 > 目标：线上 URL 可访问 + 断网时仍能演示。两步互相独立——Vercel 只是「点开看看」的入口，**演示永远用本地 + 离线**，这样不赌会场网络。
@@ -45,7 +45,7 @@ npm run preview        # 默认 http://127.0.0.1:4173
 
 > 子路由能离线靠 `vite.config.ts` 里原有的 `navigateFallback: 'index.html'`；只要这条还在，PWA 的离线回退就不用额外配置。
 
-## 三、演示当天的开关（现场快速切换）
+## 三、演示与调试开关
 
 | 想展示 | 操作 |
 |---|---|
