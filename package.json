@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "icons": "node scripts/make-icons.mjs",`n    "android:sync": "npm run build && cap sync android",
+    "icons": "node scripts/make-icons.mjs",
+    "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run build && cap sync android && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
