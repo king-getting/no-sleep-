@@ -11,6 +11,7 @@ import { loadLlmSettings } from '@/lib/llmSettings';
 import { runTool, TOOL_SCHEMAS } from '@/agent/tools';
 import { avgSleepHours, todayCourses } from '@/data/queries';
 import { getSleepLogs } from '@/data/store/profile';
+import { loadMemory } from '@/data/store/chatMemory';
 import { lastNightSleep } from '@/data/queries';
 import { fmtMin } from '@/types/contract';
 
@@ -82,13 +83,16 @@ export async function askXiaoshan(
   const settings = loadLlmSettings();
   const today = new Date();
   const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][today.getDay()]}`;
-  const local = await buildChatContext(today);
+  const [local, memory] = await Promise.all([buildChatContext(today), loadMemory()]);
+  const memoryText = memory.items.length
+    ? `\n\n关于用户的长期记忆（自然引用，不要逐条念出来）：\n${memory.items.map((x) => `- ${x}`).join('\n')}`
+    : '';
   const context = local
     ? `\n\n本地情况（只在有用的时候引用，用户没问就别念数字）：\n${local}`
     : '';
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT.replace('{today}', stamp) + context },
+    { role: 'system', content: SYSTEM_PROMPT.replace('{today}', stamp) + context + memoryText },
     ...history.slice(-8).map<ChatMessage>((t) => ({
       role: t.role,
       content: t.text,

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import { ArrowUp, Loader2, MessageCircle, Settings2, Sparkles, X } from 'lucide-react';
 import { askXiaoshan, describeLlmError, type ChatTurn } from '@/agent/chat';
 import { appendChat, clearChat, loadChat } from '@/data/store/chat';
+import { maybeExtractMemory } from '@/agent/memory';
+import { clearMemory, loadMemory } from '@/data/store/chatMemory';
 import { isLlmReady, loadLlmSettings } from '@/lib/llmSettings';
 import { cn } from '@/lib/utils';
 
@@ -64,6 +66,7 @@ export default function ChatDock() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [memoryItems, setMemoryItems] = useState<string[]>([]);
   const [ready, setReady] = useState(() => isLlmReady());
   const scroller = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -194,6 +197,9 @@ export default function ChatDock() {
   // 打开时把上次的对话捞回来：这就是所谓的「记忆」——存在本机，不上传
   useEffect(() => {
     let alive = true;
+    void loadMemory().then((m) => {
+      if (alive) setMemoryItems(m.items);
+    });
     void loadChat(60).then((rows) => {
       if (alive && rows.length > 0) setTurns(rows);
     });
@@ -214,6 +220,7 @@ export default function ChatDock() {
     setInput('');
     const nextTurns: ChatTurn[] = [...turns, { role: 'user', text: question }];
     setTurns(nextTurns);
+    void appendChat({ role: 'user', text: question });
     setBusy(true);
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -223,6 +230,7 @@ export default function ChatDock() {
       const assistantTurn: ChatTurn = { role: 'assistant', text: reply.text, actions: reply.actions };
       setTurns((prev) => [...prev, assistantTurn]);
       void appendChat(assistantTurn);
+      void maybeExtractMemory();
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') return;
       setTurns((prev) => [
@@ -291,9 +299,11 @@ export default function ChatDock() {
             <button
               type="button"
               onClick={() => {
-                if (!window.confirm('清空和小山的对话记录？只删这台设备上的，不影响课表和睡眠。')) return;
+                if (!window.confirm('清空和小山的对话记录和记忆？只删这台设备上的，不影响课表和睡眠。')) return;
                 setTurns([]);
+                setMemoryItems([]);
                 void clearChat();
+                void clearMemory();
               }}
               className="rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
               aria-label="清空对话"
@@ -316,6 +326,18 @@ export default function ChatDock() {
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   我是小山。课表、DDL、睡眠、餐标我都能改，也能告诉你今天该怎么排。数据只在这台设备上。
                 </p>
+                {memoryItems.length > 0 && (
+                  <div className="rounded-xl border bg-muted/30 p-2">
+                    <p className="text-[11px] font-medium text-muted-foreground">我记得这些（只在你本机）</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {memoryItems.map((m) => (
+                        <span key={m} className="rounded-full border bg-background px-2 py-0.5 text-[11px]">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {!ready && (
                   <button
                     type="button"
