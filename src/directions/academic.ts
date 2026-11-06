@@ -6,8 +6,8 @@ import type { DirectionModule, DirectionResult, Finding } from '@/types/contract
 const TIGHT_WINDOW_MIN = 75;
 
 /**
- * 教务 方向：课表 / 考试
- * 只访问教务域数据，输出结构化 Finding（结论 / 依据 / 置信度）。
+ * 学习 方向：课表 / 考试
+ * 只访问学习域数据，输出结构化 Finding（结论 / 依据 / 置信度）。
  *
  * 除了报事实，还会在课压住午间窗口时**产出一条硬约束主张**，
  * 交给仲裁器去叫停生活/健康那种「慢慢吃、走远点吃」的柔性方案。
@@ -15,7 +15,7 @@ const TIGHT_WINDOW_MIN = 75;
  */
 export const academicDirection: DirectionModule = {
   id: 'academic',
-  name: '教务',
+  name: '学习',
   version: '0.2.0',
   capabilities: ['course.query', 'exam.query'],
   defaultWeight: 2,
@@ -57,7 +57,7 @@ export const academicDirection: DirectionModule = {
         type: 'fact',
         topic: '模式',
         confidence: 3,
-        summary: '生存模式已激活：教务权重提升，考试相关通知置顶',
+        summary: '生存模式已激活：学习权重提升，考试相关通知置顶',
       });
     }
 

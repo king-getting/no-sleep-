@@ -217,7 +217,7 @@ export async function buildExamResults(ctx: DirectionContext, w: ExamWindow): Pr
     });
   }
 
-  // 1) 教务：倒计时事实（compose 的 overview 会读 exam:countdown）
+  // 1) 学习：倒计时事实（compose 的 overview 会读 exam:countdown）
   const academic: DirectionResult = { directionId: 'academic', findings };
 
   // 2) 日程：复习计划选项卡（最多同时给两门，避免报告过长）

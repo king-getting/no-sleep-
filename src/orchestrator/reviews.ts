@@ -18,7 +18,7 @@ import type {
  * 跨 方向 评审（选项卡底下的「其他 方向 怎么看」）
  *
  * 每个 方向 只用自己的那一域数据给这条选项下一句判断：
- * 教务看「这条和课/DDL 撞不撞」，生活看「钱超没超今天的餐标」，
+ * 学习看「这条和课/DDL 撞不撞」，生活看「钱超没超今天的餐标」，
  * 健康看「占掉的时间从睡眠里出不出」，日程看「今天还剩多少机动时间」。
  *
  * 对同一条选项，四个 方向 看到的是四个不同的数字，所以四句话不会撞车；
@@ -75,7 +75,7 @@ export async function loadReviewData(ctx: DirectionContext): Promise<ReviewData>
   };
 }
 
-/** 教务：这条和下一节课撞不撞，以及它怎么记账到 DDL */
+/** 学习：这条和下一节课撞不撞，以及它怎么记账到 DDL */
 function reviewByAcademic(o: OptionCard, d: ReviewData): Verdict {
   const nowMin = d.now.getHours() * 60 + d.now.getMinutes();
   const next = d.courses.find((c) => c.startMin > nowMin);
@@ -178,7 +178,7 @@ const LENS: Record<DirectionId, (o: OptionCard, d: ReviewData) => Verdict> = {
   schedule: reviewBySchedule,
 };
 
-/** 雷达图固定三条轴：教务 / 生活 / 健康。日程不进这张图，第四根轴会把三角压扁 */
+/** 雷达图固定三条轴：学习 / 生活 / 健康。日程不进这张图，第四根轴会把三角压扁 */
 const RADAR_AXES: DirectionId[] = ['academic', 'life', 'health'];
 
 /** 标题/备注里点名了这个域的关键词，影响就不该是 0（"现在就睡"在健康轴上是 0 说不通） */

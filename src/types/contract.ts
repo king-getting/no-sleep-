@@ -18,7 +18,7 @@ export type DirectionId = 'academic' | 'life' | 'health' | 'schedule';
 
 export type Capability =
   | 'course.query'
-  | 'exam.query' // 教务
+  | 'exam.query' // 学习
   | 'canteen.recommend'
   | 'weather' // 生活
   | 'sleep.assess'
@@ -192,7 +192,7 @@ export interface DirectionResult {
 
 export interface DirectionModule {
   id: DirectionId;
-  name: string; // 展示名：教务 / 生活 / 健康 / 日程
+  name: string; // 展示名：学习 / 生活 / 健康 / 日程
   version: string;
   capabilities: Capability[];
   defaultWeight: number; // 生存模式下由编排器动态调整
@@ -249,7 +249,7 @@ export interface DirectionReview {
   con: string;
   /**
    * 这条建议对它那一域的影响强度（0–1）。
-   * 只由它自己的数据算：教务看占用 / 到下一节课的窗口，生活看花销 / 餐标，
+   * 只由它自己的数据算：学习看占用 / 到下一节课的窗口，生活看花销 / 餐标，
    * 健康看占用 / 睡眠余量，日程看占用 / 今天剩余机动时间。
    * UI 拿它排出「影响最大 / 最小」。
    */

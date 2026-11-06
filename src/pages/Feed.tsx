@@ -27,7 +27,7 @@ import type { DirectionContext, RawItem } from '@/types/contract';
  */
 
 const TYPE_LABEL: Record<string, string> = {
-  notice: '教务 / 通知',
+  notice: '学习 / 通知',
   express: '快递',
   'canteen-window': '食堂',
   convenience: '生活服务',
@@ -35,7 +35,7 @@ const TYPE_LABEL: Record<string, string> = {
   weather: '天气',
 };
 
-/** 类型底色：扫一眼就能分出「教务 / 志愿 / 生活」三类，不用读字 */
+/** 类型底色：扫一眼就能分出「学习 / 志愿 / 生活」三类，不用读字 */
 const TYPE_TINT: Record<string, string> = {
   notice: 'bg-secondary text-secondary-foreground',
   volunteer: 'bg-amber-500/12 text-amber-700 dark:text-amber-400',

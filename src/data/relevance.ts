@@ -30,7 +30,7 @@ export interface ScoredItem {
   muted?: boolean;
 }
 
-/** 类型权重：教务 / 快递这类「有时效、漏了就亏」的信息天然更该靠前 */
+/** 类型权重：学习 / 快递这类「有时效、漏了就亏」的信息天然更该靠前 */
 const TYPE_WEIGHT: Record<string, number> = {
   notice: 1.2,
   express: 1.2,
