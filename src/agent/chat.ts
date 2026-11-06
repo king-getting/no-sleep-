@@ -9,6 +9,10 @@
 import { chatComplete, LlmError, type ChatMessage } from '@/lib/llm';
 import { loadLlmSettings } from '@/lib/llmSettings';
 import { runTool, TOOL_SCHEMAS } from '@/agent/tools';
+import { avgSleepHours, todayCourses } from '@/data/queries';
+import { getSleepLogs } from '@/data/store/profile';
+import { lastNightSleep } from '@/data/queries';
+import { fmtMin } from '@/types/contract';
 
 export const SYSTEM_PROMPT = `你是「小山」，华中师范大学学生的本地校园助手。你住在用户这台设备的浏览器里，数据不出设备。
 
@@ -25,7 +29,35 @@ export const SYSTEM_PROMPT = `你是「小山」，华中师范大学学生的�
 - 改完用一句话说明改了什么，再提一句用户可以在哪个页面看到。
 - 用户只是问问题（今天几节课、下周怎么样）时，查完直接回答，不要顺手改数据。
 
+用户说累、困、烦、不想动、撑不住这类状态时：
+- 先接住这句话，别回「你今天有 3 节课」这种复述。数据是用来帮你判断的，不是用来念的。
+- 给 2–3 个很小的、现在就能做的选项：趴 20 分钟 / 出去走一圈 / 早点睡 / 先吃点东西 / 把这件事挪到明天。
+- 每个选项带一句代价（例如「少刷 20 分钟手机」「晚上的整块时间会被切碎」），让用户自己挑。
+- 如果确实和身体有关（连续几晚没睡够、饭没吃），可以说一句，但不要诊断、不要吓人。
+- 最后问一句「要不要我帮你把 X 记下来 / 挪走」，把选择权留给用户。
+
 今天的日期：{today}。`;
+
+/**
+ * 把本机情况压成几行给模型参考。
+ * 用户随口说一句「好累」时，模型得知道昨晚睡了多久、今天还有几节课，
+ * 才可能给出「先趴 20 分钟，下午那节可以挪」这种具体建议，而不是复述课表。
+ */
+export async function buildChatContext(now = new Date()): Promise<string> {
+  try {
+    const [courses, logs] = await Promise.all([todayCourses(now), getSleepLogs()]);
+    const last = lastNightSleep(logs, now);
+    const avg3 = avgSleepHours(logs, 3, now);
+    const nextClass = courses.find((c) => c.endMin > now.getHours() * 60 + now.getMinutes());
+    return [
+      `今天课程：${courses.length} 节${nextClass ? `，下一节 ${nextClass.name} ${fmtMin(nextClass.startMin)} 开始` : ''}`,
+      `昨晚睡眠：${last ? `${last.hours} 小时` : '没有记录'}`,
+      `近三晚平均：${avg3 != null ? `${avg3.toFixed(1)} 小时` : '记录不足'}`,
+    ].join('\n');
+  } catch {
+    return '';
+  }
+}
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
@@ -50,9 +82,13 @@ export async function askXiaoshan(
   const settings = loadLlmSettings();
   const today = new Date();
   const stamp = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][today.getDay()]}`;
+  const local = await buildChatContext(today);
+  const context = local
+    ? `\n\n本地情况（只在有用的时候引用，用户没问就别念数字）：\n${local}`
+    : '';
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT.replace('{today}', stamp) },
+    { role: 'system', content: SYSTEM_PROMPT.replace('{today}', stamp) + context },
     ...history.slice(-8).map<ChatMessage>((t) => ({
       role: t.role,
       content: t.text,
