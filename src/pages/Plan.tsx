@@ -3,6 +3,17 @@ import { Link } from 'react-router';
 import { ArrowRight, CalendarClock, Check, GripVertical, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ExamManager } from '@/ui/exams/ExamManager';
 import { fmtMin, type ExamItem } from '@/types/contract';
@@ -87,7 +98,7 @@ export default function Plan() {
     try {
       const rows = await generateReviewPlan(new Date());
       await load();
-      toast.success(rows.length > 0 ? `已按考试重排 ${rows.length} 段复习` : '7 天内没有要准备的考试');
+      toast.success(rows.length > 0 ? `已按考试重排 ${rows.length} 段复习` : '近 7 天没有要准备的考试，草案没有改动');
     } finally {
       setBusy(false);
     }
@@ -160,14 +171,46 @@ export default function Plan() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={regenerate} disabled={busy} size="sm">
-            <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
-            {busy ? '重排中' : '按考试重排'}
-          </Button>
-          <Button onClick={clearAll} variant="outline" size="sm">
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
-            清空
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={busy} size="sm">
+                <RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} />
+                {busy ? '重排中' : '按考试重排'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>按考试重新排一遍？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  已勾「完成」的 {doneCount} 段会保留；其余块按最新考试重新计算位置，手动拖动过的落点会被覆盖。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void regenerate()}>重排</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                清空
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>清空全部复习草案？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  共 {blocks.length} 段会被删掉，包括已勾「完成」的 {doneCount} 段。这一步不能撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void clearAll()}>清空</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </header>
 

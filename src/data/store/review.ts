@@ -117,11 +117,13 @@ export async function generateReviewPlan(now: Date, horizonDays?: number): Promi
   // 习惯测评（做过的话）决定四件事：块长、提前天数、每日配额、优先时段
   const prefs = await getPreferences().catch(() => null);
   const fx: TraitEffects | null = prefs?.traits ? effectsOf(prefs.traits) : null;
-  const horizon = fx?.horizonDays ?? horizonDays ?? 4;
+  const horizon = fx?.horizonDays ?? horizonDays ?? 7;
   const minSlot = fx ? Math.min(REVIEW_MIN_SLOT, fx.focusMinutes) : REVIEW_MIN_SLOT;
 
   const exams = (await upcomingExams(now, 8)).filter((e) => new Date(e.at).getTime() > now.getTime() && e.kind === 'exam');
-  await db.reviewBlocks.clear();
+  const existing = await listReviewBlocks();
+  // 已勾「完成」的块是用户成果：重排只动未完成的，且绝不先清库
+  const kept = existing.filter((block) => block.done);
   if (exams.length === 0) return [];
 
   // 候选空档：今天（留 60 分钟缓冲）到 horizon 天
@@ -157,6 +159,15 @@ export async function generateReviewPlan(now: Date, horizonDays?: number): Promi
 
   const rows: ReviewBlock[] = [];
   const perDay = new Map<string, number>();
+  // 已完成的块同样占用当天的复习额度，也必须是不可踩的空档
+  const keptMin = new Map<string, number>();
+  for (const block of kept) {
+    keptMin.set(block.date, (keptMin.get(block.date) ?? 0) + (block.endMin - block.startMin));
+  }
+  const collideKept = (date: string, start: number, end: number) =>
+    kept.filter((block) => block.date === date && start < block.endMin && end > block.startMin);
+  const nextFreeAfterKept = (date: string, start: number, end: number) =>
+    collideKept(date, start, end).reduce((max, block) => Math.max(max, block.endMin), start);
   let si = 0;
   let cursor = snap15(slots[0]?.start ?? 0);
 
@@ -202,7 +213,7 @@ export async function generateReviewPlan(now: Date, horizonDays?: number): Promi
         if (slot.date > examDate) break; // 考试都过了就别排了
         if (cursor < slot.start) cursor = snap15(slot.start);
 
-        const dayUsed = perDay.get(slot.date) ?? 0;
+        const dayUsed = (perDay.get(slot.date) ?? 0) + (keptMin.get(slot.date) ?? 0);
         const budget = dayBudget - dayUsed;
         if (budget < minSlot) {
           advanceSlot();
@@ -223,6 +234,11 @@ export async function generateReviewPlan(now: Date, horizonDays?: number): Promi
         }
 
         const len = Math.min(wantLen, room, budget);
+        // 撞上已完成的块就整体后移到它结束，别把用户勾掉的时间段又排一遍
+        if (collideKept(slot.date, cursor, cursor + len).length > 0) {
+          cursor = snap15(nextFreeAfterKept(slot.date, cursor, cursor + len));
+          continue;
+        }
         rows.push({
           id: `${exam.id}-${slot.date}-${cursor}`,
           date: slot.date,
@@ -243,6 +259,11 @@ export async function generateReviewPlan(now: Date, horizonDays?: number): Promi
     }
   }
 
-  if (rows.length > 0) await db.reviewBlocks.bulkPut(rows);
+  // 用新草案替换旧草案：只动未完成的，已勾「完成」的原样留下
+  await db.transaction('rw', db.reviewBlocks, async () => {
+    if (rows.length === 0) return;
+    await db.reviewBlocks.filter((block) => !block.done).delete();
+    await db.reviewBlocks.bulkPut(rows);
+  });
   return rows;
 }

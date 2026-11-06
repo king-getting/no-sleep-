@@ -34,8 +34,9 @@ export interface ScoredItem {
 const TYPE_WEIGHT: Record<string, number> = {
   notice: 1.2,
   express: 1.2,
+  volunteer: 1.0,
   'canteen-window': 0.6,
-  convenience: 0.4,
+  convenience: 0.6,
 };
 
 export async function loadInterests(): Promise<InterestProfile> {
@@ -95,6 +96,18 @@ export function scoreItem(
   for (const tag of tagHits) {
     score += 1;
     reasons.push(`你最近点选过「${tag}」相关建议`);
+  }
+
+  // 新鲜度：3 天内的通知更该往上排（报名截止、公示期都是硬窗口）
+  if (item.publishedAt) {
+    const then = new Date(`${item.publishedAt}T00:00:00`);
+    if (!Number.isNaN(then.getTime())) {
+      const days = Math.floor((ctx.now.getTime() - then.getTime()) / 86_400_000);
+      if (days <= 3) {
+        score += 1;
+        reasons.push(days <= 0 ? '今天刚发布' : `${days} 天前发布`);
+      }
+    }
   }
 
   score += TYPE_WEIGHT[item.type] ?? 0.5;

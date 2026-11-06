@@ -21,8 +21,11 @@ export const MOCK_COURSES: Course[] = [
   // 周四
   { id: 'c-thu-1', name: '高等数学 A（下）', teacher: '王老师', location: '八号楼 8201', dayOfWeek: 4, startMin: 480, endMin: 575 },
   { id: 'c-thu-2', name: '大学英语（四）', teacher: '李老师', location: '三号楼 3305', dayOfWeek: 4, startMin: 840, endMin: 935 },
+  // 第 5 节：正好压在午间窗口上，让教务有「硬约束」可讲（12:10–12:55）
+  { id: 'c-thu-3', name: '形势与政策（四）', teacher: '徐老师', location: '一号楼 1201', dayOfWeek: 4, startMin: 730, endMin: 775 },
   // 周五
   { id: 'c-fri-1', name: '操作系统', teacher: '吴老师', location: '九号楼 9301', dayOfWeek: 5, startMin: 595, endMin: 690 },
+  { id: 'c-fri-3', name: '思想道德与法治', teacher: '黄老师', location: '一号楼 1201', dayOfWeek: 5, startMin: 730, endMin: 775 },
   { id: 'c-fri-2', name: '书法鉴赏（通选）', teacher: '孙老师', location: '美术学院 210', dayOfWeek: 5, startMin: 990, endMin: 1080 },
 ];
 

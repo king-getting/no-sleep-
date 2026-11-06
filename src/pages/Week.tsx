@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { AlertTriangle, CalendarDays, Plus } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   computeTimeBlocks,
@@ -32,7 +32,7 @@ import type { CourseDraft } from '@/ui/week/CourseSheet';
 
 const DAY_START = 7 * 60;
 const DAY_END = 23 * 60;
-const HOUR_PX = 36;
+const HOUR_PX = 30;
 const WINDOW_PX = ((DAY_END - DAY_START) / 60) * HOUR_PX;
 
 const WEEK_LABEL = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const;
@@ -140,6 +140,7 @@ async function fetchDays(week: number | null = null, ignoreWeeks = false): Promi
 
 export default function Week() {
   const [days, setDays] = useState<DayData[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const [ignoreWeeks, setIgnoreWeeks] = useState(false);
   const now = useMemo(() => new Date(), []);
@@ -154,14 +155,25 @@ export default function Week() {
   const [draftSeq, setDraftSeq] = useState(0);
 
   const load = useCallback(async () => {
-    setDays(await fetchDays(week, ignoreWeeks));
+    try {
+      setDays(await fetchDays(week, ignoreWeeks));
+      setLoadError(null);
+    } catch (e) {
+      // 读不出来就永远停在「正在排这一周…」——给个能重试的出口
+      setLoadError(e instanceof Error ? e.message : String(e));
+    }
   }, [week, ignoreWeeks]);
 
   /** 「只看本周 / 显示全部」切换：直接重新取数，不用 effect 二次触发 */
   const setWeekFilter = useCallback(
     async (ignore: boolean) => {
       setIgnoreWeeks(ignore);
-      setDays(await fetchDays(week, ignore));
+      try {
+        setDays(await fetchDays(week, ignore));
+        setLoadError(null);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
     },
     [week],
   );
@@ -173,7 +185,12 @@ export default function Week() {
       const w = weekOfDate(new Date(), prefs?.semesterStart);
       if (!active) return;
       setWeek(w);
-      setDays(await fetchDays(w, false));
+      try {
+        setDays(await fetchDays(w, false));
+        setLoadError(null);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
     })();
     return () => {
       active = false;
@@ -223,6 +240,22 @@ export default function Week() {
     setDraft(null);
     await load();
   };
+
+  if (!days && loadError) {
+    return (
+      <div className="mx-auto w-full max-w-[720px] px-6 py-16 text-center">
+        <p className="text-base font-medium">这一周的课表没能读出来</p>
+        <p className="mt-1 text-sm text-muted-foreground">本机数据没丢，重试一次通常就好；一直失败多半是浏览器拦了本地存储。</p>
+        <pre className="mt-3 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-lg border bg-card p-2 text-left font-mono text-[11px] text-muted-foreground">
+          {loadError}
+        </pre>
+        <Button className="mt-4" size="sm" onClick={() => void load()}>
+          <RefreshCw className="mr-1 h-4 w-4" />
+          重新加载
+        </Button>
+      </div>
+    );
+  }
 
   if (!days) {
     return <p className="p-10 text-center text-sm text-muted-foreground">正在排这一周…</p>;
@@ -303,24 +336,23 @@ export default function Week() {
       )}
 
       {risks.length > 0 ? (
-        <section className="mb-5 space-y-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            这周要留意 {risks.length} 处
-          </h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {risks.map((r) => (
-              <div key={`${r.dow}-${r.kind}`} className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                <p className="text-sm font-medium text-destructive">{r.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{r.detail}</p>
-              </div>
-            ))}
-          </div>
+        <section className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+          <span className="font-medium text-destructive">这周 {risks.length} 处要留意</span>
+          {risks.map((r) => (
+            <span
+              key={`${r.dow}-${r.kind}`}
+              title={r.detail}
+              className="rounded-full border border-destructive/25 bg-card px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              {r.title}
+            </span>
+          ))}
         </section>
       ) : (
-        <section className="mb-5 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-          这周没有明显风险：没有早八、没有连排，午休也保住了。想加课的话，挑整块空档最多那天。
-        </section>
+        <p className="mb-3 rounded-lg border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
+          这周没有明显风险：没有早八、没有连排，午休也保住了。
+        </p>
       )}
 
       {/* 小屏：一天一屏 + 星期切换；大屏：七列并排 */}

@@ -1,4 +1,4 @@
-import { db } from './db';
+import { db, type ChoiceRecord } from './db';
 import { bootMode } from './boot';
 import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
 import { DEMO_PREFERENCES, DEMO_PROFILE } from '@/data/mock/profile';
@@ -86,8 +86,21 @@ export async function deleteSleepLog(date: string): Promise<void> {
 }
 
 /** 记录一次选项卡点选（表达意图，不是执行确认） */
-export async function recordChoice(suggestionId: string, optionId: string, topic: string): Promise<void> {
-  await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString() });
+export async function recordChoice(
+  suggestionId: string,
+  optionId: string,
+  topic: string,
+  meta?: string,
+): Promise<void> {
+  // meta 是选项快照（标题/价格/营养结构）：健康页的饮食总结要回看「这顿吃了什么」
+  await db.choices.add({ suggestionId, optionId, topic, meta, at: new Date().toISOString() });
+}
+
+/** 今天的点选记录（饮食总结用）：按 at 过滤，顺带把顺序排好 */
+export async function listChoicesToday(now: Date = new Date()): Promise<ChoiceRecord[]> {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const rows = await db.choices.where('at').aboveOrEqual(new Date(start).toISOString()).toArray();
+  return rows.sort((a, b) => a.at.localeCompare(b.at));
 }
 
 /** 取消刚才那次点选：删掉对应的选择记录，别让「点错了」污染偏好学习 */
@@ -168,17 +181,38 @@ export async function forgetConflictChoice(topic: string): Promise<void> {
 
 /** 一键清除示例数据（诚实原则：可退出演示） */
 export async function clearAllData(): Promise<void> {
-  await db.transaction('rw', [db.profiles, db.prefs, db.sleepLogs, db.choices, db.compliance, db.courses, db.exams, db.missReasons], async () => {
-    await Promise.all([
-      db.profiles.clear(),
-      db.prefs.clear(),
-      db.sleepLogs.clear(),
-      db.choices.clear(),
-      db.compliance.clear(),
-      db.courses.clear(),
-      db.exams.clear(),
-      db.missReasons.clear(),
-    ]);
-  });
+
+  // 表清单必须覆盖 db.ts 里声明的每一张表：漏一张，用户就会看到「说清了其实没清」
+  await db.transaction(
+    'rw',
+    [
+      db.profiles,
+      db.prefs,
+      db.sleepLogs,
+      db.choices,
+      db.compliance,
+      db.courses,
+      db.exams,
+      db.feedMuted,
+      db.feedFav,
+      db.reviewBlocks,
+      db.missReasons,
+    ],
+    async () => {
+      await Promise.all([
+        db.profiles.clear(),
+        db.prefs.clear(),
+        db.sleepLogs.clear(),
+        db.choices.clear(),
+        db.compliance.clear(),
+        db.courses.clear(),
+        db.exams.clear(),
+        db.feedMuted.clear(),
+        db.feedFav.clear(),
+        db.reviewBlocks.clear(),
+        db.missReasons.clear(),
+      ]);
+    },
+  );
   seeding = null;
 }

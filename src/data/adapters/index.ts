@@ -1,5 +1,6 @@
 import type { AgentContext, DataSourceAdapter, RawItem } from '@/types/contract';
 import { MOCK_CANTEEN_WINDOWS, MOCK_WEATHER } from '@/data/mock/canteen';
+import { CCNU_NOTICES } from '@/data/mock/ccnu';
 import { MOCK_NOTICES } from '@/data/mock/notices';
 import { loadInterests, rankFeed, type ScoredItem } from '@/data/relevance';
 import { mutedIds } from '@/data/store/feed';
@@ -20,11 +21,20 @@ function matchIdentity(item: RawItem, ctx: AgentContext): boolean {
   return true;
 }
 
+/**
+ * 通知源 = 华中师范大学真实通知快照 + 本机个人条目（快递）
+ *
+ * 真实快照抓自 jwc.ccnu.edu.cn「学生通知」与 www.ccnu.edu.cn「通知公告」，
+ * 标题、日期、原文链接均为页面原文；正文只截开头一段（完整通知点「原文」）。
+ * 前端直连学校站点会被 CORS 挡，且现场要断网演示，所以烘进包里当快照用。
+ */
+const ALL_NOTICES: RawItem[] = [...CCNU_NOTICES, ...MOCK_NOTICES];
+
 const mockNoticeAdapter: DataSourceAdapter = {
-  id: 'mock-notice',
-  provides: ['notice', 'express'],
+  id: 'ccnu-notice',
+  provides: ['notice', 'express', 'volunteer', 'convenience'],
   async fetch(type, ctx) {
-    return MOCK_NOTICES.filter((n) => n.type === type && matchIdentity(n, ctx));
+    return ALL_NOTICES.filter((n) => n.type === type && matchIdentity(n, ctx));
   },
 };
 
@@ -57,7 +67,7 @@ export async function queryAdapters(type: string, ctx: AgentContext): Promise<Ra
 }
 
 /** 信息流聚合的源类型（三类源混排：教务 / 讲座活动 / 生活服务） */
-const FEED_TYPES = ['notice', 'express', 'canteen-window', 'convenience'] as const;
+const FEED_TYPES = ['notice', 'volunteer', 'express', 'canteen-window', 'convenience'] as const;
 
 /**
  * 信息流（B2）：四类源拉平后按「与我有多有关」排序（A7 打分），

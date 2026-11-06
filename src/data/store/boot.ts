@@ -30,6 +30,21 @@ export function resetBootMode(): void {
   localStorage.removeItem(WEIGHT_KEY);
 }
 
+/**
+ * 清空本机全部 xiaoshan:* 开关（设置页「清除全部本机数据」用）
+ *
+ * 为什么不再逐个 removeItem：凭据、强制开关等键是后加的，漏一个就是「说清了其实没清」。
+ * 按命名空间扫一遍，新增的键自动被覆盖。
+ */
+export function clearLocalPrefs(): void {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('xiaoshan:')) keys.push(key);
+  }
+  for (const key of keys) localStorage.removeItem(key);
+}
+
 /** 设置页的 Agent 启停持久化（重启后仍然生效） */
 export function readAgentEnabled(): Record<string, boolean> {
   try {

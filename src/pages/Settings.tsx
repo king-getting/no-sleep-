@@ -6,7 +6,7 @@ import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
 import { downloadBackup, restoreBackup } from '@/data/store/backup';
-import { bootMode, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
+import { bootMode, clearLocalPrefs, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
@@ -155,6 +155,8 @@ export default function Settings() {
     await clearAllData();
     await clearFeedState();
     resetBootMode();
+    // resetBootMode 只清 3 个开关；凭据、强制模式这些后加的键按命名空间一起清掉
+    clearLocalPrefs();
     setBootMode('demo');
     window.location.reload();
   }
@@ -164,6 +166,8 @@ export default function Settings() {
     await clearAllData();
     await clearFeedState();
     resetBootMode();
+    // resetBootMode 只清 3 个开关；凭据、强制模式这些后加的键按命名空间一起清掉
+    clearLocalPrefs();
     setBootMode('real');
     window.location.reload();
   }

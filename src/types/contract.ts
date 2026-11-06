@@ -142,6 +142,12 @@ export interface RawItem {
   /** 受众过滤：年级 / 身份标签 */
   audience?: string[];
   payload?: Record<string, unknown>;
+  /** 发布单位（真实来源才填，界面上作为出处显示） */
+  source?: string;
+  /** 发布日期，YYYY-MM-DD */
+  publishedAt?: string;
+  /** 原文链接（爬取快照带上，点开看全文；离线时打不开，界面要说明） */
+  url?: string;
 }
 
 // ── Agent 模块接口（契约 §1）─────────────────────────────────
@@ -225,6 +231,29 @@ export interface OptionCard {
   fallback?: string;
   impacts: Impact[]; // 可能影响：必须可观察，禁止「概率更高」这类套话
   evidences: Evidence[]; // 「为什么」展开渲染
+  /**
+   * 其他 Agent 对这条选项的一句话评审（v1.4）：一方一利一弊，带当时的有效权重。
+   * 由编排器在汇总阶段按各 Agent 的域规则算出来，不是 UI 编的漂亮话。
+   */
+  reviews?: AgentReview[];
+}
+
+/** 跨 Agent 评审：别的 Agent 怎么看这条选项 */
+export interface AgentReview {
+  agentId: AgentId;
+  /** 当时的有效权重（生存模式下与 defaultWeight 不同） */
+  weight: number;
+  /** 它认可这一点 */
+  pro: string;
+  /** 它不放心这一点 */
+  con: string;
+  /**
+   * 这条选项对它那一域的影响强度（0–1）。
+   * 只由它自己的数据算：教务看占用 / 到下一节课的窗口，生活看花销 / 餐标，
+   * 健康看占用 / 睡眠余量，日程看占用 / 今天剩余机动时间。
+   * UI 拿它排出「影响最大 / 最小」。
+   */
+  impact: number;
 }
 
 /**

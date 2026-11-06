@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import type { AgentId, Report, ReportBlock } from '@/types/contract';
+import type { AgentId, OptionCard, Report, ReportBlock } from '@/types/contract';
 import { ConflictCardView } from '@/ui/cards/ConflictCardView';
 import { ChecklistBlock } from './ChecklistBlock';
 import { OverviewBlock } from './OverviewBlock';
@@ -72,7 +72,7 @@ export function ReportView({
   resolutions: Record<string, 'A' | 'B'>; // conflictId -> choice
   /** 晚间闭环：suggestionId -> 是否做了 */
   marks?: Record<string, boolean>;
-  onPick?: (suggestionId: string, optionId: string, topic: string) => void;
+  onPick?: (suggestionId: string, optionId: string, topic: string, option?: OptionCard) => void;
   onResolve?: (conflictId: string, topic: string, choice: 'A' | 'B') => void;
   /** 晚间闭环：做了 / 没做 */
   onMark?: (suggestionId: string, topic: string, done: boolean) => void;
@@ -112,7 +112,7 @@ export function ReportView({
             suggestion={block.suggestion}
             pickedOptionId={picks[block.suggestion.id]}
             marked={marks?.[block.suggestion.id]}
-            onPick={onPick ? (optionId) => onPick(block.suggestion.id, optionId, block.suggestion.topic) : undefined}
+            onPick={onPick ? (optionId, option) => onPick(block.suggestion.id, optionId, block.suggestion.topic, option) : undefined}
             onMark={onMark ? (done) => onMark(block.suggestion.id, block.suggestion.topic, done) : undefined}
             onUnmark={onUnmark ? (done) => onUnmark(block.suggestion.id, block.suggestion.topic, done) : undefined}
           />

@@ -43,7 +43,7 @@ const CAMPUS_LABEL: Record<Campus, string> = { guizishan: '桂子山校区', nan
 function StepDots({ step }: { step: Step }) {
   return (
     <div className="flex items-center gap-1.5">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
         <span
           key={i}
           className={`h-1.5 w-6 rounded-full ${i <= step ? 'bg-primary' : 'bg-muted'}`}
@@ -424,7 +424,7 @@ export default function Onboarding({ onDone }: { onDone: (next?: 'assessment') =
               </div>
             </dl>
             <p className="text-xs text-muted-foreground">
-              这些都能在设置里改；任何一个 ✗ 都不用重来一遍流程。
+              餐标、身高体重、作息偏好之后都能在设置里改，课表可以在「周历」里随时增删。
             </p>
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs leading-relaxed">
               <span className="font-medium text-foreground">还差最后一步（可选）</span>

@@ -193,14 +193,22 @@ function ExamSheet({
 
 export function ExamManager({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const [exams, setExams] = useState<ExamItem[]>([]);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<ExamItem | null | undefined>(undefined);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const firstLoad = useRef(true);
 
   const load = useCallback(async () => {
     try {
-      setExams(await listExams());
+      const rows = await listExams();
+      setExams(rows);
+      // 有考试时默认折叠：这一页的主角是复习草案，表单不该把草案顶出首屏。
+      // 一条都没有时展开，否则用户在这一页无处可加。
+      if (firstLoad.current) {
+        firstLoad.current = false;
+        if (rows.length === 0) setOpen(true);
+      }
     } catch {
       toast.error('考试数据读取失败，请刷新后重试');
     } finally {

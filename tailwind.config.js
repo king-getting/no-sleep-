@@ -6,7 +6,16 @@ module.exports = {
     extend: {
       fontFamily: {
         // 标题思源宋体（书卷气），正文黑体（§13.2）
-        serif: ['"Noto Serif SC"', '"Source Han Serif SC"', '"Songti SC"', '"SimSun"', 'serif'],
+        // 兜底顺序很重要：Windows 演示机通常没装思源宋体，落到 SimSun 会让标题偏细发虚，
+        // 所以把雅黑排在 SimSun 前面——宁可少一点宋体味，也不要投影上字重塌掉。
+        serif: [
+          '"Noto Serif SC"',
+          '"Source Han Serif SC"',
+          '"Songti SC"',
+          '"Microsoft YaHei"',
+          '"SimSun"',
+          'serif',
+        ],
       },
       colors: {
         border: "hsl(var(--border))",

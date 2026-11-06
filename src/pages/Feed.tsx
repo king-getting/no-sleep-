@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Star } from 'lucide-react';
+import { ArrowUpRight, Library, Star, Stethoscope, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { queryFeed } from '@/data/adapters';
+import { CCNU_CRAWLED_AT } from '@/data/mock/ccnu';
+import { SERVICE_ENTRIES, type ServiceKind } from '@/data/mock/services';
 import { favIds, mutedIds, muteItem, toggleFav, unmuteItem } from '@/data/store/feed';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import type { ScoredItem } from '@/data/relevance';
@@ -16,6 +18,11 @@ import type { AgentContext, RawItem } from '@/types/contract';
  *   - 每条卡片都有一行「为什么推给我」（可解释，不做黑箱）
  *   - 「与我无关」写进本地 feedMuted 表，下次刷新该条直接消失
  *   - 收藏写进 feedFav 表；收藏夹单独一栏，连被「与我无关」过的也能翻回来
+ *
+ * 版面分两段：
+ *   今日校园 —— 今天发布的 + 相关度高到值得现在就看的
+ *   往日信息 —— 其余按「三天内 / 一周内 / 一月内 / 很久之前」归堆
+ * 只收半年内的条目：再老的通知（选课通知、去年的考试安排）翻出来只会误导。
  */
 
 const TYPE_LABEL: Record<string, string> = {
@@ -23,15 +30,82 @@ const TYPE_LABEL: Record<string, string> = {
   express: '快递',
   'canteen-window': '食堂',
   convenience: '生活服务',
+  volunteer: '志愿',
   weather: '天气',
 };
 
+/** 类型底色：扫一眼就能分出「教务 / 志愿 / 生活」三类，不用读字 */
+const TYPE_TINT: Record<string, string> = {
+  notice: 'bg-secondary text-secondary-foreground',
+  volunteer: 'bg-amber-500/12 text-amber-700 dark:text-amber-400',
+  convenience: 'bg-sky-500/12 text-sky-700 dark:text-sky-400',
+  express: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400',
+  'canteen-window': 'bg-orange-500/12 text-orange-700 dark:text-orange-400',
+  weather: 'bg-secondary text-secondary-foreground',
+};
+
+const SERVICE_ICON: Record<ServiceKind, typeof Stethoscope> = {
+  hospital: Stethoscope,
+  library: Library,
+  logistics: Wrench,
+};
+
+/** 半年是一道硬线：更早的通知只会在演示时误导人 */
+const HALF_YEAR_DAYS = 183;
+
+/** 相关度高到这程度，不分新旧都值得放在「今日校园」里 */
+const PINNED_SCORE = 4.5;
+
+function daysAgo(at: string | undefined, now: Date): number | null {
+  if (!at) return null;
+  const then = new Date(`${at}T00:00:00`);
+  if (Number.isNaN(then.getTime())) return null;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor((today.getTime() - then.getTime()) / 86_400_000);
+}
+
+/** 「3 天前」比「2026-11-02」更快读懂；超过 30 天就退回日期，免得算不清 */
+function relDate(at?: string): string {
+  if (!at) return '';
+  const days = daysAgo(at, new Date());
+  if (days === null) return at;
+  if (days <= 0) return '今天';
+  if (days === 1) return '昨天';
+  if (days < 30) return `${days} 天前`;
+  return at;
+}
+
 /** 相关度分档：原始分（11.7 / 3.2）对用户没有意义，只保留档位，数值放进 title */
 function relevanceBand(score: number): { label: string; className: string } {
-  if (score >= 8) return { label: '高度相关', className: 'border-primary/30 bg-primary/5 text-primary' };
-  if (score >= 4) return { label: '相关', className: 'border-border bg-secondary text-secondary-foreground' };
+  if (score >= 6) return { label: '高度相关', className: 'border-primary/30 bg-primary/5 text-primary' };
+  if (score >= 2.5) return { label: '相关', className: 'border-border bg-secondary text-secondary-foreground' };
   return { label: '一般', className: 'border-border text-muted-foreground' };
 }
+
+type TimeIndex = 'all' | 'today' | 'd3' | 'd7' | 'd30';
+type RelIndex = 'all' | 'pinned' | 'related';
+
+const TIME_INDEX: { id: TimeIndex; label: string; max: number }[] = [
+  { id: 'all', label: '不限时间', max: HALF_YEAR_DAYS },
+  { id: 'today', label: '今天', max: 0 },
+  { id: 'd3', label: '三天内', max: 3 },
+  { id: 'd7', label: '一周内', max: 7 },
+  { id: 'd30', label: '一月内', max: 30 },
+];
+
+const REL_INDEX: { id: RelIndex; label: string; min: number }[] = [
+  { id: 'all', label: '不限相关度', min: 0 },
+  { id: 'pinned', label: '高度相关', min: 6 },
+  { id: 'related', label: '相关以上', min: 2.5 },
+];
+
+/** 往日信息的分堆规则，顺序即展示顺序 */
+const ARCHIVE_BUCKETS: { id: string; label: string; max: number }[] = [
+  { id: 'd3', label: '三天内', max: 3 },
+  { id: 'd7', label: '一周内', max: 7 },
+  { id: 'd30', label: '一月内', max: 30 },
+  { id: 'old', label: '很久之前', max: HALF_YEAR_DAYS },
+];
 
 export default function Feed() {
   const [items, setItems] = useState<ScoredItem[]>([]);
@@ -39,6 +113,8 @@ export default function Feed() {
   const [mutedCount, setMutedCount] = useState(0);
   const [tab, setTab] = useState<'all' | 'fav'>('all');
   const [type, setType] = useState<string>('all');
+  const [timeIdx, setTimeIdx] = useState<TimeIndex>('all');
+  const [relIdx, setRelIdx] = useState<RelIndex>('all');
   const [openReasons, setOpenReasons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +144,7 @@ export default function Feed() {
   const handleMute = useCallback(
     async (item: RawItem) => {
       await muteItem(item.id);
-      toast('已记下：这条与我无关', { description: '同类条目之后会沉底；可在设置里恢复。' });
+      toast('已记下：这条与我无关', { description: '同类条目之后会沉底；想找回来点上方「恢复」随时可以。' });
       await load();
     },
     [load],
@@ -100,29 +176,192 @@ export default function Feed() {
       return next;
     });
 
-  const visible = useMemo(() => {
+  const now = new Date();
+
+  /** 索引：时间 × 类型 × 相关度，三者叠加生效 */
+  const indexed = useMemo(() => {
     const inTab = tab === 'fav' ? items.filter((x) => favs.has(x.item.id)) : items.filter((x) => !x.muted);
-    return type === 'all' ? inTab : inTab.filter((x) => x.item.type === type);
-  }, [items, favs, tab, type]);
+    const maxDays = TIME_INDEX.find((t) => t.id === timeIdx)?.max ?? HALF_YEAR_DAYS;
+    const minScore = REL_INDEX.find((r) => r.id === relIdx)?.min ?? 0;
+    return inTab.filter((x) => {
+      if (type !== 'all' && x.item.type !== type) return false;
+      if (x.score < minScore) return false;
+      const days = daysAgo(x.item.publishedAt, now);
+      // 没有日期的（快递、食堂这类常驻条目）不受时间索引限制，也不进往日分堆
+      if (days === null) return timeIdx === 'all';
+      return days <= maxDays;
+    });
+  }, [items, favs, tab, type, timeIdx, relIdx, now]);
+
+  /** 今日校园：今天发的，或相关度高到值得现在看的 */
+  const fresh = useMemo(
+    () => indexed.filter((x) => {
+      const days = daysAgo(x.item.publishedAt, now);
+      return (days !== null && days <= 0) || x.score >= PINNED_SCORE;
+    }),
+    [indexed, now],
+  );
+
+  /** 往日信息：按 3 / 7 / 30 天分堆，超过半年的直接不进列表 */
+  const archive = useMemo(() => {
+    const rest = indexed
+      .filter((x) => !fresh.includes(x))
+      .map((x) => ({ x, days: daysAgo(x.item.publishedAt, now) }))
+      .filter((r) => r.days !== null && r.days <= HALF_YEAR_DAYS);
+    return ARCHIVE_BUCKETS.map((b) => {
+      const lower = ARCHIVE_BUCKETS[ARCHIVE_BUCKETS.indexOf(b) - 1]?.max ?? 0;
+      const list = rest
+        .filter((r) => (r.days as number) > lower && (r.days as number) <= b.max)
+        .map((r) => r.x);
+      return { ...b, list };
+    }).filter((b) => b.list.length > 0);
+  }, [indexed, fresh, now]);
+
+  /** 常驻条目（快递、食堂窗口这类没有发布日期的）：不参与时间分堆，单独放一段 */
+  const undated = useMemo(
+    () => indexed.filter((x) => daysAgo(x.item.publishedAt, now) === null),
+    [indexed, now],
+  );
 
   const allCount = items.filter((x) => !x.muted).length;
   const favCount = items.filter((x) => favs.has(x.item.id)).length;
   const types = useMemo(() => [...new Set(items.map((x) => x.item.type))], [items]);
 
+  const renderCard = ({ item, reasons, score, muted }: ScoredItem) => {
+    const band = relevanceBand(score);
+    const isFav = favs.has(item.id);
+    const expanded = openReasons.has(item.id);
+    const shown = expanded ? reasons : reasons.slice(0, 2);
+    return (
+      <li key={item.id} className={cn('rounded-2xl border bg-card p-4 shadow-xs', muted && 'opacity-80')}>
+        <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+          <span className={cn('rounded-md px-1.5 py-0.5', TYPE_TINT[item.type] ?? 'bg-secondary text-secondary-foreground')}>
+            {TYPE_LABEL[item.type] ?? item.type}
+          </span>
+          {item.campus && item.campus !== 'both' && <span>{item.campus === 'guizishan' ? '桂子山' : '南湖'}</span>}
+          {item.source && (
+            <span className="truncate rounded-md border border-border/70 px-1.5 py-0.5 text-[11px]">{item.source}</span>
+          )}
+          {item.publishedAt && (
+            <span className="tabular-nums" title={item.publishedAt}>
+              {relDate(item.publishedAt)}
+            </span>
+          )}
+          {muted && <span className="rounded-md border px-1.5 py-0.5 text-[11px]">已设为与我无关</span>}
+          <span
+            className={cn('ml-auto rounded-full border px-2 py-0.5 text-[11px]', band.className)}
+            title={`相关度 ${score.toFixed(1)}`}
+          >
+            {band.label}
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleFav(item)}
+            aria-label={isFav ? '取消收藏' : '收藏'}
+            aria-pressed={isFav}
+            className={cn(
+              '-mr-1 rounded-full p-1.5 transition-colors',
+              isFav ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Star className={cn('h-4 w-4', isFav && 'fill-current')} />
+          </button>
+        </div>
+
+        <h2 className="text-base font-medium leading-snug">{item.title}</h2>
+        {item.body && <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{item.body}</p>}
+
+        {reasons.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {shown.map((r) => (
+              <span key={r} className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                为什么推给我：{r}
+              </span>
+            ))}
+            {reasons.length > 2 && (
+              <button
+                type="button"
+                onClick={() => toggleReasons(item.id)}
+                className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+              >
+                {expanded ? '收起' : `还有 ${reasons.length - 2} 条`}
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant={isFav ? 'default' : 'outline'} size="sm" onClick={() => void handleFav(item)}>
+            {isFav ? '已收藏' : '收藏'}
+          </Button>
+          {!muted && (
+            <Button variant="ghost" size="sm" onClick={() => void handleMute(item)}>
+              与我无关
+            </Button>
+          )}
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="跳到学校官网原文（需要联网）"
+              className="ml-auto inline-flex items-center gap-0.5 text-[12px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            >
+              原文
+              <ArrowUpRight className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      </li>
+    );
+  };
+
   return (
     <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
       {/* 顶部固定在视口里：一屏能看三四条，翻到下面还能切「收藏」 */}
-      <header className="sticky top-0 z-10 -mx-4 mb-3 bg-background/95 px-4 pb-2 pt-1 backdrop-blur">
+      <header className="sticky top-14 z-10 -mx-4 mb-3 bg-background/95 px-4 pb-2 pt-1 backdrop-blur lg:top-0">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h1 className="font-serif text-xl font-bold">今日校园</h1>
-            <p className="text-xs text-muted-foreground">教务、快递、食堂混排 · 每条都告诉你为什么推给你</p>
+            <p className="text-xs text-muted-foreground">
+              本科生院 · 学校官网 · 校团委 · 后勤保障部的真实通知，抓取于 {CCNU_CRAWLED_AT} · 每条都告诉你为什么推给你
+            </p>
           </div>
           {mutedCount > 0 && tab === 'all' && (
             <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void handleUnmuteAll()}>
               恢复 {mutedCount} 条
             </Button>
           )}
+        </div>
+
+        {/* 服务入口：不是新闻，是现在就要用的跳板 */}
+        <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+          {SERVICE_ENTRIES.map((svc) => {
+            const Icon = SERVICE_ICON[svc.kind];
+            return (
+              <a
+                key={svc.id}
+                href={svc.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="group flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2 transition-colors hover:border-foreground/25 hover:bg-secondary/40"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary text-foreground/70">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1 text-[13px] font-medium">
+                    {svc.name}
+                    <span className="rounded border border-border/70 px-1 text-[10px] font-normal text-muted-foreground">
+                      {svc.action}
+                    </span>
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{svc.desc}</span>
+                </span>
+                <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+              </a>
+            );
+          })}
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -146,21 +385,58 @@ export default function Feed() {
               <span className="ml-1 tabular-nums opacity-70">{t.count}</span>
             </button>
           ))}
+        </div>
 
-          <div className="flex items-center gap-1 overflow-x-auto sm:ml-auto">
+        {/* 索引条：时间 / 类型 / 相关度，三层叠加 */}
+        <div className="mt-2 space-y-1.5 border-t pt-2">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <span className="shrink-0 text-[11px] text-muted-foreground">时间</span>
+            {TIME_INDEX.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTimeIdx(t.id)}
+                aria-pressed={timeIdx === t.id}
+                className={cn(
+                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
+                  timeIdx === t.id ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <span className="shrink-0 text-[11px] text-muted-foreground">类型</span>
             {['all', ...types].map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setType(t)}
+                aria-pressed={type === t}
                 className={cn(
-                  'shrink-0 rounded-full border px-2 py-0.5 text-[11px] transition-colors',
-                  type === t
-                    ? 'border-foreground/30 text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
+                  type === t ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 {t === 'all' ? '全部类型' : (TYPE_LABEL[t] ?? t)}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <span className="shrink-0 text-[11px] text-muted-foreground">相关度</span>
+            {REL_INDEX.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRelIdx(r.id)}
+                aria-pressed={relIdx === r.id}
+                className={cn(
+                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
+                  relIdx === r.id ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {r.label}
               </button>
             ))}
           </div>
@@ -168,88 +444,65 @@ export default function Feed() {
       </header>
 
       {loading && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">正在按你的身份排序…</p>}
-      {error && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="rounded-2xl border border-dashed p-8 text-center">
+          <p className="text-sm font-medium">信息流没读出来</p>
+          <p className="mt-1 text-xs text-muted-foreground">数据都在本机，重试一次通常就好。</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[11px] text-muted-foreground">技术细节</summary>
+            <pre className="mt-1 whitespace-pre-wrap break-all text-left font-mono text-[11px] text-muted-foreground">{error}</pre>
+          </details>
+          <Button className="mt-3" size="sm" variant="outline" onClick={() => void load()}>
+            重试
+          </Button>
+        </div>
+      )}
 
-      {!loading && !error && visible.length === 0 && (
+      {!loading && !error && indexed.length === 0 && (
         <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           {tab === 'fav'
             ? '还没有收藏。点任意一条右上角的星标，就会出现在这里。'
-            : type === 'all'
-              ? '今天没有和你身份相关的新消息。'
-              : '这个类型下暂时没有内容。'}
+            : '这组索引下没有内容。换个时间范围或相关度试试。'}
         </p>
       )}
 
-      <ul className="grid items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-        {visible.map(({ item, reasons, score, muted }) => {
-          const band = relevanceBand(score);
-          const isFav = favs.has(item.id);
-          const expanded = openReasons.has(item.id);
-          const shown = expanded ? reasons : reasons.slice(0, 2);
-          return (
-            <li key={item.id} className={cn('rounded-2xl border bg-card p-4 shadow-xs', muted && 'opacity-80')}>
-              <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="rounded-md bg-secondary px-1.5 py-0.5 text-secondary-foreground">
-                  {TYPE_LABEL[item.type] ?? item.type}
-                </span>
-                {item.campus && item.campus !== 'both' && <span>{item.campus === 'guizishan' ? '桂子山' : '南湖'}</span>}
-                {muted && <span className="rounded-md border px-1.5 py-0.5 text-[11px]">已设为与我无关</span>}
-                <span
-                  className={cn('ml-auto rounded-full border px-2 py-0.5 text-[11px]', band.className)}
-                  title={`相关度 ${score.toFixed(1)}`}
-                >
-                  {band.label}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void handleFav(item)}
-                  aria-label={isFav ? '取消收藏' : '收藏'}
-                  aria-pressed={isFav}
-                  className={cn(
-                    '-mr-1 rounded-full p-1.5 transition-colors',
-                    isFav ? 'text-amber-500 hover:text-amber-600' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <Star className={cn('h-4 w-4', isFav && 'fill-current')} />
-                </button>
-              </div>
+      {!loading && !error && fresh.length > 0 && (
+        <section className="mb-4">
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+            今日校园
+            <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary">
+              {fresh.length} 条 · 现在就该看
+            </span>
+          </h2>
+          <ul className="grid items-start gap-3 lg:grid-cols-2">{fresh.map(renderCard)}</ul>
+        </section>
+      )}
 
-              <h2 className="text-base font-medium leading-snug">{item.title}</h2>
-              {item.body && <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>}
+      {!loading && !error && archive.map((bucket) => (
+        <section key={bucket.id} className="mb-4">
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <span className="h-px w-3 bg-border" />
+            {bucket.label}
+            <span className="text-[11px] font-normal">{bucket.list.length} 条</span>
+          </h2>
+          <ul className="grid items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">{bucket.list.map(renderCard)}</ul>
+        </section>
+      ))}
 
-              {reasons.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  {shown.map((r) => (
-                    <span key={r} className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
-                      为什么推给我：{r}
-                    </span>
-                  ))}
-                  {reasons.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => toggleReasons(item.id)}
-                      className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-                    >
-                      {expanded ? '收起' : `还有 ${reasons.length - 2} 条`}
-                    </button>
-                  )}
-                </div>
-              )}
+      {!loading && !error && undated.length > 0 && (
+        <section className="mb-4">
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <span className="h-px w-3 bg-border" />
+            常驻
+            <span className="text-[11px] font-normal">{undated.length} 条 · 不按时间</span>
+          </h2>
+          <ul className="grid items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">{undated.map(renderCard)}</ul>
+        </section>
+      )}
 
-              <div className="mt-3 flex gap-2">
-                <Button variant={isFav ? 'default' : 'outline'} size="sm" onClick={() => void handleFav(item)}>
-                  {isFav ? '已收藏' : '收藏'}
-                </Button>
-                {!muted && (
-                  <Button variant="ghost" size="sm" onClick={() => void handleMute(item)}>
-                    与我无关
-                  </Button>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      {!loading && !error && (archive.length > 0 || undated.length > 0) && (
+        <p className="pb-2 text-center text-[11px] text-muted-foreground">只收半年内的通知，更早的没有参考价值，已自动略过。</p>
+      )}
     </div>
   );
 }

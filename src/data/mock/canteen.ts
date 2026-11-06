@@ -66,11 +66,11 @@ export const MOCK_CANTEEN_WINDOWS: RawItem[] = [
   },
 ];
 
-/** 示例天气（生活 Agent 的天气能力数据源） */
+/** 示例天气（生活 Agent 的天气能力数据源）；标题写明「示例」——答辩会问「断网哪来的天气」 */
 export const MOCK_WEATHER: RawItem = {
   id: 'wx-today',
   type: 'weather',
-  title: '今日天气：多云转晴 18–26°C',
+  title: '今日天气（示例）：多云转晴 18–26°C',
   body: '午后紫外线较强，晚间转凉，建议带薄外套。',
   tags: ['天气'],
   campus: 'both',

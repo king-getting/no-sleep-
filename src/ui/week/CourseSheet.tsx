@@ -73,6 +73,7 @@ export function CourseSheet({
   const [end, setEnd] = useState(toHHMM(draft.course.endMin));
   const [weeksText, setWeeksText] = useState(weeksToInput(draft.course.weeks));
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -97,6 +98,7 @@ export function CourseSheet({
   }, [draft.siblings, startMin, endMin]);
 
   const submit = () => {
+    if (saving) return;
     if (!name.trim()) return setError('课程名不能为空');
     if (!location.trim()) return setError('地点不能为空——报告里要按地点算通勤');
     if (startMin === null || endMin === null) return setError('时间格式不对');
@@ -105,19 +107,26 @@ export function CourseSheet({
     const parsedWeeks = parseWeeks(weeksText);
     if (parsedWeeks.error) return setError(parsedWeeks.error);
     setError(null);
-    onSave(
-      {
-        ...draft.course,
-        name: name.trim(),
-        teacher: teacher.trim() || undefined,
-        location: location.trim(),
-        dayOfWeek: dow as Course['dayOfWeek'],
-        startMin,
-        endMin,
-        weeks: parsedWeeks.weeks,
-      },
-      draft.mode === 'add',
-    );
+    setSaving(true);
+    // 等落库再收面板：写失败时面板不能偷偷关掉，否则用户以为存上了
+    void Promise.resolve(
+      onSave(
+        {
+          ...draft.course,
+          name: name.trim(),
+          teacher: teacher.trim() || undefined,
+          location: location.trim(),
+          dayOfWeek: dow as Course['dayOfWeek'],
+          startMin,
+          endMin,
+        },
+        draft.mode === 'add',
+      ),
+    )
+      .catch(() => {
+        setError('没存进本机，请再试一次');
+      })
+      .finally(() => setSaving(false));
   };
 
   const isNew = draft.mode === 'add';
@@ -306,9 +315,9 @@ export function CourseSheet({
             {error && <p className="text-xs text-destructive">{error}</p>}
 
             <div className="flex gap-2 pt-1">
-              <Button size="sm" onClick={submit}>
+              <Button size="sm" onClick={submit} disabled={saving}>
                 <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
-                保存
+                {saving ? '保存中…' : '保存'}
               </Button>
               <Button size="sm" variant="ghost" onClick={isNew ? onClose : () => setMode('view')}>
                 取消

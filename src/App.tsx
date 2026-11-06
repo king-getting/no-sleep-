@@ -33,17 +33,26 @@ const TABS = [
 export default function App() {
   /** null = 还在判断；true = 需要走建档流程 */
   const [needOnboarding, setNeedOnboarding] = useState<boolean | null>(null);
+  const [bootError, setBootError] = useState<string | null>(null);
 
   useEffect(() => {
     // Agent 的启停与权重已在 registry 模块加载时恢复（见 @/agents/restore），
     // 这里不再重复——放在 effect 里会晚于 Home 的首次报告，导致首屏用默认设置生成。
 
     void (async () => {
-      if (bootMode() === 'real' && !(await hasProfile())) {
-        setNeedOnboarding(true);
-        return;
+      try {
+        if (bootMode() === 'real' && !(await hasProfile())) {
+          setNeedOnboarding(true);
+          return;
+        }
+        setNeedOnboarding(false);
+      } catch (e) {
+        // IndexedDB 打不开（无痕模式 / 隐私策略 / 库版本冲突）时不能无限等待，
+        // 否则整站停在这一句，连设置页都进不去。
+        console.error('[小山] 启动判定失败：', e);
+        setBootError(e instanceof Error ? e.message : String(e));
+        setNeedOnboarding(false);
       }
-      setNeedOnboarding(false);
     })();
   }, []);
 
@@ -64,6 +73,18 @@ export default function App() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
+      {bootError && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
+          本机存储没能读出来（{bootError.slice(0, 60)}），当前用示例数据继续演示。
+          <button
+            type="button"
+            className="ml-2 underline underline-offset-2"
+            onClick={() => window.location.reload()}
+          >
+            重试
+          </button>
+        </div>
+      )}
       {/* 桌面端主导航：手机端仍用底部 tab，lg 起收进顶部 header */}
       <header className="sticky top-0 z-20 hidden border-b bg-background/85 backdrop-blur lg:block">
         <div className="mx-auto flex h-14 w-full max-w-[1320px] items-center gap-6 px-6">
@@ -95,9 +116,15 @@ export default function App() {
             ))}
           </nav>
 
-          <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            本地优先 · 数据不出设备
+          <span className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+            {/* 桌面端也要有「示例数据」标识：投屏时评委看到的是真实数据的样子，得说清楚 */}
+            {bootMode() === 'demo' && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">示例数据</span>
+            )}
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              本地优先 · 数据不出设备
+            </span>
           </span>
         </div>
       </header>
