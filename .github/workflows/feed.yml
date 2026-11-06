@@ -1,0 +1,37 @@
+name: Refresh feed
+
+on:
+  schedule:
+    # 每天两次（UTC；对应北京时间 07:00 和 15:00）
+    - cron: '0 23 * * *'
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: feed
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Scrape notices
+        run: node scripts/fetch-feed.mjs
+      - name: Commit when changed
+        run: |
+          if [[ -z "$(git status --porcelain public/feed.json)" ]]; then
+            echo "没有变化"
+            exit 0
+          fi
+          git config user.name "xiaoshan-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add public/feed.json
+          git commit -m "chore(feed): refresh notices"
+          git push

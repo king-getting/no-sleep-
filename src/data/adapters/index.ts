@@ -4,6 +4,7 @@ import { CCNU_NOTICES } from '@/data/mock/ccnu';
 import { MOCK_NOTICES } from '@/data/mock/notices';
 import { loadInterests, rankFeed, type ScoredItem } from '@/data/relevance';
 import { mutedIds } from '@/data/store/feed';
+import { readFeedCache } from '@/lib/feedRefresh';
 
 /**
  * 数据源 adapter 注册表（契约 §5）
@@ -50,7 +51,12 @@ const mockNoticeAdapter: DataSourceAdapter = {
   id: 'ccnu-notice',
   provides: ['notice', 'express', 'volunteer', 'convenience'],
   async fetch(type, ctx) {
-    return ALL_NOTICES.filter((n) => n.type === type && matchIdentity(n, ctx));
+    // 远端刷新到的条目优先，同 id 的覆盖包里烘好的快照
+    const remote = await readFeedCache();
+    const merged = new Map<string, RawItem>();
+    for (const n of ALL_NOTICES) merged.set(n.id, n);
+    for (const n of remote.items) merged.set(n.id, n);
+    return [...merged.values()].filter((n) => n.type === type && matchIdentity(n, ctx));
   },
 };
 

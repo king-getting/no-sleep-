@@ -9,6 +9,7 @@ import { favIds, mutedIds, muteItem, toggleFav, unmuteItem } from '@/data/store/
 import { getPreferences, getProfile } from '@/data/store/profile';
 import type { ScoredItem } from '@/data/relevance';
 import { cn } from '@/lib/utils';
+import { readFeedCache, refreshFeed } from '@/lib/feedRefresh';
 import type { DirectionContext, RawItem } from '@/types/contract';
 
 /**
@@ -118,6 +119,8 @@ export default function Feed() {
   const [openReasons, setOpenReasons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedAt, setFeedAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,8 +140,29 @@ export default function Feed() {
     }
   }, []);
 
+  /** 手动刷新：绕过 30 分钟节流，拉到什么就提示什么 */
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await refreshFeed(true);
+      const cache = await readFeedCache();
+      setFeedAt(cache.fetchedAt);
+      if (res.ok) toast(res.message);
+      else toast('这次没拉到新的', { description: res.message });
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
+  // 每次打开信息流都尝试拉一次远端（30 分钟内不重复请求）；拿不到就用本机快照
   useEffect(() => {
-    void load();
+    void (async () => {
+      await refreshFeed();
+      const cache = await readFeedCache();
+      setFeedAt(cache.fetchedAt);
+      await load();
+    })();
   }, [load]);
 
   const handleMute = useCallback(
@@ -325,14 +349,21 @@ export default function Feed() {
           <div>
             <h1 className="font-serif text-xl font-bold">今日校园</h1>
             <p className="text-xs text-muted-foreground">
-              本科生院 · 学校官网 · 校团委 · 后勤保障部的真实通知，抓取于 {CCNU_CRAWLED_AT} · 每条都告诉你为什么推给你
+              本科生院通知公告与教务快讯（每日自动抓取）
+              {feedAt ? `，更新于 ${new Date(feedAt).toLocaleString('zh-CN', { hour12: false })}` : `，内置快照 ${CCNU_CRAWLED_AT}`}
+              {' · '}每条都告诉你为什么推给你
             </p>
           </div>
-          {mutedCount > 0 && tab === 'all' && (
-            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => void handleUnmuteAll()}>
-              恢复 {mutedCount} 条
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" disabled={refreshing} onClick={() => void handleRefresh()}>
+              {refreshing ? '刷新中…' : '刷新'}
             </Button>
-          )}
+            {mutedCount > 0 && tab === 'all' && (
+              <Button variant="ghost" size="sm" onClick={() => void handleUnmuteAll()}>
+                恢复 {mutedCount} 条
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* 服务入口：不是新闻，是现在就要用的跳板 */}

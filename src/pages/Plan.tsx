@@ -165,7 +165,7 @@ export default function Plan() {
     <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">复习安排</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">任务与 DDL</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             按掌握度和考试先后排进空档，可以拖动互换时段，也可以勾掉已经做完的。
           </p>

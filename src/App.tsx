@@ -24,7 +24,7 @@ const TABS = [
   { to: '/', label: '报告', icon: LayoutList },
   { to: '/week', label: '周历', icon: CalendarDays },
   { to: '/month', label: '月历', icon: CalendarRange },
-  { to: '/plan', label: '复习', icon: ListChecks },
+  { to: '/plan', label: '任务', icon: ListChecks },
   { to: '/feed', label: '信息流', icon: Apple },
   { to: '/health', label: '健康', icon: HeartPulse },
   { to: '/settings', label: '设置', icon: Settings2 },
