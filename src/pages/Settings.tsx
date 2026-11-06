@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { directionRegistry } from '@/directions/registry';
@@ -41,6 +42,7 @@ const AGENT_LABEL: Record<string, string> = {
 };
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [budget, setBudget] = useState('');
   const [height, setHeight] = useState('');
@@ -459,7 +461,7 @@ export default function Settings() {
           size="sm"
           variant="outline"
           onClick={() => {
-            window.location.href = '/assessment';
+            navigate('/assessment');
           }}
         >
           {traits ? '重新测评' : '开始测评'}

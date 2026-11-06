@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router';
+import { NavLink, Route, Routes, useNavigate } from 'react-router';
 import { Apple, CalendarDays, CalendarRange, Flower2, HeartPulse, LayoutList, ListChecks, Mountain, Settings2, ShieldCheck } from 'lucide-react';
 import Home from './pages/Home';
 import Feed from './pages/Feed';
@@ -31,6 +31,8 @@ const TABS = [
 ];
 
 export default function App() {
+  // GitHub Pages 部署在 /no-sleep-/ 子路径下，跳转必须走路由，不能写死 /assessment
+  const navigate = useNavigate();
   /** null = 还在判断；true = 需要走建档流程 */
   const [needOnboarding, setNeedOnboarding] = useState<boolean | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export default function App() {
       <Onboarding
         onDone={(next) => {
           // 建完档可以直接去做 2 分钟习惯测评；整页跳转，避开种子数据的时序
-          window.location.href = next === 'assessment' ? '/assessment' : '/';
+          navigate(next === 'assessment' ? '/assessment' : '/');
         }}
       />
     );
@@ -135,7 +137,7 @@ export default function App() {
           <Route path="/feed" element={<Feed />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/assessment" element={<Assessment onDone={() => { window.location.href = '/'; }} />} />
+          <Route path="/assessment" element={<Assessment onDone={() => navigate('/')} />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </div>
