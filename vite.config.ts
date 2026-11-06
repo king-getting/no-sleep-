@@ -21,7 +21,7 @@ export default defineConfig({
       registerType: 'prompt',
       // 注册由 src/main.tsx 的 registerSW 负责，这里不要再自动注入一份
       injectRegister: false,
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
         name: '小山 · CCUNER 的本地小助手',
         short_name: '小山',
@@ -29,7 +29,12 @@ export default defineConfig({
         theme_color: '#4A6B5C',
         background_color: '#F7F4EC',
         display: 'standalone',
-        icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        ],
       },
       workbox: {
         navigateFallback: 'index.html',
