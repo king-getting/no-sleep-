@@ -1,7 +1,7 @@
 import { getEnabledDirections } from '@/directions/registry';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { upcomingExams } from '@/data/queries';
-import { examReportTypeOf, examWindowOf, justFinishedExam } from '@/lib/examMode';
+import { examWindowOf, justFinishedExam } from '@/lib/examMode';
 import type { DirectionContext, DirectionResult, Mode, Report, ReportType } from '@/types/contract';
 import { arbitrateClaims, mergeSuggestions } from './arbiter';
 import { composeReport } from './compose';
@@ -126,12 +126,10 @@ class Orchestrator {
       ev.emit({ type: 'merge:applied', text: `权重调整：${detail}` });
     }
 
-    // 按配方组装报告（生存模式下不是 morning/noon/evening，而是 exam-week / exam-day / exam-done）
-    const type: ReportType = finished
-      ? 'exam-done'
-      : mode === 'exam'
-        ? examReportTypeOf(window)
-        : reportTypeForTrigger(trigger, now);
+    // 报告类型永远跟着时段走（晨间 / 午间 / 晚间）。
+    // 考试周不再把整份报告换成「冲刺」——那样早上进去看不到晨间预报，
+    // 只剩倒计时。冲刺内容改为：概览里的倒计时一条 + 各方向照常产出的复习建议。
+    const type: ReportType = finished ? 'exam-done' : reportTypeForTrigger(trigger, now);
     const report = await composeReport(type, results, weighted.suggestions, conflicts, ctx);
     ev.emit({ type: 'report:composed', report });
     return report;

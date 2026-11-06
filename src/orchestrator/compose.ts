@@ -41,12 +41,20 @@ async function buildOverview(type: ReportType, results: DirectionResult[], ctx: 
   // 「今日课程」这一行点得动：跳到周历并定位到今天（v1.3）
   const weekLink = `/week?dow=${dayOfWeek(ctx.now)}`;
 
+  // 考试周：任何时段的报告都在概览最上面挂一条倒计时，不替换整份报告
+  const countdown = fact('exam:countdown');
+  const examRow =
+    ctx.mode === 'exam' && countdown !== '—'
+      ? [{ label: '考试倒计时', value: countdown, link: '/plan', tone: 'warn' as const }]
+      : [];
+
   if (type === 'noon') {
     const nowMin = ctx.now.getHours() * 60 + ctx.now.getMinutes();
     const courses = await todayCourses(ctx.now);
     const done = courses.filter((c) => c.endMin <= nowMin).length;
     const rest = courses.length - done;
     return [
+      ...examRow,
       { label: '上午回顾', value: `已上 ${done}/${courses.length} 节课` },
       { label: '下午安排', value: rest > 0 ? `还有 ${rest} 节课` : '下午没课' },
       { label: '时间块', value: fact('schedule:timeblocks') },
@@ -84,7 +92,9 @@ async function buildOverview(type: ReportType, results: DirectionResult[], ctx: 
     ];
   }
 
+  // 常规时段（晨 / 午 / 晚）：报告始终跟着时段走。
   return [
+    ...examRow,
     { label: '今日课程', value: fact('academic:today-courses') },
     { label: '时间块', value: fact('schedule:timeblocks') },
     { label: '天气', value: fact('life:weather') },
