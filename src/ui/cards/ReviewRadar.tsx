@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { AgentId, AgentReview } from '@/types/contract';
 import { AGENT_META } from '@/ui/agentMeta';
@@ -8,7 +9,8 @@ import { cn } from '@/lib/utils';
  * 三个方向的雷达图（学习 / 生活 / 健康）
  *
  * 三条轴固定，顶点离中心越远表示这个选项在该方向上影响越大（impact 0–1）。
- * 具体一利一弊不铺在卡片上，点顶点或右侧标签才弹出来——卡片窄，先把形状给眼睛看。
+ * 一利一弊不铺在卡片上：点顶点或标签才弹，弹层用 portal 挂到 body 上、fixed 定位，
+ * 这样不会被相邻卡片或顶栏盖住，也不会被卡片边界裁掉。
  */
 
 const AXES: { id: AgentId; angle: number }[] = [
@@ -29,6 +31,10 @@ const CY = 76;
 const R = 46;
 const MIN_R = 9;
 
+const PANEL_W = 250;
+const PANEL_GAP = 8;
+const PANEL_EST_H = 132;
+
 function point(angle: number, radius: number) {
   const rad = (angle * Math.PI) / 180;
   return { x: CX + Math.cos(rad) * radius, y: CY + Math.sin(rad) * radius };
@@ -36,6 +42,9 @@ function point(angle: number, radius: number) {
 
 export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
   const [openId, setOpenId] = useState<AgentId | null>(null);
+  const [anchorBox, setAnchorBox] = useState<{ left: number; top: number; bottom: number } | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const byId = new Map(reviews.map((r) => [r.agentId, r]));
 
   const axes = AXES.map((axis) => {
@@ -46,9 +55,70 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
     return { ...axis, review, impact, at: point(axis.angle, radius) };
   });
 
+  const place = useCallback(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setAnchorBox({ left: r.left, top: r.top, bottom: r.bottom });
+  }, []);
+
+  const close = useCallback(() => {
+    setOpenId(null);
+    anchorRef.current = null;
+    setAnchorBox(null);
+  }, []);
+
+  const toggle = useCallback(
+    (id: AgentId, el: HTMLElement) => {
+      if (openId === id) {
+        close();
+        return;
+      }
+      anchorRef.current = el;
+      place();
+      setOpenId(id);
+    },
+    [openId, place, close],
+  );
+
+  // 打开时：点外面 / Esc 关掉，滚动与缩放时跟着锚点走
+  useEffect(() => {
+    if (!openId) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (anchorRef.current?.contains(target)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    const onMove = () => place();
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [openId, close, place]);
+
   const open = axes.find((a) => a.id === openId)?.review ?? null;
   const outline = axes.map((a) => `${a.at.x.toFixed(1)},${a.at.y.toFixed(1)}`).join(' ');
-  const toggle = (id: AgentId) => setOpenId((prev) => (prev === id ? null : id));
+
+  const panelStyle = (() => {
+    if (!anchorBox) return undefined;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const left = Math.min(Math.max(8, anchorBox.left), Math.max(8, vw - PANEL_W - 8));
+    const below = anchorBox.bottom + PANEL_GAP;
+    const flip = below + PANEL_EST_H > vh - 8;
+    const top = flip ? Math.max(8, anchorBox.top - PANEL_EST_H - PANEL_GAP) : below;
+    return { left, top, width: PANEL_W, position: 'fixed' as const, zIndex: 2147483000 };
+  })();
 
   return (
     <div className="relative mt-1.5" onClick={(e) => e.stopPropagation()}>
@@ -108,7 +178,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
             return (
               <g
                 key={a.id}
-                onClick={() => toggle(a.id)}
+                onClick={(e) => toggle(a.id, e.currentTarget as unknown as HTMLElement)}
                 className="cursor-pointer"
                 role="button"
                 tabIndex={0}
@@ -116,7 +186,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    toggle(a.id);
+                    toggle(a.id, e.currentTarget as unknown as HTMLElement);
                   }
                 }}
               >
@@ -139,7 +209,6 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                 >
                   {name}
                 </text>
-
               </g>
             );
           })}
@@ -153,7 +222,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
               <button
                 key={a.id}
                 type="button"
-                onClick={() => toggle(a.id)}
+                onClick={(e) => toggle(a.id, e.currentTarget)}
                 aria-expanded={active}
                 className={cn(
                   'flex w-full items-center justify-between gap-1 rounded-md px-1.5 py-1 text-left text-[11px] transition-colors',
@@ -165,9 +234,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                   <span className="font-medium" style={{ color: HEX[a.id] }}>
                     {name}
                   </span>
-                  <span className="text-[9.5px] text-muted-foreground/80">
-                    ×{a.review?.weight ?? 1}
-                  </span>
+                  <span className="text-[9.5px] text-muted-foreground/80">×{a.review?.weight ?? 1}</span>
                 </span>
                 <span className="text-[10px] tabular-nums text-muted-foreground/80">
                   {Math.round(a.impact * 100)}%
@@ -181,36 +248,48 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
         </div>
       </div>
 
-      {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-[15.5rem] rounded-xl border bg-popover p-2.5 text-popover-foreground shadow-xl">
-          <div className="flex items-center justify-between gap-2">
-            <p className="flex items-center gap-1.5 text-[11.5px] font-medium" style={{ color: HEX[open.agentId] }}>
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: HEX[open.agentId] }} />
-              {AGENT_META[open.agentId].name}
-              <span className="text-[9.5px] font-normal text-muted-foreground">×{open.weight}</span>
-              <span className="text-[9.5px] font-normal text-muted-foreground">
-                影响 {Math.round(open.impact * 100)}%
-              </span>
+      {open &&
+        panelStyle &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label={`${AGENT_META[open.agentId].name}对这一条的利弊`}
+            style={panelStyle}
+            className="rounded-xl border bg-popover p-2.5 text-popover-foreground shadow-xl"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p
+                className="flex items-center gap-1.5 text-[11.5px] font-medium"
+                style={{ color: HEX[open.agentId] }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: HEX[open.agentId] }} />
+                {AGENT_META[open.agentId].name}
+                <span className="text-[9.5px] font-normal text-muted-foreground">×{open.weight}</span>
+                <span className="text-[9.5px] font-normal text-muted-foreground">
+                  影响 {Math.round(open.impact * 100)}%
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={close}
+                className="rounded p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                aria-label="关闭"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11.5px] leading-snug text-foreground/90">
+              <span className="mr-1 text-primary/80">＋</span>
+              {open.pro}
             </p>
-            <button
-              type="button"
-              onClick={() => setOpenId(null)}
-              className="rounded p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
-              aria-label="关闭"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-          <p className="mt-1.5 text-[11.5px] leading-snug text-foreground/90">
-            <span className="mr-1 text-primary/80">＋</span>
-            {open.pro}
-          </p>
-          <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
-            <span className="mr-1">－</span>
-            {open.con}
-          </p>
-        </div>
-      )}
+            <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
+              <span className="mr-1">－</span>
+              {open.con}
+            </p>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
