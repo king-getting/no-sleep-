@@ -4,6 +4,7 @@ import { db } from '@/data/store/db';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { buildFacts, type FactBundle } from '@/lib/facts';
 import { generateBrief, type Brief } from '@/lib/brief';
+import { createLlmGenerator, llmReady, readLlmConfig } from '@/lib/llm';
 import DailyBrief from '@/ui/brief/DailyBrief';
 import {
   daysUntil,
@@ -135,7 +136,13 @@ export default function OutlookSection() {
         semesterStart: prefs?.semesterStart,
         profile,
       });
-      const composed = await generateBrief(factBundle, now);
+      // 模型润色只在用户显式开启且填了 key 时启用；否则走模板，且失败自动回落
+      const llmCfg = readLlmConfig();
+      const composed = await generateBrief(
+        factBundle,
+        now,
+        llmReady(llmCfg) ? createLlmGenerator(llmCfg) : undefined,
+      );
 
       if (!active) return;
       setCourses(cs);
