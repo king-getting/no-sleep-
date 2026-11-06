@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { CalendarClock, CalendarRange, ClipboardCheck } from 'lucide-react';
 import { db } from '@/data/store/db';
-import { getPreferences } from '@/data/store/profile';
+import { getPreferences, getProfile } from '@/data/store/profile';
+import { buildFacts, type FactBundle } from '@/lib/facts';
+import { generateBrief, type Brief } from '@/lib/brief';
+import DailyBrief from '@/ui/brief/DailyBrief';
 import {
   daysUntil,
   fmtHour,
@@ -98,9 +101,11 @@ export default function OutlookSection() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [sleeps, setSleeps] = useState<SleepLog[]>([]);
-  const [blocks, setBlocks] = useState<{ date: string; done: boolean }[]>([]);
+  const [blocks, setBlocks] = useState<{ date: string; startMin: number; endMin: number; done: boolean }[]>([]);
   const [compliance, setCompliance] = useState<{ date: string; done: boolean }[]>([]);
   const [semesterStart, setSemesterStart] = useState<string | undefined>(undefined);
+  const [bundle, setBundle] = useState<FactBundle | null>(null);
+  const [brief, setBrief] = useState<Brief | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -114,12 +119,33 @@ export default function OutlookSection() {
         db.compliance.toArray(),
       ]);
       if (!active) return;
+      const now = new Date();
+      const blockRows = bs.map((b) => ({ date: b.date, startMin: b.startMin, endMin: b.endMin, done: b.done }));
+      const complianceRows = cp.map((c) => ({ date: c.date, done: c.done }));
+      const profile = await getProfile().catch(() => null);
+
+      // 事实包 → 简报：先算事实，再生成，最后校验；失败由 generateBrief 内部回落模板
+      const factBundle = buildFacts({
+        now,
+        courses: cs,
+        exams: es,
+        sleeps: ss,
+        blocks: blockRows,
+        compliance: complianceRows,
+        semesterStart: prefs?.semesterStart,
+        profile,
+      });
+      const composed = await generateBrief(factBundle, now);
+
+      if (!active) return;
       setCourses(cs);
       setExams(es);
       setSleeps(ss);
-      setBlocks(bs.map((b) => ({ date: b.date, done: b.done })));
-      setCompliance(cp.map((c) => ({ date: c.date, done: c.done })));
+      setBlocks(blockRows);
+      setCompliance(complianceRows);
       setSemesterStart(prefs?.semesterStart);
+      setBundle(factBundle);
+      setBrief(composed);
       setReady(true);
     })();
     return () => {
@@ -148,7 +174,10 @@ export default function OutlookSection() {
   const hasAnyCourse = courses.length > 0;
 
   return (
-    <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="mt-5 space-y-4">
+      {brief && bundle && <DailyBrief brief={brief} bundle={bundle} />}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card
         icon={<CalendarClock className="h-4 w-4 text-primary" />}
         title="未来两天"
@@ -266,6 +295,7 @@ export default function OutlookSection() {
           </p>
         )}
       </Card>
+      </div>
     </div>
   );
 }
