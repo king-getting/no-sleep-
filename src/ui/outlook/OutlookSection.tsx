@@ -22,6 +22,7 @@ import {
   type WeekSummary,
 } from '@/lib/outlook';
 import type { DayPlan } from '@/lib/outlook';
+import { fmtMin } from '@/types/contract';
 import type { Course, ExamItem, SleepLog } from '@/types/contract';
 
 /**
@@ -240,6 +241,29 @@ export default function OutlookSection() {
         ? `${weekdayLabel(nextWeek.busiest.date)}最满，那天就别再接别的事；复习放到${lightestDay ? weekdayLabel(lightestDay.date) : '空的那天'}。`
         : `空档比较碎，整块复习放到${lightestDay ? weekdayLabel(lightestDay.date) : '周末'}，平时只做 20 分钟能收尾的小事。`;
 
+  // 未来两天：说明天该注意什么，而不是只列课
+  const tomorrow = twoDays[0];
+  const tomorrowFirst = tomorrow?.courses[0];
+  const tomorrowExam = tomorrow?.exams[0];
+  const twoDayAdvice = tomorrowExam
+    ? `明天有「${tomorrowExam.title}」截止，今晚把要交的收尾，别留到明早。`
+    : (tomorrow?.courses.length ?? 0) === 0
+      ? '明天没课，把整块时间留给最想推进的一件事，别一觉睡到中午。'
+      : tomorrowFirst && tomorrowFirst.startMin <= 8 * 60
+        ? `明早 ${fmtMin(tomorrowFirst.startMin)} 有 ${tomorrowFirst.name}，今晚把闹钟和书包提前弄好。`
+        : `明天 ${tomorrow?.courses.length ?? 0} 节课，最早 ${tomorrowFirst ? fmtMin(tomorrowFirst.startMin) : '—'}；整块的事放到没课的时段。`;
+
+  // 本周总结：给一句「下周该改什么」
+  const reviewRate = summary.reviewPlanned > 0 ? summary.reviewDone / summary.reviewPlanned : null;
+  const summaryAdvice =
+    summary.courseMinutes / 60 >= 20
+      ? `这周课上得多（约 ${Math.round(summary.courseMinutes / 60)} 小时），周末别再排满，留半天给自己。`
+      : reviewRate !== null && reviewRate < 0.5
+        ? `复习只完成 ${Math.round(reviewRate * 100)}%，下周把每天复习缩到 20 分钟，先保住连续性。`
+        : summary.sleepAvg !== null && summary.sleepAvg < 7
+          ? `平均睡 ${summary.sleepAvg}h，偏少；下周先把入睡时间往前挪 30 分钟。`
+          : '这周节奏还行，下周挑一天做点课表外的事——走走、见朋友都算。';
+
 
   const hasAnyCourse = courses.length > 0;
 
@@ -258,6 +282,12 @@ export default function OutlookSection() {
           <DayBlock plan={twoDays[1]} label="后天" />
         </div>
         {narrative?.twoDays && <NarrativeLine text={narrative.twoDays} />}
+        {!narrative?.twoDays && hasAnyCourse && (
+          <p className="mt-2 rounded-lg bg-primary/5 px-2.5 py-1.5 text-xs">
+            <span className="font-medium">建议：</span>
+            {twoDayAdvice}
+          </p>
+        )}
         {!hasAnyCourse && (
           <p className="mt-2 text-[11px] text-muted-foreground">
             还没导入课表，去「周历 → 从 Excel 导入」把教务系统的表放进来，这里就会填满。
@@ -375,6 +405,12 @@ export default function OutlookSection() {
           </p>
         )}
         {narrative?.lastWeek && <NarrativeLine text={narrative.lastWeek} />}
+        {!narrative?.lastWeek && (
+          <p className="mt-2 rounded-lg bg-primary/5 px-2.5 py-1.5 text-xs">
+            <span className="font-medium">下周调整：</span>
+            {summaryAdvice}
+          </p>
+        )}
       </Card>
       </div>
     </div>

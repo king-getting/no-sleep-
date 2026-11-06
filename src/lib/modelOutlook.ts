@@ -120,7 +120,7 @@ export async function generateOutlookNarrative(
     lastWeek: (json.lastWeek ?? '').trim().slice(0, 60),
   };
   // 太敷衍的不上屏：宁可显示本地算好的那句
-  if (!narrative.twoDays || narrative.nextWeek.length < 24 || !narrative.lastWeek) return null;
+  if (narrative.twoDays.length < 18 || narrative.nextWeek.length < 24 || narrative.lastWeek.length < 10) return null;
   writeOutlookCache(narrative, now);
   return narrative;
 }
