@@ -226,6 +226,19 @@ export default function OutlookSection() {
   );
 
   const maxPerDay = Math.max(1, ...nextWeek.days.map((d) => d.courses.length));
+  // 下周的分布拆开算：总量 / 最忙 / 最空 / 合计时长，用来写两句有信息量的话
+  const weekEmptyDays = nextWeek.days.filter((d) => d.courses.length === 0);
+  const weekBusyDays = nextWeek.days.filter((d) => d.courses.length > 0);
+  const lightestDay = weekBusyDays.slice().sort((a, b) => a.courses.length - b.courses.length || a.minutes - b.minutes)[0];
+  const weekMinutes = nextWeek.days.reduce((s, d) => s + d.minutes, 0);
+  const nextExam = nextWeek.exams[0];
+  const weekAdvice = nextExam
+    ? `下周有「${nextExam.title}」，前一天的空档先留给复习，别再加别的事。`
+    : weekEmptyDays.length >= 2
+      ? `${weekdayLabel(weekEmptyDays[0].date)}到${weekdayLabel(weekEmptyDays[weekEmptyDays.length - 1].date)}没课，留半天出去走走，剩下半天补觉。`
+      : nextWeek.busiest && nextWeek.busiest.courses.length >= 4
+        ? `${weekdayLabel(nextWeek.busiest.date)}最满，那天就别再接别的事；复习放到${lightestDay ? weekdayLabel(lightestDay.date) : '空的那天'}。`
+        : `空档比较碎，整块复习放到${lightestDay ? weekdayLabel(lightestDay.date) : '周末'}，平时只做 20 分钟能收尾的小事。`;
 
 
   const hasAnyCourse = courses.length > 0;
@@ -276,18 +289,26 @@ export default function OutlookSection() {
         <p className="text-xs text-muted-foreground">
           {nextWeek.courseCount > 0 ? (
             <>
-              共 <span className="font-medium text-foreground">{nextWeek.courseCount}</span> 节
+              共 <span className="font-medium text-foreground">{nextWeek.courseCount}</span> 节 · 合计约{' '}
+              <span className="font-medium text-foreground">{(weekMinutes / 60).toFixed(1)}</span> 小时
               {nextWeek.busiest && (
-                <>，最忙 {weekdayLabel(nextWeek.busiest.date)}（{nextWeek.busiest.courses.length} 节）</>
+                <>；最忙 {weekdayLabel(nextWeek.busiest.date)}（{nextWeek.busiest.courses.length} 节）</>
               )}
-              {nextWeek.days.filter((d) => d.courses.length === 0).length > 0 && (
-                <>，{nextWeek.days.filter((d) => d.courses.length === 0).length} 天没课</>
+              {lightestDay && lightestDay !== nextWeek.busiest && (
+                <>，最松 {weekdayLabel(lightestDay.date)}（{lightestDay.courses.length} 节）</>
               )}
+              {weekEmptyDays.length > 0 && <>，{weekEmptyDays.length} 天没课</>}
             </>
           ) : (
             '下周没有排课（也可能是学期周次没覆盖到）'
           )}
         </p>
+        {nextWeek.courseCount > 0 && (
+          <p className="mt-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-xs">
+            <span className="font-medium">建议：</span>
+            {weekAdvice}
+          </p>
+        )}
         {nextWeek.exams.length > 0 && (
           <ul className="mt-2 space-y-1">
             {nextWeek.exams.slice(0, 3).map((e) => (

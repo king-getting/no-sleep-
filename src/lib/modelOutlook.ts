@@ -54,11 +54,19 @@ export function describePlansForModel(
   nextWeek: WeekForecast,
   lastWeek: WeekSummary,
 ): string {
-  const weekDays = nextWeek.days.map((d) => `${d.courses.length} 节`).join('，');
+  const WEEK_CN = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  const weekDays = nextWeek.days
+    .map((d, i) => `${WEEK_CN[i]} ${d.courses.length} 节（${(d.minutes / 60).toFixed(1)}h）`)
+    .join('，');
+  const busiest = nextWeek.busiest;
+  const empty = nextWeek.days.filter((d) => d.courses.length === 0);
+  const totalHours = (nextWeek.days.reduce((s, d) => s + d.minutes, 0) / 60).toFixed(1);
   return [
     '未来两天：',
     ...twoDays.map(dayLine),
-    `下周：总共 ${nextWeek.courseCount} 节课；每天分布 ${weekDays}；下周考试 ${
+    `下周：总共 ${nextWeek.courseCount} 节课，合计 ${totalHours} 小时；每天分布 ${weekDays}；${
+      busiest ? `最忙 ${WEEK_CN[nextWeek.days.indexOf(busiest)]} ${busiest.courses.length} 节；` : ''
+    }${empty.length ? `${empty.length} 天没课；` : ''}下周考试 ${
       nextWeek.exams.map((e) => e.title).join('、') || '无'
     }`,
     `上周总结：上课 ${lastWeek.courseCount} 节，复习完成 ${lastWeek.reviewDone}/${lastWeek.reviewPlanned}，平均睡眠 ${
@@ -91,8 +99,13 @@ export async function generateOutlookNarrative(
         role: 'user',
         content: `${data}
 
-按下面的 JSON 输出三句话（每句不超过 42 字，口语，别喊口号）：
-{"twoDays":"对接下来两天的安排建议","nextWeek":"对下周的预判","lastWeek":"对上周的一句复盘"}」`,
+按下面的 JSON 输出三段话，口语，别喊口号：
+{"twoDays":"对接下来两天的安排，2 句以内，点出哪天最紧、哪天能松","nextWeek":"对下周的判断，2–3 句：总量、最忙哪天、最空哪天，最后给一个具体安排建议（复习放哪天 / 哪天出去走走 / 考试前怎么腾时间）","lastWeek":"对上周的一句复盘"}
+
+要求：
+- twoDays ≤ 60 字，nextWeek ≤ 110 字，lastWeek ≤ 45 字。
+- 只能用上面给出的数字，不要编课程、时间、考试。
+- 建议要具体到「把复习放到周四下午的空档」这种程度，不要「注意劳逸结合」。`,
       },
     ],
     { settings, temperature: 0.5, maxTokens: 400 },
@@ -103,10 +116,11 @@ export async function generateOutlookNarrative(
 
   const narrative: OutlookNarrative = {
     twoDays: (json.twoDays ?? '').trim().slice(0, 80),
-    nextWeek: (json.nextWeek ?? '').trim().slice(0, 80),
-    lastWeek: (json.lastWeek ?? '').trim().slice(0, 80),
+    nextWeek: (json.nextWeek ?? '').trim().slice(0, 140),
+    lastWeek: (json.lastWeek ?? '').trim().slice(0, 60),
   };
-  if (!narrative.twoDays || !narrative.nextWeek || !narrative.lastWeek) return null;
+  // 太敷衍的不上屏：宁可显示本地算好的那句
+  if (!narrative.twoDays || narrative.nextWeek.length < 24 || !narrative.lastWeek) return null;
   writeOutlookCache(narrative, now);
   return narrative;
 }
