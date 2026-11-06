@@ -14,6 +14,14 @@ import { maybeAutoBackup } from '@/lib/autobackup'
 // 暗色模式：跟随系统 prefers-color-scheme，可用设置页手动覆盖
 initTheme()
 
+/**
+ * GitHub Pages 把站点放在 /no-sleep-/ 子路径下，路由前缀必须跟着变；
+ * Netlify 用相对 base（'./'），此时保持根路径。
+ */
+const routerBasename = import.meta.env.BASE_URL.startsWith('/')
+  ? import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
+  : '/'
+
 // 申请持久化存储：浏览器空间紧张时默认会清 IndexedDB，申请后不会被静默回收
 void navigator.storage?.persist?.().catch(() => {})
 
@@ -54,7 +62,7 @@ swRef.update = registerSW({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <App />
         {/* 全局提示：不挂这个，全项目的 toast() 都不会显示 */}
         <Toaster position="top-center" />

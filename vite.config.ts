@@ -6,7 +6,8 @@ import { inspectAttr } from 'kimi-plugin-inspect-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  // Netlify 用相对路径；GitHub Pages 部署时由 VITE_BASE 传 '/no-sleep-/'
+  base: process.env.VITE_BASE || './',
   // 构建时刻：设置页会显示它，用来确认「打开的是不是最新版本」
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
