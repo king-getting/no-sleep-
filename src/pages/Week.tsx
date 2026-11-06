@@ -12,7 +12,7 @@ import {
 } from '@/data/queries';
 import { addCourse, deleteCourse, updateCourse } from '@/data/store/courses';
 import { getPreferences } from '@/data/store/profile';
-import { weekOfDate } from '@/lib/weeks';
+import { effectiveSemesterStart, weekOfDate } from '@/lib/weeks';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, TimeBlock } from '@/types/contract';
 import { Button } from '@/components/ui/button';
@@ -194,7 +194,7 @@ export default function Week() {
     let active = true;
     void (async () => {
       const prefs = await getPreferences().catch(() => null);
-      const w = weekOfDate(new Date(), prefs?.semesterStart);
+      const w = weekOfDate(new Date(), effectiveSemesterStart(prefs?.semesterStart));
       if (!active) return;
       setWeek(w);
       try {
