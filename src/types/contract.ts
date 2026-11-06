@@ -1,5 +1,5 @@
 /**
- * 小山 · Agent 契约类型（docs/agent-contract.md 的唯一代码实现）
+ * 小山 · 报告契约类型（docs/report-contract.md 的唯一代码实现）
  *
  * 纪律：
  * - UI 只消费本文件定义的 Schema 与编排事件流，禁止 import 引擎内部

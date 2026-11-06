@@ -217,7 +217,7 @@
 
 **产品价值**：单一大模型遇到冲突会 silently 给出折中答案；CCUNER 把两方依据、代价与影响摆出来让用户拍板，并记住拍板模式。周报可呈现「本周自动调和 N 次、你裁决 M 次，你的冲突画像：学习党 / 健康党 / 社交党」。编排动画的最高潮：两个 Agent 打架 → 总控识别为真冲突 → 弹出冲突卡。
 
-### 5.4 模块化契约（接口先行，详见 docs/agent-contract.md）
+### 5.4 模块化契约（接口先行，详见 docs/report-contract.md）
 
 为了让 2 人并行开发、功能可启停可裁剪，系统全部按**注册式模块**设计：
 
@@ -226,7 +226,7 @@
 - **报告 = 区块拼装**：每种报告是一份「配方」（recipe），列明由哪些区块组成——MVP 砍功能 = 改配方，不改代码
 - **数据源 adapter 化**：mock 与真实教务源实现同一接口，切换零成本
 - **编排事件流**：编排器执行全程发布事件（agent:start / conflict:detected / report:composed），UI 只订阅事件流，**永远不 import 引擎内部**——编排动画与逻辑完全解耦，B 用 mock JSON 即可独立开发
-- 完整 TypeScript 契约（A/B 双方的唯一接口）：`docs/agent-contract.md`
+- 完整 TypeScript 契约（A/B 双方的唯一接口）：`docs/report-contract.md`
 
 ---
 

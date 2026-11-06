@@ -62,7 +62,7 @@ npm run build && npm run preview   # 注意：dev 模式不注册 Service Worker
 
 ## 核心机制
 
-1. **契约驱动**：`src/types/contract.ts` 是报告契约的**唯一代码实现**，与 `docs/agent-contract.md` 逐条对应（当前 v1.4）。新增报告类型时，`ReportType` / `RECIPES` / `SLOT_OF` / `REPORT_TITLE` 四处的 `Record` 会让 TypeScript 直接报错，漏改编不过。
+1. **契约驱动**：`src/types/contract.ts` 是报告契约的**唯一代码实现**，与 `docs/report-contract.md` 逐条对应（当前 v1.4）。新增报告类型时，`ReportType` / `RECIPES` / `SLOT_OF` / `REPORT_TITLE` 四处的 `Record` 会让 TypeScript 直接报错，漏改编不过。
 2. **冲突仲裁**：每个方向独立产出「主张」，同主题 ≥2 个主张才交给仲裁器——可合并的走 **L1 自动合并**（如「午间小憩」+「取快递」），不可合并的走 **L2 冲突卡**（如「考前一晚按计划睡」vs「再看 1 小时」，两边代价都写清）。
 3. **生存模式**：考前 7 天内自动进 exam 模式，报告切成「冲刺报告」（倒计时 / 复习窗口 / 掌握度分档），日程与健康方向权重上浮；考完 2–6 小时出「考后小结」；设置页有「强制关闭生存模式」开关兜底。
 4. **遵从度回流**：晚间点「做了 / 没做」会落库；同一主题**连续 2 次没做**，下次该建议的 priority 自动降一级，并在编排时间轴上说明原因；晚报显示本周执行率（没记录就显示「—」，不编数字）。
@@ -92,7 +92,7 @@ flowchart TD
 
 ```
 src/
-  types/contract.ts       # 报告契约唯一实现（对应 docs/agent-contract.md）
+  types/contract.ts       # 报告契约唯一实现（对应 docs/report-contract.md）
   agents/                 # 教务 / 生活 / 健康 / 日程 4 个思考方向 + registry
   orchestrator/
     index.ts              # 总控：取数 → 并行跑各方向 → 决策 → 组装
@@ -187,7 +187,7 @@ npm run preview    # 以产物方式起服务——断网演示必须用这个�
 ## 文档导航
 
 - [项目设计文档](docs/CCUNER校园助手-项目设计.md) —— 产品定位、功能详设、多智能体架构与冲突仲裁、考试周生存模式、onboarding、隐私设计、品牌视觉
-- [报告契约](docs/agent-contract.md) —— 类型、事件、区块、生存模式与遵从度回流（v1.4，改报告前必读）
+- [报告契约](docs/report-contract.md) —— 类型、事件、区块、生存模式与遵从度回流（v1.4，改报告前必读）
 - [开发任务清单](docs/dev-tasks.md) —— A/B 分工与完成度
 - [部署说明](docs/deploy.md) —— 静态部署步骤、部署后验收、断网彩排
 - [课表导入模板](docs/assets/课表导入模板.xlsx) —— 填好即导
