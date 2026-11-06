@@ -27,7 +27,7 @@ export function reportTypeForTrigger(trigger: string, now: Date): ReportType {
  */
 class Orchestrator {
   /**
-   * @param trigger 触发源；演示模式配合 now 覆盖可手动唤出任意时段的报告
+   * @param trigger 触发源（morning-report / noon-report / evening-report）
    */
   async run(trigger: Trigger, opts?: { now?: Date }): Promise<Report> {
     const now = opts?.now ?? new Date();
@@ -38,13 +38,11 @@ class Orchestrator {
     const [user, preferences] = await Promise.all([getProfile(), getPreferences()]);
 
     // 生存模式判定（A6）：考前 7 天进入 exam，考试当天走 exam-day 配方。
-    // 演示旋钮优先：设置页打开「强制普通模式」时无论考期都按普通日报走，用于对比演示。
     const examItems = await upcomingExams(now, 8);
     const window = examWindowOf(examItems, now);
-    const forceNormal = localStorage.getItem('xiaoshan:force-normal') === '1';
     // 考后小结（B10）：刚考完的那一场优先——这时候给「冲刺」是错的，该复盘
-    const finished = forceNormal ? null : justFinishedExam(examItems, now);
-    const mode: Mode = forceNormal || finished ? 'normal' : window.mode;
+    const finished = justFinishedExam(examItems, now);
+    const mode: Mode = finished ? 'normal' : window.mode;
 
     const ctx: DirectionContext = { user, preferences, mode, now };
 

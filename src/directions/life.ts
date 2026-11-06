@@ -65,7 +65,7 @@ export const lifeDirection: DirectionModule = {
       });
     }
 
-    // ── 快递（L1 可调和冲突的演示素材：与小憩建议同窗口） ──
+    // ── 快递（L1 可调和冲突的示例素材：与小憩建议同窗口） ──
     const express = await queryAdapters('express', ctx);
     if (express[0] && hour >= 10 && hour < 20) {
       findings.push({

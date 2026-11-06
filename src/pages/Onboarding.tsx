@@ -96,7 +96,7 @@ export default function Onboarding({ onDone }: { onDone: (next?: 'assessment') =
     setSaving(true);
     try {
       const prefs: Preferences = { chronotype, foodPriority, napHabit, compliance: {}, conflictChoices: {} };
-      // 先清掉上一次「示例模式」留下的演示课表 / 考试 / 睡眠，别混进真实画像
+      // 先清掉上一次示例数据留下的课表 / 考试 / 睡眠，别混进真实画像
       await clearAllData();
       await clearFeedState();
       await saveProfile(profile);
@@ -133,15 +133,6 @@ export default function Onboarding({ onDone }: { onDone: (next?: 'assessment') =
             </ul>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={() => setStep(1)}>开始建档</Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setBootMode('demo');
-                  onDone();
-                }}
-              >
-                先用示例数据看看
-              </Button>
             </div>
           </section>
         )}

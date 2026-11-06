@@ -50,7 +50,7 @@ export interface UserProfile {
   mealBudgetMonthly: number;
   /** 知情选填的身体基线 */
   bodyBaseline?: { heightCm?: number; weightKg?: number };
-  /** 示例数据标签：诚实原则，演示数据不假装是真的 */
+  /** 示例数据标签：诚实原则，示例数据也不假装是真的 */
   isDemo?: boolean;
 }
 

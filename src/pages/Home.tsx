@@ -5,10 +5,9 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { orchestrator, type Trigger } from '@/orchestrator';
-import { atTime, currentSlot, slotKey } from '@/lib/reportSlot';
+import { currentSlot, slotKey } from '@/lib/reportSlot';
 import { ensureSeeded, forgetConflictChoice, markCompliance, recordChoice, rememberConflictChoice, undoChoice, undoCompliance } from '@/data/store/profile';
 import type { OptionCard } from '@/types/contract';
-import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { DebatePanel } from '@/ui/reports/DebatePanel';
 import { RiskPanel } from '@/ui/reports/RiskPanel';
@@ -16,12 +15,6 @@ import { ReportView } from '@/ui/reports/ReportView';
 import OutlookSection from '@/ui/outlook/OutlookSection';
 import type { Report } from '@/types/contract';
 
-/** 演示模式：手动唤出任意时段的报告（§4.9 路演刚需） */
-const TRIGGERS: { trigger: Trigger; label: string; time: string; now: () => Date }[] = [
-  { trigger: 'morning-report', label: '晨间报告', time: '7:30', now: () => atTime(7, 30) },
-  { trigger: 'noon-report', label: '午间报告', time: '11:30', now: () => atTime(11, 30) },
-  { trigger: 'evening-report', label: '晚间报告', time: '21:30', now: () => atTime(21, 30) },
-];
 
 export default function Home() {
   const [report, setReport] = useState<Report | null>(null);
@@ -29,7 +22,6 @@ export default function Home() {
   const [resolutions, setResolutions] = useState<Record<string, 'A' | 'B'>>({});
   /** 晚间闭环：suggestionId -> 是否做了（只做记录，不追责） */
   const [marks, setMarks] = useState<Record<string, boolean>>({});
-  const [running, setRunning] = useState(false);
   /** 生成失败时给一个能重试的出口，而不是让首屏永远停在「正在生成…」 */
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -41,7 +33,6 @@ export default function Home() {
     : null;
 
   const run = useCallback(async (trigger: Trigger, now: Date) => {
-    setRunning(true);
     setError(null);
     try {
       const r = await orchestrator.run(trigger, { now });
@@ -50,8 +41,6 @@ export default function Home() {
     } catch (e) {
       console.error('[小山] 生成报告失败：', e);
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRunning(false);
     }
   }, []);
 
@@ -66,7 +55,6 @@ export default function Home() {
 
   const autoRan = useRef(false);
   useEffect(() => {
-    // 首屏即演示：填充示例数据后按「当前时段」自动生成报告（守卫避免 StrictMode 双跑）
     if (autoRan.current) return;
     autoRan.current = true;
     void ensureSeeded()
@@ -216,26 +204,8 @@ export default function Home() {
             <ShieldCheck className="h-3 w-3 text-primary" />
             本地优先 · 数据不出设备
           </Badge>
-          {bootMode() === 'demo' && <Badge variant="secondary" className="font-normal">示例数据</Badge>}
         </div>
       </header>
-
-      <div className="mb-6 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-3 shadow-xs lg:mt-2">
-        <span className="px-1 text-sm text-muted-foreground">
-          {bootMode() === 'demo' ? '演示模式 · 手动唤出：' : '手动唤出报告：'}
-        </span>
-        {TRIGGERS.map((t) => (
-          <Button
-            key={t.trigger}
-            variant="outline"
-            size="sm"
-            disabled={running}
-            onClick={() => void run(t.trigger, t.now())}
-          >
-            {t.label} <span className="ml-1 text-xs text-muted-foreground">{t.time}</span>
-          </Button>
-        ))}
-      </div>
 
       {error && report && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">

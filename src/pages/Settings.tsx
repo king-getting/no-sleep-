@@ -3,11 +3,10 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { directionRegistry } from '@/directions/registry';
 import ModelSettings from '@/ui/settings/ModelSettings';
-import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
 import { downloadBackup, restoreBackup } from '@/data/store/backup';
-import { bootMode, clearLocalPrefs, readDirectionEnabled, readDirectionWeights, resetBootMode, setBootMode, writeDirectionEnabled, writeDirectionWeights } from '@/data/store/boot';
+import { clearLocalPrefs, readDirectionEnabled, readDirectionWeights, writeDirectionEnabled, writeDirectionWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
@@ -24,16 +23,14 @@ import { exportBackupToDevice, isNativeApp } from '@/lib/nativeExport';
 import type { DirectionId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
- * 设置页（dev-tasks B7 + B9 的外观开关 + A6 的演示旋钮）
+ * 设置页
  *
  * 四组能力：
  *   1. 思考方向逐个启停 —— 直接改注册表 enabled 并持久化，关掉健康 方向 后下一轮报告不含健康建议
  *   2. 画像编辑 —— 餐标 / 身体基线 / 校区（身份主力在 onboarding，这里只补常用项）
- *   3. 数据 —— 恢复示例数据 / 清除全部本机数据（回到 onboarding）
- *   4. 演示旋钮 —— 强制关闭生存模式（示例考试可能正好落在 7 天内，演示需要能控）
+ *   3. 数据 —— 备份导出 / 导入、清除全部本机数据（回到 onboarding）
  */
 
-const FORCE_NORMAL_KEY = 'xiaoshan:force-normal';
 
 const AGENT_LABEL: Record<string, string> = {
   academic: '教务视角',
@@ -50,7 +47,6 @@ export default function Settings() {
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [weightTick, setWeightTick] = useState(0);
   const [theme, setThemeState] = useState<ThemeChoice>('system');
-  const [forceNormal, setForceNormal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [traits, setTraits] = useState<HabitTraits | null>(null);
@@ -80,7 +76,6 @@ export default function Settings() {
       }
       setEnabled(map);
       setThemeState(getThemeChoice());
-      setForceNormal(localStorage.getItem(FORCE_NORMAL_KEY) === '1');
       const prefs = await getPreferences().catch(() => null);
       setTraits(prefs?.traits ?? null);
       setAutoName(await autoBackupFileName());
@@ -173,49 +168,18 @@ export default function Settings() {
     }
   }
 
-  async function restoreDemo() {
-    if (!window.confirm('恢复示例数据会覆盖当前内容。要先把现在的数据导出备份吗？\n\n确定覆盖并进入示例模式？')) return;
-    await clearAllData();
-    await clearFeedState();
-    resetBootMode();
-    // resetBootMode 只清 3 个开关；凭据、强制模式这些后加的键按命名空间一起清掉
-    clearLocalPrefs();
-    setBootMode('demo');
-    window.location.reload();
-  }
 
   async function wipeAll() {
     if (!window.confirm('将清空这台设备上的全部数据：课表、考试、睡眠、复习草案、收藏与偏好。\n\n这一步不可撤销，确定继续？')) return;
     await clearAllData();
     await clearFeedState();
-    resetBootMode();
-    // resetBootMode 只清 3 个开关；凭据、强制模式这些后加的键按命名空间一起清掉
     clearLocalPrefs();
-    setBootMode('real');
     window.location.reload();
   }
 
   function applyTheme(next: ThemeChoice) {
     setTheme(next);
     setThemeState(next);
-  }
-
-  /** 演示用：把示例考试挪到 3 天后，报告立刻切成冲刺模式 */
-  async function mockExamWeek() {
-    const at = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    await db.exams.put({ id: 'exam-ds', title: '数据结构期中考试', kind: 'exam', at, mastery: 3 });
-    localStorage.setItem(FORCE_NORMAL_KEY, '0');
-    toast('示例考试已挪到 3 天后', { description: '重载后报告切成冲刺模式。' });
-    window.setTimeout(() => window.location.reload(), 700);
-  }
-
-  function toggleForceNormal() {
-    const next = !forceNormal;
-    setForceNormal(next);
-    localStorage.setItem(FORCE_NORMAL_KEY, next ? '1' : '0');
-    toast(next ? '已强制关闭生存模式' : '生存模式按考试自动判定', {
-      description: '想在普通报告和冲刺报告之间对照时，用这个开关。',
-    });
   }
 
   /** 安装到桌面：Chrome/Edge 的安装提示 */
@@ -472,21 +436,6 @@ export default function Settings() {
         )}
       </section>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">演示旋钮</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          示例考试默认在 12 天后，所以打开是「平时报告」。想看生存模式，把它挪到考前一周。
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => void mockExamWeek()}>
-            演示：考前一周（看冲刺报告）
-          </Button>
-          <Button variant={forceNormal ? 'default' : 'outline'} size="sm" onClick={toggleForceNormal}>
-            {forceNormal ? '已强制关闭生存模式' : '强制关闭生存模式'}
-          </Button>
-        </div>
-      </section>
-
       <ModelSettings />
 
       <section className="rounded-2xl border bg-card p-5">
@@ -522,9 +471,6 @@ export default function Settings() {
 
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">数据</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          当前模式：{bootMode() === 'demo' ? '示例数据' : '我的真实录入'}
-        </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void exportBackup()}>
             导出备份
@@ -536,9 +482,6 @@ export default function Settings() {
           )}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()}>
             从备份导入
-          </Button>
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => void restoreDemo()}>
-            恢复示例数据
           </Button>
           <Button variant="outline" size="sm" className="text-destructive" disabled={busy} onClick={() => void wipeAll()}>
             清除全部本机数据

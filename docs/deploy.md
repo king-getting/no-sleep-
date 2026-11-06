@@ -1,4 +1,4 @@
-# 部署与演示保障（A9）
+# 部署与可用性保障（A9）
 
 > **主站（GitHub Pages）**：<https://king-getting.github.io/no-sleep-/>
 > push 到 `main` 后由 `.github/workflows/pages.yml` 自动构建发布；构建时注入 `VITE_BASE=/no-sleep-/`，路由 basename 同步跟着变。
@@ -7,7 +7,7 @@
 >
 > **备用**：Vercel 仍从 GitHub 自动部署（`*.vercel.app` 国内多处被 DNS 投毒 + TLS 重置）；Netlify 镜像因账号额度用完已停更，恢复额度后可继续用 `npx netlify-cli deploy --dir=dist --prod`。
 >
-> 目标：线上 URL 可访问 + 断网时仍能用。**演示优先用本地或 APK**，不赌会场网络。
+> 目标：线上 URL 可访问 + 断网时仍能用。**验证优先用本地或 APK**，不赌会场网络。
 
 ## 零、GitHub Pages（当前主站，一次性已配好）
 
@@ -39,10 +39,10 @@
 
 已知风险：`vite.config.ts` 里 `base: './'` 是相对路径。**如果**线上出现「白屏 + 控制台 assets 404」，把 `base` 改成 `'/'` 重新部署即可（本地 `vite preview` 行为不变）。根路径与单段子路由（`/feed`）正常，只有带尾斜杠的路径会踩到，React Router 的链接不带尾斜杠。
 
-## 二、断网演示彩排（已完成，流程留档）
+## 二、断网可用性检查（已完成，流程留档）
 
 ```bash
-npm run build          # dev 模式不注册 SW，断网演示必须用构建产物
+npm run build          # dev 模式不注册 SW，验离线必须用构建产物
 npm run preview        # 默认 http://127.0.0.1:4173
 ```
 
@@ -55,11 +55,11 @@ npm run preview        # 默认 http://127.0.0.1:4173
 
 > 子路由能离线靠 `vite.config.ts` 里原有的 `navigateFallback: 'index.html'`；只要这条还在，PWA 的离线回退就不用额外配置。
 
-## 三、演示与调试开关
+## 三、调试开关
 
 | 想展示 | 操作 |
 |---|---|
-| 普通版报告（无生存模式） | 设置 → 演示旋钮 → 强制关闭生存模式 |
+| 普通版报告（无生存模式） | 把考试日期挪远，或直接在任务页删除该考试 |
 | 冲刺报告（生存模式） | 同上，再点一次关掉 |
 | 触发三个时段 | 首页顶部「晨间 7:30 / 午间 11:30 / 晚间 21:30」 |
 | 多 方向 协同动画 | 首页左侧时间轴，点任意时段会重放 |

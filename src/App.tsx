@@ -11,7 +11,6 @@ import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
 import Assessment from './pages/Assessment';
 import ChatDock from '@/ui/chat/ChatDock';
-import { bootMode, setBootMode } from '@/data/store/boot';
 import { hasProfile } from '@/data/store/profile';
 
 /**
@@ -42,7 +41,7 @@ export default function App() {
 
     void (async () => {
       try {
-        if (bootMode() === 'real' && !(await hasProfile())) {
+        if (!(await hasProfile())) {
           setNeedOnboarding(true);
           return;
         }
@@ -76,7 +75,7 @@ export default function App() {
     <div className="flex min-h-[100dvh] flex-col">
       {bootError && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
-          本机存储没能读出来（{bootError.slice(0, 60)}），当前用示例数据继续演示。
+          本机存储没能读出来（{bootError.slice(0, 60)}），当前以空数据继续。
           <button
             type="button"
             className="ml-2 underline underline-offset-2"
@@ -118,10 +117,6 @@ export default function App() {
           </nav>
 
           <span className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-            {/* 桌面端也要有「示例数据」标识：投屏时评委看到的是真实数据的样子，得说清楚 */}
-            {bootMode() === 'demo' && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">示例数据</span>
-            )}
             <span className="flex items-center gap-1">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               本地优先 · 数据不出设备
@@ -130,22 +125,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* 示例模式常驻提示：点错了也得有路回来，不能只在设置里藏一个出口 */}
-      {bootMode() === 'demo' && (
-        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
-          <span>你正在看示例数据，不是你自己的档案。</span>
-          <button
-            type="button"
-            className="font-medium underline underline-offset-2 hover:text-amber-950"
-            onClick={() => {
-              setBootMode('real');
-              window.location.reload();
-            }}
-          >
-            开始建档
-          </button>
-        </div>
-      )}
 
       <div className="flex-1">
         <Routes>

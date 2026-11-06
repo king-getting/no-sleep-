@@ -7,7 +7,7 @@
  */
 
 export interface LlmSettings {
-  /** 关掉后即使配了 Key 也不发请求（断网演示时按一下就行） */
+  /** 关掉后即使配了 Key 也不发请求（断网或想省额度时按一下） */
   enabled: boolean;
   baseUrl: string;
   model: string;

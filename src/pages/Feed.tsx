@@ -51,7 +51,7 @@ const SERVICE_ICON: Record<ServiceKind, typeof Stethoscope> = {
   logistics: Wrench,
 };
 
-/** 半年是一道硬线：更早的通知只会在演示时误导人 */
+/** 半年是一道硬线：更早的通知放着只会误导人 */
 const HALF_YEAR_DAYS = 183;
 
 /** 相关度高到这程度，不分新旧都值得放在「今日校园」里 */
