@@ -1,9 +1,19 @@
 # 部署与演示保障（A9）
 
-> 线上站点（2026-10-24 已验收）：<https://ccuner-xiaoshan.vercel.app>，已连接 GitHub，push 到 `main` 自动部署最新版
-> 兜底镜像（2026-10-25 已验收，六路由 200）：<https://ccuner-xiaoshan-mirror.netlify.app>，防止国内网络访问不了 vercel.app；更新方式：`npm run build` 后 `npx netlify-cli deploy --dir=dist --prod`（需本机已 `netlify login`）
+> **主站（GitHub Pages）**：<https://king-getting.github.io/no-sleep-/>
+> push 到 `main` 后由 `.github/workflows/pages.yml` 自动构建发布；构建时注入 `VITE_BASE=/no-sleep-/`，路由 basename 同步跟着变。
 >
-> 目标：线上 URL 可访问 + 断网时仍能演示。两步互相独立——Vercel 只是「点开看看」的入口，**演示永远用本地 + 离线**，这样不赌会场网络。
+> **Android 安装包**：`npm run android:apk` 产出 `android/app/build/outputs/apk/debug/app-debug.apk`，需要 JDK 21 + Android SDK 36。
+>
+> **备用**：Vercel 仍从 GitHub 自动部署（`*.vercel.app` 国内多处被 DNS 投毒 + TLS 重置）；Netlify 镜像因账号额度用完已停更，恢复额度后可继续用 `npx netlify-cli deploy --dir=dist --prod`。
+>
+> 目标：线上 URL 可访问 + 断网时仍能用。**演示优先用本地或 APK**，不赌会场网络。
+
+## 零、GitHub Pages（当前主站，一次性已配好）
+
+- 仓库 Settings → Pages → Source 选 **GitHub Actions**（已通过 API 设置为 `build_type: workflow`）
+- 工作流做的事：`npm ci` → `npm run build`（`VITE_BASE=/no-sleep-/`）→ 复制 `index.html` 为 `404.html`（前端路由兜底）→ 上传 `dist` → 发布
+- 站点地址：`https://<用户名>.github.io/<仓库名>/`，本仓库是 `no-sleep-`，所以末尾有一个连字符
 
 ## 一、Vercel 部署（约 10 分钟，一次性）
 

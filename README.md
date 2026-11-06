@@ -2,8 +2,9 @@
 
 面向华中师范大学（桂子山 / 南湖）学生的本地优先校园助手：**数据在本机处理，决策过程看得见。**
 
-**[打开在线站点](https://ccuner-xiaoshan-mirror.netlify.app)** · Netlify 托管，国内可直连，无需账号，数据只保存在当前浏览器。
-**[Vercel 备份站](https://ccuner-xiaoshan.vercel.app)** · 连接 GitHub 自动部署；`*.vercel.app` 在国内多地会被 DNS 投毒 + TLS 重置，打不开就用上面那个。
+**[打开在线站点](https://king-getting.github.io/no-sleep-/)** · GitHub Pages 托管，push 到 `main` 自动构建，无需账号，数据只保存在当前浏览器。
+**[Android 安装包](https://github.com/king-getting/no-sleep-/releases)** · 侧载 APK，全屏独立应用，数据在 App 内。
+**[Vercel 备份站](https://ccuner-xiaoshan.vercel.app)** · 连接 GitHub 自动部署；`*.vercel.app` 在国内多地会被 DNS 投毒 + TLS 重置，打不开就忽略。
 
 ## 为什么是小山
 
