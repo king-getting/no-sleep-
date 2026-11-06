@@ -15,6 +15,7 @@ import {
 import { fmtMin } from '@/types/contract';
 import type { Course } from '@/types/contract';
 import { Button } from '@/components/ui/button';
+import { loadAnniversaries, saveAnniversaries, type Anniversary } from '@/lib/special';
 
 /**
  * 月视图：按真实日期铺日历，每格只放「那天真正要上的课」
@@ -42,6 +43,38 @@ export default function Month() {
   const [selected, setSelected] = useState<Date>(today);
   const [editingStart, setEditingStart] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [anniversaries, setAnniversaries] = useState<Anniversary[]>(() => loadAnniversaries());
+  const [newMonth, setNewMonth] = useState('');
+  const [newDay, setNewDay] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+
+  function addAnniversary() {
+    const month = Number(newMonth);
+    const day = Number(newDay);
+    const label = newLabel.trim();
+    if (!label) {
+      toast('给它起个名字', { description: '比如「妈妈生日」「在一起的日子」。' });
+      return;
+    }
+    if (!(month >= 1 && month <= 12) || !(day >= 1 && day <= 31)) {
+      toast('月 / 日填一下', { description: '月份 1–12，日期 1–31。' });
+      return;
+    }
+    if (anniversaries.some((a) => a.month === month && a.day === day && a.label === label)) return;
+    const next = [...anniversaries, { month, day, label }].sort((a, b) => a.month - b.month || a.day - b.day);
+    saveAnniversaries(next);
+    setAnniversaries(next);
+    setNewMonth('');
+    setNewDay('');
+    setNewLabel('');
+    toast('记下了', { description: `到 ${month} 月 ${day} 日，报告里会提一句。` });
+  }
+
+  function removeAnniversary(index: number) {
+    const next = anniversaries.filter((_, i) => i !== index);
+    saveAnniversaries(next);
+    setAnniversaries(next);
+  }
 
   useEffect(() => {
     let active = true;
@@ -250,6 +283,68 @@ export default function Month() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="mt-4 rounded-2xl border bg-card p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">纪念日</h2>
+          <span className="text-[11px] text-muted-foreground">只存本机，到那天报告会提一句</span>
+        </div>
+        <ul className="mt-2 space-y-1.5 text-sm">
+          {anniversaries.length === 0 && (
+            <li className="text-xs text-muted-foreground">还没有。加一个生日，或者在一起的日子。</li>
+          )}
+          {anniversaries.map((a, i) => (
+            <li key={`${a.month}-${a.day}-${a.label}`} className="flex items-center justify-between gap-2">
+              <span>
+                {a.month} 月 {a.day} 日 · {a.label}
+              </span>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-destructive"
+                onClick={() => removeAnniversary(i)}
+              >
+                删除
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex flex-wrap items-end gap-2 text-xs">
+          <label className="space-y-1">
+            <span className="block text-muted-foreground">月</span>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={newMonth}
+              onChange={(e) => setNewMonth(e.target.value)}
+              className="w-16 rounded-md border bg-background px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="block text-muted-foreground">日</span>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={newDay}
+              onChange={(e) => setNewDay(e.target.value)}
+              className="w-16 rounded-md border bg-background px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="min-w-0 flex-1 space-y-1">
+            <span className="block text-muted-foreground">名称</span>
+            <input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="如：妈妈生日"
+              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+            />
+          </label>
+          <Button size="sm" onClick={addAnniversary}>
+            加上
+          </Button>
+        </div>
       </section>
     </div>
   );
