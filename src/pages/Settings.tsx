@@ -20,6 +20,7 @@ import {
   writeAutoBackup,
 } from '@/lib/autobackup';
 import { canPromptInstall, isIosSafari, isStandalone, promptInstall, subscribePwaInstall } from '@/lib/pwaInstall';
+import { exportBackupToDevice, isNativeApp } from '@/lib/nativeExport';
 import type { DirectionId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
@@ -270,6 +271,21 @@ export default function Settings() {
     setAutoName(null);
     setAutoAt(null);
     toast('已关闭自动备份', { description: '手动「导出备份」仍然可用。' });
+  }
+
+  /** App 内：直接写进手机「文档」目录 */
+  async function exportToDevice() {
+    setBusy(true);
+    try {
+      const res = await exportBackupToDevice();
+      if (res.ok) {
+        toast('已导出到手机', { description: res.path ?? res.message });
+      } else {
+        toast.error('导出失败', { description: res.message });
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   /** 保存模型配置：只写本机 localStorage，key 不上传 */
@@ -611,6 +627,11 @@ export default function Settings() {
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void exportBackup()}>
             导出备份
           </Button>
+          {isNativeApp() && (
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => void exportToDevice()}>
+              存到手机文件
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled={busy} onClick={() => fileRef.current?.click()}>
             从备份导入
           </Button>

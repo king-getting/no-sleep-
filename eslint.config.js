@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // android/ 是 Capacitor 生成的原生工程，build 里有几十万个 Java/资源文件
+  globalIgnores(['dist', 'android', 'release']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
