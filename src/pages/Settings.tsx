@@ -26,7 +26,7 @@ import type { AgentId, HabitTraits, UserProfile } from '@/types/contract';
 const FORCE_NORMAL_KEY = 'xiaoshan:force-normal';
 
 const AGENT_LABEL: Record<string, string> = {
-  academic: '教务视角',
+  academic: '学习视角',
   life: '生活视角',
   health: '健康视角',
   schedule: '日程视角',

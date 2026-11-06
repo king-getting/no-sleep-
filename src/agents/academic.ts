@@ -15,7 +15,7 @@ const TIGHT_WINDOW_MIN = 75;
  */
 export const academicAgent: AgentModule = {
   id: 'academic',
-  name: '教务',
+  name: '学习',
   version: '0.2.0',
   capabilities: ['course.query', 'exam.query'],
   defaultWeight: 2,
@@ -57,7 +57,7 @@ export const academicAgent: AgentModule = {
         type: 'fact',
         topic: '模式',
         confidence: 3,
-        summary: '生存模式已激活：教务权重提升，考试相关通知置顶',
+        summary: '生存模式已激活：学习权重提升，考试相关通知置顶',
       });
     }
 

@@ -44,8 +44,6 @@ interface Verdict {
   impact: number;
 }
 
-const ALL_AGENTS: AgentId[] = ['academic', 'life', 'health', 'schedule'];
-
 function defaultWeightOf(id: AgentId): number {
   return agentRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
 }
@@ -76,6 +74,15 @@ export async function loadReviewData(ctx: AgentContext): Promise<ReviewData> {
   };
 }
 
+/** 这条选项本身在说什么。只按成本算相关度的话，「现在就睡」在健康轴上是 0%，说不通 */
+function says(o: OptionCard, re: RegExp): boolean {
+  return re.test(o.title + (o.note ?? '') + (o.when ?? ''));
+}
+
+const TOPIC_ACADEMIC = /课|复习|考试|DDL|作业|自习|背|刷题/;
+const TOPIC_LIFE = /吃|饭|食堂|钱|省|快递|买|餐/;
+const TOPIC_HEALTH = /睡|午休|小憩|熬夜|困|走|运动|身体/;
+
 /** 教务：这条和下一节课撞不撞，以及它怎么记账到 DDL */
 function reviewByAcademic(o: OptionCard, d: ReviewData): Verdict {
   const nowMin = d.now.getHours() * 60 + d.now.getMinutes();
@@ -103,7 +110,7 @@ function reviewByAcademic(o: OptionCard, d: ReviewData): Verdict {
     ? `「${d.nextDdl.title}」还剩 ${Math.max(1, Math.round((new Date(d.nextDdl.at).getTime() - d.now.getTime()) / 86400_000))} 天，花掉的时间我都记在它头上`
     : '今天没有硬截止，但这不等于有余地';
 
-  return { pro, con, impact };
+  return { pro, con, impact: says(o, TOPIC_ACADEMIC) ? Math.max(impact, 0.55) : impact };
 }
 
 /** 生活：钱超没超今天的餐标 */
@@ -114,10 +121,13 @@ function reviewByLife(o: OptionCard, d: ReviewData): Verdict {
     return {
       pro: cost === 0 ? '不花钱也不占时间' : `不花钱，只占 ${cost} 分钟`,
       con: '要专门跑一趟的话，来回也是成本',
-      impact: cost >= 45 ? 0.12 : 0.05,
+      impact: Math.max(cost >= 45 ? 0.12 : 0.05, says(o, TOPIC_LIFE) ? 0.5 : 0),
     };
   }
-  const impact = Math.min(1, money / Math.max(1, d.daily));
+  const impact = Math.max(
+    Math.min(1, money / Math.max(1, d.daily)),
+    says(o, TOPIC_LIFE) ? 0.5 : 0,
+  );
   return money <= d.daily
     ? {
         pro: `¥${money} 在今天的餐标内（¥${d.daily.toFixed(0)}）`,
@@ -150,7 +160,11 @@ function reviewByHealth(o: OptionCard, d: ReviewData): Verdict {
       ? `近 7 天平均 ${d.avg7.toFixed(1)}h，我不想再往下压`
       : '睡眠记录是空的，这条我没法替你打包票';
 
-  return { pro, con, impact };
+  return {
+    pro,
+    con,
+    impact: says(o, TOPIC_HEALTH) ? Math.max(impact, 0.6) : impact,
+  };
 }
 
 /** 日程：今天的机动时间够不够 */
@@ -179,26 +193,27 @@ const LENS: Record<AgentId, (o: OptionCard, d: ReviewData) => Verdict> = {
   schedule: reviewBySchedule,
 };
 
+/** 雷达图固定三条轴：学习 / 生活 / 健康。日程不参与这张图，避免第四根轴把三角压扁 */
+const RADAR_AGENTS: AgentId[] = ['academic', 'life', 'health'];
+
 /**
- * 给一条选项算出「另外三个 Agent」的一句话评审。
- * owner 是提出这条选项的 Agent——它自己已经在卡上写了优势/代价，不重复凑数。
+ * 给一条选项算出三个方向的一句话评审。
+ * 三条轴固定（claude 提的选项也照样被三个方向看），这样雷达图的形状才可比。
  */
 export function buildOptionReviews(
   option: OptionCard,
-  owner: AgentId | undefined,
+  _owner: AgentId | undefined,
   ctx: AgentContext,
   data: ReviewData,
 ): AgentReview[] {
-  return ALL_AGENTS.filter((id) => id !== owner)
-    .slice(0, 3)
-    .map((id) => {
-      const { pro, con, impact } = LENS[id](option, data);
-      return {
-        agentId: id,
-        weight: effectiveWeight(defaultWeightOf(id), ctx.mode, id),
-        pro,
-        con,
-        impact,
-      };
-    });
+  return RADAR_AGENTS.map((id) => {
+    const { pro, con, impact } = LENS[id](option, data);
+    return {
+      agentId: id,
+      weight: effectiveWeight(defaultWeightOf(id), ctx.mode, id),
+      pro,
+      con,
+      impact,
+    };
+  });
 }
