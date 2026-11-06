@@ -1,4 +1,5 @@
-import { db, type ChoiceRecord } from './db';
+import { db } from './db';
+import type { ChoiceRecord } from './db';
 import { bootMode } from './boot';
 import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
 import { DEMO_PREFERENCES, DEMO_PROFILE } from '@/data/mock/profile';
@@ -92,15 +93,14 @@ export async function recordChoice(
   topic: string,
   meta?: string,
 ): Promise<void> {
-  // meta 是选项快照（标题/价格/营养结构）：健康页的饮食总结要回看「这顿吃了什么」
-  await db.choices.add({ suggestionId, optionId, topic, meta, at: new Date().toISOString() });
+  await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString(), meta });
 }
 
-/** 今天的点选记录（饮食总结用）：按 at 过滤，顺带把顺序排好 */
-export async function listChoicesToday(now: Date = new Date()): Promise<ChoiceRecord[]> {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const rows = await db.choices.where('at').aboveOrEqual(new Date(start).toISOString()).toArray();
-  return rows.sort((a, b) => a.at.localeCompare(b.at));
+/** 今天点选过的选项（饮食总结据此回看吃了什么） */
+export async function listChoicesToday(): Promise<ChoiceRecord[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return db.choices.where('at').aboveOrEqual(start.toISOString()).toArray();
 }
 
 /** 取消刚才那次点选：删掉对应的选择记录，别让「点错了」污染偏好学习 */

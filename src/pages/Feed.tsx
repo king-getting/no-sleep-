@@ -176,7 +176,8 @@ export default function Feed() {
       return next;
     });
 
-  const now = new Date();
+  // 固定一份「现在」，否则每次渲染都新建 Date，下面几个 useMemo 会白白重算
+  const now = useMemo(() => new Date(), []);
 
   /** 索引：时间 × 类型 × 相关度，三者叠加生效 */
   const indexed = useMemo(() => {
