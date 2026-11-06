@@ -247,7 +247,7 @@ export function AgentDebate({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">
-            {participants.length} 个 Agent 的讨论纪要
+            {participants.length} 个方向的讨论纪要
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             {participants.map((id) => {

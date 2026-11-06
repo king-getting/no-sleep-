@@ -132,7 +132,7 @@ export function OptionCardView({
       {option.reviews && option.reviews.length > 0 && (
         <div className="mt-2 rounded-lg border border-dashed border-border/70 bg-secondary/25 px-2 py-1.5">
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
-            其他 Agent 怎么看
+            其他方向怎么看
           </p>
           <ReviewRank reviews={option.reviews} />
           <div className="mt-1 grid grid-cols-[3.9rem_minmax(0,1fr)] gap-x-1.5 gap-y-1">

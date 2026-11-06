@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { orchestrator, type Trigger } from '@/orchestrator';
 import { atTime, currentSlot, slotKey } from '@/lib/reportSlot';
 import { ensureSeeded, forgetConflictChoice, markCompliance, recordChoice, rememberConflictChoice, undoChoice, undoCompliance } from '@/data/store/profile';
-import type { OptionCard } from '@/types/contract';import { bootMode } from '@/data/store/boot';
+import type { OptionCard } from '@/types/contract';
+import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
 import { AgentDebate } from '@/ui/reports/AgentDebate';
 import { RiskPanel } from '@/ui/reports/RiskPanel';
@@ -14,7 +15,7 @@ import { ReportView } from '@/ui/reports/ReportView';
 import OutlookSection from '@/ui/outlook/OutlookSection';
 import type { Report } from '@/types/contract';
 
-/** 演示模式：手动唤出任意时段的报告 */
+/** 演示模式：手动唤出任意时段的报告（§4.9 路演刚需） */
 const TRIGGERS: { trigger: Trigger; label: string; time: string; now: () => Date }[] = [
   { trigger: 'morning-report', label: '晨间报告', time: '7:30', now: () => atTime(7, 30) },
   { trigger: 'noon-report', label: '午间报告', time: '11:30', now: () => atTime(11, 30) },
@@ -87,55 +88,68 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, [run]);
 
-  const handlePick = useCallback(
-    (suggestionId: string, optionId: string, topic: string, option?: OptionCard) => {
-      // 连选项快照一起存：健康页的饮食总结要回看「吃了什么、多少钱、有没有蔬菜」
-      const meta = option
-        ? JSON.stringify({
-            title: option.title,
-            price: option.cost?.money,
-            nutrition: option.nutrition,
-            note: option.note,
-          })
-        : undefined;
-      // 再点一次同一张卡 = 取消选择；点别的卡 = 改选
-      if (picks[suggestionId] === optionId) {
-        setPicks((p) => {
-          const next = { ...p };
-          delete next[suggestionId];
-          return next;
-        });
-        void undoChoice(suggestionId, optionId).then(() => {
-          toast('已取消选择', { description: '这次点选不会计入偏好。' });
-        });
-        return;
-      }
-      setPicks((p) => ({ ...p, [suggestionId]: optionId }));
-      void recordChoice(suggestionId, optionId, topic, meta).then(() => {
-        toast('已记入本地偏好', { description: '后续建议会参考你的这次选择，再点一次可以取消。' });
+  const handlePick = useCallback((suggestionId: string, optionId: string, topic: string, option?: OptionCard) => {
+    // 再点一次同一张卡 = 取消选择；同时删掉刚才那条记录，别让它污染偏好
+    if (picks[suggestionId] === optionId) {
+      setPicks((p) => {
+        const next = { ...p };
+        delete next[suggestionId];
+        return next;
       });
-    },
-    [picks],
-  );
+      void undoChoice(suggestionId, optionId).then(
+        () => toast('已取消选择', { description: '这次点选不会计入偏好。' }),
+        () => toast.error('取消没生效，稍后再试一次'),
+      );
+      return;
+    }
+
+    setPicks((p) => ({ ...p, [suggestionId]: optionId }));
+    // 连选项快照一起存：健康页的饮食总结要回看「吃了什么、多少钱、有没有蔬菜」
+    const meta = option
+      ? JSON.stringify({
+          title: option.title,
+          price: option.cost?.money,
+          nutrition: option.nutrition,
+          note: option.note,
+        })
+      : undefined;
+    // 先落库再提示：写失败时不能对用户说「已记入」
+    void recordChoice(suggestionId, optionId, topic, meta).then(
+      () => {
+        toast('已记入本地偏好', { description: '后续建议会参考你的这次选择，数据只存在这台设备上。' });
+      },
+      (e: unknown) => {
+        console.error('[小山] 记录偏好失败：', e);
+        toast.error('这次选择没能存到本机', { description: '可以稍后再点一次，或检查浏览器是否允许本机存储。' });
+      },
+    );
+  }, [picks]);
 
   const handleResolve = useCallback(
     (conflictId: string, topic: string, choice: 'A' | 'B') => {
-      // 再点同一侧 = 取消裁决，连同「下次预填」一起忘掉
+      // 再点同一侧 = 取消裁决，并忘掉「下次预填」
       if (resolutions[conflictId] === choice) {
         setResolutions((r) => {
           const next = { ...r };
           delete next[conflictId];
           return next;
         });
-        void forgetConflictChoice(topic).then(() => {
-          toast('已取消裁决', { description: '同类冲突下次不会再预填这个选择。' });
-        });
+        void forgetConflictChoice(topic).then(
+          () => toast('已取消裁决', { description: '同类冲突下次不会再预填这个选择。' }),
+          () => toast.error('取消没生效，稍后再试一次'),
+        );
         return;
       }
       setResolutions((r) => ({ ...r, [conflictId]: choice }));
-      void rememberConflictChoice(topic, choice).then(() => {
-        toast('裁决已记住', { description: '同类冲突下次默认预填这次的选择，仍可一键切换。' });
-      });
+      void rememberConflictChoice(topic, choice).then(
+        () => {
+          toast('裁决已记住', { description: '同类冲突下次默认预填这次的选择，仍可一键切换。' });
+        },
+        (e: unknown) => {
+          console.error('[小山] 记录裁决失败：', e);
+          toast.error('裁决没能存到本机');
+        },
+      );
     },
     [resolutions],
   );
@@ -160,16 +174,17 @@ export default function Home() {
     );
   }, []);
 
-  /** 点「已记录」徽标可撤销：删掉那条记录，并把遵从度画像退回去 */
+  /** 点「已记录」徽标撤销：删记录并把遵从度画像退回去 */
   const handleUnmark = useCallback((suggestionId: string, topic: string, done: boolean) => {
     setMarks((m) => {
       const next = { ...m };
       delete next[suggestionId];
       return next;
     });
-    void undoCompliance(topic, done).then(() => {
-      toast('已撤销标记', { description: '这条记录删掉了，画像也退回去了。' });
-    });
+    void undoCompliance(topic, done).then(
+      () => toast('已撤销标记', { description: '这条记录删掉了，画像也退回去了。' }),
+      () => toast.error('撤销没生效，稍后再试一次'),
+    );
   }, []);
 
   return (
