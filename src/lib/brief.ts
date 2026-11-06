@@ -11,8 +11,12 @@ import type { FactBundle } from '@/lib/facts';
  * 校验、兜底、缓存都不用改。
  */
 
+export type BriefAngle = 'academic' | 'life' | 'health' | 'schedule';
+
 export interface BriefPoint {
   text: string;
+  /** 这条结论出自哪个方向的分析（模型生成时必填，模板可省略） */
+  angle?: BriefAngle;
   /** 这条结论依据的事实 id，必须存在于 FactBundle */
   factIds: string[];
 }

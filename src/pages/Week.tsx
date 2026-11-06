@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { onDataChanged } from '@/lib/dataEvents';
 import { Link, useSearchParams } from 'react-router';
 import { AlertTriangle, CalendarDays, FileSpreadsheet, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -178,6 +179,15 @@ export default function Week() {
       }
     },
     [week],
+  );
+
+  // 对话里加/删了课，周历要跟着刷新
+  useEffect(
+    () =>
+      onDataChanged(() => {
+        window.location.reload();
+      }),
+    [],
   );
 
   useEffect(() => {
@@ -491,13 +501,13 @@ export default function Week() {
                       style={{ top: box.top, height: box.height }}
                       title={`${c.name} · ${fmtMin(c.startMin)}–${fmtMin(c.endMin)} · ${c.location}`}
                     >
-                      {box.height >= 26 && (
-                        <>
-                          <span className="block truncate font-medium">{c.name}</span>
-                          <span className="block truncate opacity-80">
-                            {fmtMin(c.startMin)}–{fmtMin(c.endMin)}
-                          </span>
-                        </>
+                      {box.height >= 14 && (
+                        <span className="block truncate font-medium leading-none">{c.name}</span>
+                      )}
+                      {box.height >= 30 && (
+                        <span className="mt-0.5 block truncate opacity-80">
+                          {fmtMin(c.startMin)}–{fmtMin(c.endMin)}
+                        </span>
                       )}
                     </button>
                   );

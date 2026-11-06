@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { directionRegistry } from '@/directions/registry';
+import ModelSettings from '@/ui/settings/ModelSettings';
 import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
@@ -10,7 +11,6 @@ import { bootMode, clearLocalPrefs, readDirectionEnabled, readDirectionWeights, 
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
-import { DEFAULT_LLM_CONFIG, llmReady, readLlmConfig, testLlm, writeLlmConfig, type LlmConfig } from '@/lib/llm';
 import {
   autoBackupFileName,
   autoBackupLastAt,
@@ -54,8 +54,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [traits, setTraits] = useState<HabitTraits | null>(null);
-  const [llm, setLlm] = useState<LlmConfig>(DEFAULT_LLM_CONFIG);
-  const [llmTesting, setLlmTesting] = useState(false);
   const [installable, setInstallable] = useState(false);
   const [autoName, setAutoName] = useState<string | null>(null);
   const [autoAt, setAutoAt] = useState<string | null>(null);
@@ -85,7 +83,6 @@ export default function Settings() {
       setForceNormal(localStorage.getItem(FORCE_NORMAL_KEY) === '1');
       const prefs = await getPreferences().catch(() => null);
       setTraits(prefs?.traits ?? null);
-      setLlm(readLlmConfig());
       setAutoName(await autoBackupFileName());
       setAutoAt(autoBackupLastAt());
     })();
@@ -285,27 +282,6 @@ export default function Settings() {
       }
     } finally {
       setBusy(false);
-    }
-  }
-
-  /** 保存模型配置：只写本机 localStorage，key 不上传 */
-  function saveLlm() {    writeLlmConfig({ ...llm, apiKey: llm.apiKey.trim(), baseUrl: llm.baseUrl.trim(), model: llm.model.trim() });
-    toast(llm.enabled ? '模型润色已开启' : '模型润色已关闭', {
-      description: llm.enabled
-        ? '下次打开首页会先尝试模型；失败或校验不过会自动回落到本地模板。'
-        : '首页简报继续用本地模板生成，不联网。',
-    });
-  }
-
-  async function handleTestLlm() {
-    setLlmTesting(true);
-    try {
-      await testLlm({ ...llm, apiKey: llm.apiKey.trim() });
-      toast('连接正常', { description: '地址、key、模型名都能用。' });
-    } catch (e) {
-      toast.error('连接失败', { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setLlmTesting(false);
     }
   }
 
@@ -511,81 +487,7 @@ export default function Settings() {
         </div>
       </section>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">模型润色（可选）</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          开启后，首页「今日简报」会先让模型写一版；地址、key、模型名只存在本机。
-          发送内容只有事实清单（课程名、地点、睡眠时长、考试名、周统计），不含姓名学号。
-          调用失败或内容校验不过时，会自动回到本地模板，页面上不会出现半成品。
-        </p>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
-              { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-            ].map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => setLlm({ ...llm, baseUrl: preset.baseUrl, model: preset.model })}
-                className="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-              >
-                用 {preset.label}
-              </button>
-            ))}
-          </div>
-          <label className="block text-xs text-muted-foreground">
-            接口地址（OpenAI 兼容）
-            <input
-              value={llm.baseUrl}
-              onChange={(e) => setLlm({ ...llm, baseUrl: e.target.value })}
-              placeholder="https://api.openai.com/v1"
-              className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block text-xs text-muted-foreground">
-              模型名
-              <input
-                value={llm.model}
-                onChange={(e) => setLlm({ ...llm, model: e.target.value })}
-                placeholder="gpt-4o-mini"
-                className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-              />
-            </label>
-            <label className="block text-xs text-muted-foreground">
-              API Key
-              <input
-                type="password"
-                value={llm.apiKey}
-                onChange={(e) => setLlm({ ...llm, apiKey: e.target.value })}
-                placeholder="sk-…"
-                className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            variant={llm.enabled ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setLlm({ ...llm, enabled: !llm.enabled })}
-          >
-            {llm.enabled ? '已开启模型润色' : '当前用本地模板'}
-          </Button>
-          <Button size="sm" variant="outline" disabled={llmTesting || !llm.apiKey.trim()} onClick={() => void handleTestLlm()}>
-            {llmTesting ? '测试中…' : '测试连接'}
-          </Button>
-          <Button size="sm" onClick={saveLlm}>
-            保存
-          </Button>
-        </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          当前状态：{llmReady(llm) ? '模型润色已就绪（下次生成生效）' : '本地模板 · 不联网'}
-        </p>
-      </section>
+      <ModelSettings />
 
       <section className="rounded-2xl border bg-card p-5">
         <h2 className="mb-1 text-sm font-semibold">习惯画像</h2>

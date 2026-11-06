@@ -3,8 +3,11 @@ import { CalendarClock, CalendarRange, ClipboardCheck } from 'lucide-react';
 import { db } from '@/data/store/db';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { buildFacts, type FactBundle } from '@/lib/facts';
-import { generateBrief, type Brief } from '@/lib/brief';
-import { createLlmGenerator, llmReady, readLlmConfig } from '@/lib/llm';
+import { generateBrief, templateGenerator, type Brief } from '@/lib/brief';
+import { modelGenerator } from '@/lib/modelBrief';
+import { generateOutlookNarrative, readOutlookCache, type OutlookNarrative } from '@/lib/modelOutlook';
+import { isLlmReady } from '@/lib/llmSettings';
+import { onDataChanged } from '@/lib/dataEvents';
 import DailyBrief from '@/ui/brief/DailyBrief';
 import {
   daysUntil,
@@ -97,6 +100,17 @@ function DayBlock({ plan, label }: { plan: DayPlan; label: string }) {
   );
 }
 
+/** 模型写的那句话：有就显示，来自模型就标明，不冒充系统结论 */
+function NarrativeLine({ text }: { text: string }) {
+  return (
+    <p className="mt-2 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] leading-relaxed text-foreground/85">
+      <span className="font-medium text-primary">小山说</span>
+      <span className="mx-1 text-muted-foreground">·</span>
+      {text}
+    </p>
+  );
+}
+
 export default function OutlookSection() {
   const [ready, setReady] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -107,6 +121,8 @@ export default function OutlookSection() {
   const [semesterStart, setSemesterStart] = useState<string | undefined>(undefined);
   const [bundle, setBundle] = useState<FactBundle | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
+  const [narrative, setNarrative] = useState<OutlookNarrative | null>(() => readOutlookCache());
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -136,12 +152,11 @@ export default function OutlookSection() {
         semesterStart: prefs?.semesterStart,
         profile,
       });
-      // 模型润色只在用户显式开启且填了 key 时启用；否则走模板，且失败自动回落
-      const llmCfg = readLlmConfig();
+      // 配了模型就走模型生成，没配 / 失败都自动回落模板
       const composed = await generateBrief(
         factBundle,
         now,
-        llmReady(llmCfg) ? createLlmGenerator(llmCfg) : undefined,
+        isLlmReady() ? modelGenerator() : templateGenerator,
       );
 
       if (!active) return;
@@ -158,7 +173,39 @@ export default function OutlookSection() {
     return () => {
       active = false;
     };
+  }, [tick]);
+
+  // 对话里改了数据、或刚配好模型，都要重新算一遍
+  useEffect(() => {
+    const bump = () => setTick((v) => v + 1);
+    const offData = onDataChanged(bump);
+    window.addEventListener('xiaoshan:llm-changed', bump);
+    return () => {
+      offData();
+      window.removeEventListener('xiaoshan:llm-changed', bump);
+    };
   }, []);
+
+  // 三句话交给模型写；没配模型 / 失败就整段不显示，不留空壳。
+  // 注意：必须放在早返回之前，否则 hooks 顺序会变（React #310）。
+  useEffect(() => {
+    if (!ready || narrative || !isLlmReady()) return;
+    const now = new Date();
+    const twoDays = twoDayForecast(now, courses, exams, semesterStart);
+    const nextWeek = nextWeekForecast(now, courses, exams, semesterStart);
+    const summary = weekSummary(now, courses, exams, sleeps, blocks, compliance, semesterStart);
+    let active = true;
+    void generateOutlookNarrative(twoDays, nextWeek, summary)
+      .then((n) => {
+        if (active && n) setNarrative(n);
+      })
+      .catch(() => {
+        /* 模型写不出来就不写，卡片本身的数据还在 */
+      });
+    return () => {
+      active = false;
+    };
+  }, [ready, narrative, courses, exams, sleeps, blocks, compliance, semesterStart]);
 
   if (!ready) {
     return <div className="mt-5 h-32 animate-pulse rounded-2xl border bg-card" />;
@@ -178,6 +225,8 @@ export default function OutlookSection() {
   );
 
   const maxPerDay = Math.max(1, ...nextWeek.days.map((d) => d.courses.length));
+
+
   const hasAnyCourse = courses.length > 0;
 
   return (
@@ -194,6 +243,7 @@ export default function OutlookSection() {
           <DayBlock plan={twoDays[0]} label="明天" />
           <DayBlock plan={twoDays[1]} label="后天" />
         </div>
+        {narrative?.twoDays && <NarrativeLine text={narrative.twoDays} />}
         {!hasAnyCourse && (
           <p className="mt-2 text-[11px] text-muted-foreground">
             还没导入课表，去「周历 → 从 Excel 导入」把教务系统的表放进来，这里就会填满。
@@ -252,6 +302,7 @@ export default function OutlookSection() {
             ))}
           </ul>
         )}
+        {narrative?.nextWeek && <NarrativeLine text={narrative.nextWeek} />}
       </Card>
 
       <Card
@@ -301,6 +352,7 @@ export default function OutlookSection() {
             接下来：{summary.upcoming.title}，还有 {daysUntil(summary.upcoming.at, now)} 天
           </p>
         )}
+        {narrative?.lastWeek && <NarrativeLine text={narrative.lastWeek} />}
       </Card>
       </div>
     </div>

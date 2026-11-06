@@ -4,6 +4,14 @@ import { cn } from '@/lib/utils';
 import type { Brief } from '@/lib/brief';
 import type { FactBundle } from '@/lib/facts';
 
+/** 模型写简报时给每条结论标的方向；模板生成的没有这个字段 */
+const ANGLE_LABEL = {
+  academic: '教务',
+  life: '生活',
+  health: '健康',
+  schedule: '日程',
+} as const;
+
 /**
  * 今日简报：结构化结论 + 可展开的依据
  *
@@ -34,6 +42,11 @@ export default function DailyBrief({ brief, bundle }: { brief: Brief; bundle: Fa
             <li key={`${p.text}-${i}`}>
               <div className="flex items-start gap-2 text-sm">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                {p.angle && (
+                  <span className="mt-0.5 shrink-0 rounded border px-1 py-0.5 text-[10px] text-muted-foreground">
+                    {ANGLE_LABEL[p.angle]}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">{p.text}</span>
                 <button
                   type="button"

@@ -1,185 +1,154 @@
-import { validateBrief, type Brief, type BriefGenerator } from '@/lib/brief';
-import type { FactBundle } from '@/lib/facts';
-
 /**
- * 模型润色层（可选，默认关闭）
+ * 极薄的 OpenAI 兼容客户端
  *
- * 只做一件事：把「事实包」交给一个 OpenAI 兼容的 chat 接口，让它写出
- * headline / points / advice，并且每句话都必须挂 factIds。
- * 返回后仍是那套 validateBrief 校验：引用不存在、超长、空文本，一律判失败，
- * 由 generateBrief 整体回落到模板。
- *
- * 隐私：开启后发送的只有 bundle.facts 的 id 与一句话描述（课程名、地点、
- * 睡眠时长、考试名、周统计），不含姓名、学号、账号；key 只存在本机。
+ * 只做三件事：拼请求、解析 tool_calls、把各种失败翻译成人话。
+ * 不引第三方 SDK —— 这点请求量不值得多一个依赖，而且浏览器里直连最容易排查。
  */
 
-export interface LlmConfig {
-  enabled: boolean;
-  /** OpenAI 兼容的 base，例如 https://api.openai.com/v1 或自建网关 */
-  baseUrl: string;
-  model: string;
-  apiKey: string;
+import { isLlmReady, loadLlmSettings, type LlmSettings } from '@/lib/llmSettings';
+
+export type Role = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 }
 
-const KEY = 'xiaoshan:llm';
+export interface ChatMessage {
+  role: Role;
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+  name?: string;
+}
 
-export const DEFAULT_LLM_CONFIG: LlmConfig = {
-  enabled: false,
-  baseUrl: 'https://api.deepseek.com/v1',
-  model: 'deepseek-chat',
-  apiKey: '',
-};
+export interface ToolSchema {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
 
-export function readLlmConfig(): LlmConfig {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...DEFAULT_LLM_CONFIG };
-    const parsed = JSON.parse(raw) as Partial<LlmConfig>;
-    return { ...DEFAULT_LLM_CONFIG, ...parsed };
-  } catch {
-    return { ...DEFAULT_LLM_CONFIG };
+export type LlmErrorKind = 'no-key' | 'auth' | 'quota' | 'network' | 'timeout' | 'server' | 'bad-response';
+
+export class LlmError extends Error {
+  kind: LlmErrorKind;
+  constructor(kind: LlmErrorKind, message: string) {
+    super(message);
+    this.kind = kind;
+    this.name = 'LlmError';
   }
 }
 
-export function writeLlmConfig(cfg: LlmConfig): void {
-  localStorage.setItem(KEY, JSON.stringify(cfg));
+export interface ChatResult {
+  content: string | null;
+  toolCalls: ToolCall[];
 }
 
-export function llmReady(cfg: LlmConfig): boolean {
-  return cfg.enabled && Boolean(cfg.apiKey.trim()) && Boolean(cfg.baseUrl.trim()) && Boolean(cfg.model.trim());
+const TIMEOUT_MS = 45_000;
+
+function friendly(kind: LlmErrorKind, detail: string): string {
+  switch (kind) {
+    case 'no-key':
+      return '还没配置模型。去「设置 → 模型接入」填一个 API Key。';
+    case 'auth':
+      return 'Key 不对或已失效（401）。请到设置里重新填。';
+    case 'quota':
+      return '额度不够或请求太频繁（402/429）。';
+    case 'network':
+      return '连不上模型服务。检查网络，或换一个 base URL。';
+    case 'timeout':
+      return '模型 45 秒没有回应，先按取消重试。';
+    case 'server':
+      return `模型服务出错了（${detail}）。过一会儿再试。`;
+    default:
+      return '模型返回的格式看不懂，换一次再试。';
+  }
 }
 
-const SYSTEM_PROMPT = [
-  '你是校园助手「小山」的文案层，只负责把给定事实写成简短中文。',
-  '硬性规则：',
-  '1. 只能使用 facts 里出现的信息，不得新增课程、时间、数字或因果。',
-  '2. 每个 point 必须挂 factIds，且只能引用 facts 里存在的 id。',
-  '3. headline ≤ 30 字，每个 point.text ≤ 45 字，advice ≤ 40 字。',
-  '4. points 最多 3 条，按「今天最该先知道」排序。',
-  '5. 语气平实，不说教，不用感叹号，不承诺结果。',
-  '输出严格 JSON：{"headline": string, "points": [{"text": string, "factIds": string[]}], "advice": string}',
-].join('\n');
+/** 一次 chat/completions 调用 */
+export async function chatComplete(
+  messages: ChatMessage[],
+  options: {
+    settings?: LlmSettings;
+    tools?: ToolSchema[];
+    temperature?: number;
+    maxTokens?: number;
+    signal?: AbortSignal;
+  } = {},
+): Promise<ChatResult> {
+  const settings = options.settings ?? loadLlmSettings();
+  if (!isLlmReady(settings)) throw new LlmError('no-key', friendly('no-key', ''));
 
-interface ChatResponse {
-  choices?: { message?: { content?: string } }[];
-  error?: { message?: string };
-}
+  const url = `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  options.signal?.addEventListener('abort', onAbort);
 
-/** 把事实包压成模型输入：id + 一句话，足够写文案，又不多给 */
-function factsForModel(bundle: FactBundle): { id: string; kind: string; text: string }[] {
-  return bundle.facts.slice(0, 40).map((f) => ({ id: f.id, kind: f.kind, text: f.label }));
-}
-
-async function callModel(
-  bundle: FactBundle,
-  cfg: LlmConfig,
-  signal: AbortSignal,
-): Promise<Brief> {
-  const url = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-  const body = {
-    model: cfg.model,
-    temperature: 0.2,
-    max_tokens: 400,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          now: bundle.generatedAt,
-          facts: factsForModel(bundle),
-          today: {
-            courses: bundle.summary.today.courses.map((c) => c.name),
-            freeBlocks: bundle.summary.today.freeBlocks.length,
-          },
-        }),
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${settings.apiKey}`,
       },
-    ],
-  };
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${cfg.apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
+      body: JSON.stringify({
+        model: settings.model,
+        messages,
+        temperature: options.temperature ?? 0.4,
+        max_tokens: options.maxTokens ?? 800,
+        ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', onAbort);
+    const aborted = (err as Error)?.name === 'AbortError';
+    throw new LlmError(aborted ? 'timeout' : 'network', friendly(aborted ? 'timeout' : 'network', ''));
+  }
+  clearTimeout(timer);
+  options.signal?.removeEventListener('abort', onAbort);
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`模型接口 ${res.status}：${text.slice(0, 120)}`);
+    const detail = await res.text().catch(() => '');
+    if (res.status === 401 || res.status === 403) throw new LlmError('auth', friendly('auth', ''));
+    if (res.status === 402 || res.status === 429) throw new LlmError('quota', friendly('quota', ''));
+    throw new LlmError('server', friendly('server', `${res.status} ${detail.slice(0, 80)}`));
   }
 
-  const json = (await res.json()) as ChatResponse;
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error(json.error?.message ?? '模型没有返回内容');
-
-  let parsed: unknown;
+  let json: { choices?: { message?: unknown }[] } | null;
   try {
-    parsed = JSON.parse(content);
+    json = (await res.json()) as { choices?: { message?: unknown }[] };
   } catch {
-    throw new Error('模型返回的不是 JSON');
+    throw new LlmError('bad-response', friendly('bad-response', ''));
   }
 
-  const obj = parsed as { headline?: unknown; points?: unknown; advice?: unknown };
-  const points = Array.isArray(obj.points) ? obj.points : [];
+  const message = json?.choices?.[0]?.message as ChatMessage | undefined;
+  if (!message) throw new LlmError('bad-response', friendly('bad-response', ''));
+
   return {
-    headline: String(obj.headline ?? '').trim(),
-    points: points.map((p) => {
-      const item = p as { text?: unknown; factIds?: unknown };
-      return {
-        text: String(item.text ?? '').trim(),
-        factIds: Array.isArray(item.factIds) ? item.factIds.map(String) : [],
-      };
-    }),
-    advice: String(obj.advice ?? '').trim(),
-    generatedBy: 'model',
-    generatedAt: new Date().toISOString(),
+    content: typeof message.content === 'string' ? message.content : null,
+    toolCalls: Array.isArray(message.tool_calls) ? (message.tool_calls as ToolCall[]) : [],
   };
 }
 
-export function createLlmGenerator(cfg: LlmConfig, timeoutMs = 12_000): BriefGenerator {
-  return {
-    id: 'llm',
-    async generate(bundle) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-      try {
-        const brief = await callModel(bundle, cfg, ctrl.signal);
-        // 这里再校验一次：不合格直接抛，交给 generateBrief 的兜底链路
-        const check = validateBrief(brief, bundle);
-        if (!check.ok) throw new Error(`校验未通过：${check.errors.join('；')}`);
-        return brief;
-      } finally {
-        clearTimeout(timer);
-      }
-    },
-  };
-}
-
-/** 设置页的「测试连接」：只发一句话，确认地址 / key / 模型名都对 */
-export async function testLlm(cfg: LlmConfig, timeoutMs = 10_000): Promise<string> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+/** 要纯 JSON 的场合（简报 / 预报），把模型可能带的 ```json 包装剥掉 */
+export function parseJsonLoose<T>(text: string | null): T | null {
+  if (!text) return null;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const body = (fenced ? fenced[1] : text).trim();
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
   try {
-    const res = await fetch(`${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
-      body: JSON.stringify({
-        model: cfg.model,
-        max_tokens: 8,
-        messages: [{ role: 'user', content: '只回复 ok' }],
-      }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status}：${text.slice(0, 100)}`);
-    }
-    return '连接正常';
-  } finally {
-    clearTimeout(timer);
+    return JSON.parse(body.slice(start, end + 1)) as T;
+  } catch {
+    return null;
   }
 }

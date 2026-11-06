@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { onDataChanged } from '@/lib/dataEvents';
 import { Flower2, Mountain, RefreshCw, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -75,6 +76,16 @@ export default function Home() {
         setError(e instanceof Error ? e.message : String(e));
       });
   }, [runCurrentSlot, retryTick]);
+
+  // 对话里改了课表 / 睡眠 / 餐标，报告要跟着重算
+  useEffect(
+    () =>
+      onDataChanged(() => {
+        autoRan.current = false;
+        setRetryTick((v) => v + 1);
+      }),
+    [],
+  );
 
   // A5：本地定时触发器。每分钟检查所处时段，变化即重新生成（含跨天补生成）
   useEffect(() => {

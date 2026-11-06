@@ -10,6 +10,7 @@ import Health from './pages/Health';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
 import Assessment from './pages/Assessment';
+import ChatDock from '@/ui/chat/ChatDock';
 import { bootMode, setBootMode } from '@/data/store/boot';
 import { hasProfile } from '@/data/store/profile';
 
@@ -179,6 +180,9 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* 对话入口：所有页面都能叫出小山，手机端抬到 tab 栏上方 */}
+      <ChatDock />
     </div>
   );
 }
