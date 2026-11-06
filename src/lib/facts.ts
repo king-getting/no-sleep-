@@ -1,4 +1,4 @@
-import { courseOccursOn, mondayOf, toDateKey } from '@/lib/weeks';
+import { courseOccursOn, effectiveSemesterStart, mondayOf, toDateKey } from '@/lib/weeks';
 import type { Course, ExamItem, SleepLog, UserProfile } from '@/types/contract';
 
 /**
@@ -87,7 +87,8 @@ function freeBlocksOf(list: Course[]): { startMin: number; endMin: number }[] {
 }
 
 export function buildFacts(input: FactInput): FactBundle {
-  const { now, courses, exams, sleeps, blocks, compliance, semesterStart, profile } = input;
+  const { now, courses, exams, sleeps, blocks, compliance, semesterStart: rawStart, profile } = input;
+  const semesterStart = effectiveSemesterStart(rawStart, now);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today.getTime() + 86_400_000);
   const facts: Fact[] = [];

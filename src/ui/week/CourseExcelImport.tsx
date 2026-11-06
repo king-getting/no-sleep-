@@ -52,14 +52,18 @@ export default function CourseExcelImport({
     }
     setBusy(true);
     try {
+      // 先清空再写：导入是「换一份课表」，不是往旧课表上叠。
+      // 之前是逐条 add，同一个文件导两次就会得到双份课程，报告里「今天几节课」直接翻倍。
+      const before = await db.courses.count();
+      await db.courses.clear();
       for (const c of parsed.courses) await addCourse({ ...c, id: newId() });
       // 写完立刻回读：写失败或写错表时，这里能第一时间露出来
       const total = await db.courses.count();
-      toast.success(`已导入 ${parsed.courses.length} 门课`, {
+      toast.success(`课表已替换为 ${total} 门课`, {
         description:
           parsed.errors.length > 0
-            ? `${parsed.errors.length} 行没导入；本机课表现在共 ${total} 门。`
-            : `本机课表现在共 ${total} 门，周历和月历都会跟着变。`,
+            ? `${parsed.errors.length} 行没导入；原有的 ${before} 门已清掉。`
+            : `原有 ${before} 门已清掉，周历和月历都按新课表重算。`,
       });
       setParsed(null);
       setFileName('');
@@ -129,10 +133,13 @@ export default function CourseExcelImport({
               {parsed.errors.length > 5 && <li>…还有 {parsed.errors.length - 5} 条</li>}
             </ul>
           )}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            导入会**替换**本机现有课表，不会追加——重复导入不会再叠出一样的课。
+          </p>
           <div className="mt-2 flex gap-2">
             <Button size="sm" disabled={parsed.courses.length === 0 || busy} onClick={() => void confirm()}>
               <Upload className="mr-1 h-3.5 w-3.5" />
-              {onParsed ? `用这 ${parsed.courses.length} 门课` : `确认导入 ${parsed.courses.length} 门课`}
+              {onParsed ? `用这 ${parsed.courses.length} 门课` : `替换为这 ${parsed.courses.length} 门课`}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => { setParsed(null); setFileName(''); }}>
               取消

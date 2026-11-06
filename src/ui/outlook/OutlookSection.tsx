@@ -3,6 +3,7 @@ import { CalendarClock, CalendarRange, ClipboardCheck } from 'lucide-react';
 import { db } from '@/data/store/db';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { buildFacts, type FactBundle } from '@/lib/facts';
+import { effectiveSemesterStart } from '@/lib/weeks';
 import { generateBrief, templateGenerator, type Brief } from '@/lib/brief';
 import { modelGenerator } from '@/lib/modelBrief';
 import { generateOutlookNarrative, readOutlookCache, type OutlookNarrative } from '@/lib/modelOutlook';
@@ -149,7 +150,7 @@ export default function OutlookSection() {
         sleeps: ss,
         blocks: blockRows,
         compliance: complianceRows,
-        semesterStart: prefs?.semesterStart,
+        semesterStart: effectiveSemesterStart(prefs?.semesterStart, now),
         profile,
       });
       // 配了模型就走模型生成，没配 / 失败都自动回落模板
@@ -165,7 +166,7 @@ export default function OutlookSection() {
       setSleeps(ss);
       setBlocks(blockRows);
       setCompliance(complianceRows);
-      setSemesterStart(prefs?.semesterStart);
+      setSemesterStart(effectiveSemesterStart(prefs?.semesterStart, now));
       setBundle(factBundle);
       setBrief(composed);
       setReady(true);

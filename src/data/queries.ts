@@ -1,6 +1,6 @@
 import { db } from '@/data/store/db';
 import { ensureSeeded, getPreferences } from '@/data/store/profile';
-import { courseOccursOn } from '@/lib/weeks';
+import { courseOccursOn, effectiveSemesterStart } from '@/lib/weeks';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, ExamItem, SleepLog, TimeBlock } from '@/types/contract';
 
@@ -21,7 +21,7 @@ export async function coursesOfDayOn(dow: 1 | 2 | 3 | 4 | 5 | 6 | 7, date: Date)
   await ensureSeeded();
   const rows = await db.courses.where('dayOfWeek').equals(dow).sortBy('startMin');
   const prefs = await getPreferences().catch(() => null);
-  return rows.filter((c) => courseOccursOn(c, date, prefs?.semesterStart));
+  return rows.filter((c) => courseOccursOn(c, date, effectiveSemesterStart(prefs?.semesterStart, date)));
 }
 
 export async function todayCourses(now: Date): Promise<Course[]> {

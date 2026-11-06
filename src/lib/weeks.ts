@@ -130,6 +130,17 @@ export function weeksToInput(weeks?: number[]): string {
 }
 
 /** 默认学期开始：秋季 9 月 1 日（往前推到周一），春季 2 月 24 日 */
+/**
+ * 有效学期起点：用户没设就用默认推算（秋季 9/1 那周的周一，春季 2/24 那周）。
+ *
+ * 为什么要兜底：courseOccursOn 在 semesterStart 为空时会「全部返回 true」，
+ * 于是周次过滤整个失效——导入一份 1–8 周的课表，到了第 10 周报告还照算。
+ * 宁可按默认周次算错一两周，也不要完全不按周次算。
+ */
+export function effectiveSemesterStart(semesterStart?: string, today = new Date()): string {
+  return semesterStart || defaultSemesterStart(today);
+}
+
 export function defaultSemesterStart(today = new Date()): string {
   const year = today.getFullYear();
   const autumn = today.getMonth() + 1 >= 8;
