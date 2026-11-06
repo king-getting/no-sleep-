@@ -18,6 +18,8 @@ export interface ChoiceRecord {
   optionId: string;
   topic: string;
   at: string; // ISO
+  /** 点选时的选项快照（标题 / 价格 / 营养），供饮食总结回看 */
+  meta?: string;
 }
 
 /** 晚间报告一键标记「做了 / 没做」 */

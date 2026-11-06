@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import './index.css'
 import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
+import { ErrorBoundary } from '@/ui/ErrorBoundary'
 import { initTheme } from '@/lib/theme'
 
 // 暗色模式：跟随系统 prefers-color-scheme，可用设置页手动覆盖
@@ -40,10 +41,12 @@ swRef.update = registerSW({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-      {/* 全局提示：不挂这个，全项目的 toast() 都不会显示 */}
-      <Toaster position="top-center" />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <App />
+        {/* 全局提示：不挂这个，全项目的 toast() 都不会显示 */}
+        <Toaster position="top-center" />
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 )
