@@ -25,8 +25,8 @@ const KEY = 'xiaoshan:llm';
 
 export const DEFAULT_LLM_CONFIG: LlmConfig = {
   enabled: false,
-  baseUrl: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
+  baseUrl: 'https://api.deepseek.com/v1',
+  model: 'deepseek-chat',
   apiKey: '',
 };
 

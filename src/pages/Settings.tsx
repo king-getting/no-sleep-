@@ -369,6 +369,21 @@ export default function Settings() {
         </p>
 
         <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+              { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setLlm({ ...llm, baseUrl: preset.baseUrl, model: preset.model })}
+                className="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              >
+                用 {preset.label}
+              </button>
+            ))}
+          </div>
           <label className="block text-xs text-muted-foreground">
             接口地址（OpenAI 兼容）
             <input
