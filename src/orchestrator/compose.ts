@@ -1,9 +1,11 @@
 import { coursesOfDay, todayCourses } from '@/data/queries';
 import { db } from '@/data/store/db';
 import { getSleepLogs } from '@/data/store/profile';
+import { buildDietSummary } from '@/lib/dietSummary';
 import { SLEEP_NEED_HOURS, avgSleepHours, lastNightSleep, sleepDebt } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
+import { buildOptionReviews, loadReviewData } from './reviews';
 import { examEveChecklist } from './exam';
 import { weeklyComplianceText } from './compliance';
 import type {
@@ -48,7 +50,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
       { label: '上午回顾', value: `已上 ${done}/${courses.length} 节课` },
       { label: '下午安排', value: rest > 0 ? `还有 ${rest} 节课` : '下午没课' },
       { label: '时间块', value: fact('schedule:timeblocks') },
-      { label: '风险项', value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无', tone: warnings.length > 0 ? 'warn' : 'default' },
+      { label: '风险项', value: warnings.length > 0 ? `${warnings.length} 项 · 见左侧「风险项」` : '无', tone: warnings.length > 0 ? 'warn' : 'default' },
     ];
   }
 
@@ -61,7 +63,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
       { label: '下一场', value: fact('exam:next') },
       {
         label: '风险项',
-        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        value: warnings.length > 0 ? `${warnings.length} 项 · 见左侧「风险项」` : '无',
         tone: warnings.length > 0 ? 'warn' : 'default',
       },
     ];
@@ -76,7 +78,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
       { label: '复习窗口', value: fact('exam:blocks') },
       {
         label: '风险项',
-        value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无',
+        value: warnings.length > 0 ? `${warnings.length} 项 · 见左侧「风险项」` : '无',
         tone: urgent ? 'danger' : warnings.length > 0 ? 'warn' : 'default',
       },
     ];
@@ -86,7 +88,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
     { label: '今日课程', value: fact('academic:today-courses') },
     { label: '时间块', value: fact('schedule:timeblocks') },
     { label: '天气', value: fact('life:weather') },
-    { label: '风险项', value: warnings.length > 0 ? `${warnings.length} 项需留意` : '无', tone: warnings.length > 0 ? 'warn' : 'default' },
+    { label: '风险项', value: warnings.length > 0 ? `${warnings.length} 项 · 见左侧「风险项」` : '无', tone: warnings.length > 0 ? 'warn' : 'default' },
   ];
 }
 
@@ -98,7 +100,13 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   // 没有任何记录时 avg7 为 null，明确写「尚未录入」，不拿健康基线 8h 当实测
   const avg7Text = avg7 === null ? '—（尚未录入）' : `${avg7.toFixed(1)}h`;
   const todayStr = ctx.now.toDateString();
-  const choicesToday = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr).length;
+  const todayChoices = (await db.choices.toArray()).filter((c) => new Date(c.at).toDateString() === todayStr);
+  const choicesToday = todayChoices.length;
+  // 今日饮食：和健康页同一套算法，避免两处数字对不上
+  const diet = buildDietSummary(todayChoices, Math.round((ctx.user.mealBudgetMonthly / 30) * 10) / 10);
+  const dietText = diet.isEmpty
+    ? '—（今天还没点过饭）'
+    : `${diet.score} 分 · ${diet.grade} · ¥${diet.spend}${diet.budget > 0 ? ` / ¥${diet.budget}` : ''}`;
   // A8：本周执行率直接来自「做了 / 没做」的点击记录，没有记录就不编数字
   const weekRate = await weeklyComplianceText(ctx.now);
   // 一周尺度的睡眠债：和「昨晚」分开说，免得两个口径混在一行里
@@ -108,6 +116,7 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
     : `${debt.debtHours}h（近 ${debt.covered} 晚按 ${SLEEP_NEED_HOURS}h 算）`;
   return [
     { label: '今日课程', value: `${courses.length} 节` },
+    { label: '今日饮食', value: dietText },
     { label: '昨晚睡眠', value: lastNight ? `${lastNight.hours}h` : '—（尚未录入）' },
     { label: '近 7 天平均睡眠', value: avg7Text },
     { label: '睡眠债', value: debtText },
@@ -159,13 +168,24 @@ export async function composeReport(
     'schedule';
 
   const blocks: ReportBlock[] = [];
+  let reviewData: Awaited<ReturnType<typeof loadReviewData>> | undefined;
+  const ensureReviewData = async () => (reviewData ??= await loadReviewData(ctx));
   for (const kind of RECIPES[type]) {
     switch (kind) {
       case 'overview':
         blocks.push({ kind: 'overview', items: await buildOverview(type, results, ctx) });
         break;
       case 'suggestionGroup':
-        for (const suggestion of slotSuggestions) blocks.push({ kind: 'suggestionGroup', suggestion });
+        for (const suggestion of slotSuggestions) {
+          // 每条选项补上「另外三个 Agent 怎么看」——它们各自只看自己那一域
+          for (const option of suggestion.options) {
+            if (!option.reviews) {
+              const owner = option.impacts[0]?.agentId ?? option.evidences[0]?.agentId;
+              option.reviews = buildOptionReviews(option, owner, ctx, await ensureReviewData());
+            }
+          }
+          blocks.push({ kind: 'suggestionGroup', suggestion });
+        }
         break;
       case 'conflict':
         for (const conflict of conflicts) blocks.push({ kind: 'conflict', conflict });

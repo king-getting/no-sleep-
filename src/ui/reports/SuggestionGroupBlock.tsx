@@ -2,6 +2,7 @@ import { Check, Minus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { OptionCardView } from '@/ui/cards/OptionCardView';
+import type { OptionCard } from '@/types/contract';
 import type { Suggestion } from '@/types/contract';
 
 /**
@@ -20,7 +21,7 @@ export function SuggestionGroupBlock({
   pickedOptionId?: string;
   /** 本次会话内该建议的标记结果：true=做了，false=没做 */
   marked?: boolean;
-  onPick?: (optionId: string) => void;
+  onPick?: (optionId: string, option: OptionCard) => void;
   onMark?: (done: boolean) => void;
   /** 点「已记录」徽标撤销这次标记 */
   onUnmark?: (done: boolean) => void;
@@ -86,7 +87,7 @@ export function SuggestionGroupBlock({
             option={option}
             picked={pickedOptionId === option.id}
             dimmed={!!pickedOptionId && pickedOptionId !== option.id}
-            onPick={onPick}
+            onPick={onPick ? (o) => onPick(o.id, o) : undefined}
           />
         ))}
       </div>
