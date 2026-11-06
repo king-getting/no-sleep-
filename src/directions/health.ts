@@ -209,8 +209,12 @@ export const healthDirection: DirectionModule = {
 
     // ── 晚间熬夜提醒 ──
     if (hour >= 18) {
-      const sleepNowHours = hoursIfSleepNow(ctx.now, wake.wakeMin).toFixed(1);
-      const laterHours = (Number(sleepNowHours) - 1).toFixed(1);
+      const sleepNowHours = hoursIfSleepNow(ctx.now, wake.wakeMin);
+      const clockAt = (offsetMin: number) => {
+        const d = new Date(ctx.now.getTime() + offsetMin * 60_000);
+        return fmtMin(d.getHours() * 60 + d.getMinutes());
+      };
+      const hoursAt = (offsetMin: number) => (sleepNowHours - offsetMin / 60).toFixed(1);
       suggestions.push({
         id: 'sug-sleep-tonight',
         topic: '今晚几点睡',
@@ -220,17 +224,17 @@ export const healthDirection: DirectionModule = {
         options: [
           {
             id: 'sleep-now',
-            title: `现在就睡（到 ${fmtMin(wake.wakeMin)} 起，${sleepNowHours} 小时）`,
+            title: `现在就睡（能睡 ${sleepNowHours.toFixed(1)} 小时）`,
             note: `闹钟 ${fmtMin(wake.wakeMin)}`,
             when: '现在',
             cost: { timeMin: 0, effort: 1 },
             pros: [
               lastNight
-                ? `比昨晚多睡 ${fmtHours(Number(sleepNowHours) - lastNight.hours)}`
-                : `能睡足 ${fmtHours(Number(sleepNowHours))}`,
+                ? `比昨晚多睡 ${fmtHours(sleepNowHours - lastNight.hours)}`
+                : `能睡足 ${fmtHours(sleepNowHours)}`,
             ],
-            cons: ['今晚的娱乐 / 刷手机时间取消'],
-            fallback: '再拖一小时，明早就少睡整整一小时',
+            cons: ['今晚没有额外的自由时间'],
+            fallback: '每往后拖半小时，明早就少睡半小时',
             impacts: [
               {
                 horizon: 'short',
@@ -247,16 +251,29 @@ export const healthDirection: DirectionModule = {
             ],
           },
           {
-            id: 'sleep-later',
-            title: '再刷 1 小时手机（少睡 1 小时）',
-            when: '现在 → 00:00',
-            cost: { timeMin: 60, effort: 1 },
-            pros: ['今晚放松'],
-            cons: [`今晚只剩 ${laterHours} 小时睡眠`],
-            fallback: '明早照旧 7 点起，睡眠债继续涨',
+            id: 'sleep-later-30',
+            title: `晚睡半小时（${clockAt(30)} 睡，${hoursAt(30)} 小时）`,
+            when: `现在 → ${clockAt(30)}`,
+            cost: { timeMin: 30, effort: 1 },
+            pros: ['留半小时洗漱、收拾，不用赶着躺下'],
+            cons: [`明早睡眠少 0.5 小时，剩 ${hoursAt(30)} 小时`],
+            fallback: '再往后拖，就不是半小时的事了',
             impacts: [
-              { horizon: 'short', text: '明早前两节课注意力下降风险高', directionId: 'health' },
-              { horizon: 'long', text: '缺觉累积，本周精力趋势继续走低', directionId: 'health' },
+              { horizon: 'short', text: '明早状态基本不受影响', directionId: 'health' },
+            ],
+            evidences: [{ directionId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 2 }],
+          },
+          {
+            id: 'sleep-later-60',
+            title: `晚睡 1 小时（${clockAt(60)} 睡，${hoursAt(60)} 小时）`,
+            when: `现在 → ${clockAt(60)}`,
+            cost: { timeMin: 60, effort: 1 },
+            pros: ['今晚多出一小时做自己的事'],
+            cons: [`明早睡眠少 1 小时，剩 ${hoursAt(60)} 小时`],
+            fallback: '明早照旧这个点起，睡眠债继续涨',
+            impacts: [
+              { horizon: 'short', text: '明早前两节课的注意力会下降', directionId: 'health' },
+              { horizon: 'long', text: '连续几天这样，本周精力会一直往下走', directionId: 'health' },
             ],
             evidences: [{ directionId: 'health', text: '睡眠债已超过 3 天', confidence: 2 }],
           },
