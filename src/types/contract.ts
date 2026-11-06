@@ -232,13 +232,13 @@ export interface OptionCard {
   impacts: Impact[]; // 可能影响：必须可观察，禁止「概率更高」这类套话
   evidences: Evidence[]; // 「为什么」展开渲染
   /**
-   * 其他 Agent 对这条选项的一句话评审（v1.4）：一方一利一弊，带当时的有效权重。
-   * 由编排器在汇总阶段按各 Agent 的域规则算出来，不是 UI 编的漂亮话。
+   * 其他方向对这条建议的评审（v1.4）：一方一利一弊，带当时的有效权重。
+   * 由编排器在汇总阶段按各方向的域规则算出来，不是 UI 编的漂亮话。
    */
   reviews?: AgentReview[];
 }
 
-/** 跨 Agent 评审：别的 Agent 怎么看这条选项 */
+/** 跨方向评审：别的方向怎么看这条建议 */
 export interface AgentReview {
   agentId: AgentId;
   /** 当时的有效权重（生存模式下与 defaultWeight 不同） */
@@ -248,7 +248,7 @@ export interface AgentReview {
   /** 它不放心这一点 */
   con: string;
   /**
-   * 这条选项对它那一域的影响强度（0–1）。
+   * 这条建议对它那一域的影响强度（0–1）。
    * 只由它自己的数据算：教务看占用 / 到下一节课的窗口，生活看花销 / 餐标，
    * 健康看占用 / 睡眠余量，日程看占用 / 今天剩余机动时间。
    * UI 拿它排出「影响最大 / 最小」。

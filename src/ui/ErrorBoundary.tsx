@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { clearLocalPrefs } from '@/data/store/boot';
+import { resetBootMode } from '@/data/store/boot';
 
 type Props = { children: ReactNode };
 type State = { error: Error | null };
@@ -9,8 +9,8 @@ type State = { error: Error | null };
 /**
  * 全局兜底。
  *
- * 为什么要有：现场演示时任何一处未捕获的渲染异常都会让评委看到一屏白，
- * 而「产品完成度」占 30 分。有了兜底，至少能一键回到可用状态。
+ * 为什么要有：任何一处未捕获的渲染异常都会让用户看到一屏白，
+ * 数据还在本机却打不开。有了兜底，至少能一键回到可用状态。
  *
  * 刻意不做的事：不把 stack 直接铺给用户看，折叠进 details 里给开发看即可。
  */
@@ -29,9 +29,9 @@ export class ErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
-  /** 只清开关与偏好，不动课表/复习块：演示中途按一下不会把数据清空 */
+  /** 只清开关与偏好，不动课表/复习块：出错后按一下不会把数据清空 */
   private resetPrefs = () => {
-    clearLocalPrefs();
+    resetBootMode();
     window.location.reload();
   };
 

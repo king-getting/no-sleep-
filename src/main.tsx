@@ -6,8 +6,8 @@ import { toast } from 'sonner'
 import './index.css'
 import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
-import { initTheme } from '@/lib/theme'
 import { ErrorBoundary } from '@/ui/ErrorBoundary'
+import { initTheme } from '@/lib/theme'
 
 // 暗色模式：跟随系统 prefers-color-scheme，可用设置页手动覆盖
 initTheme()
