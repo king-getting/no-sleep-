@@ -132,7 +132,7 @@ export function OptionCardView({
       {/* 跨 Agent 评审：一方一利一弊，带当时的有效权重 */}
       {option.reviews && option.reviews.length > 0 && (
         <div className="mt-2 rounded-lg border border-dashed border-border/70 bg-secondary/25 px-2 pb-1.5 pt-1.5">
-          <ReviewRadar reviews={option.reviews} />
+          <ReviewRadar reviews={option.reviews} seed={option.id} />
         </div>
       )}
 

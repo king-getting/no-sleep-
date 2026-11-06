@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import type { AgentId, AgentReview } from '@/types/contract';
 import { AGENT_META } from '@/ui/agentMeta';
 import { cn } from '@/lib/utils';
@@ -19,17 +19,73 @@ const AXES: { id: AgentId; angle: number }[] = [
   { id: 'health', angle: 150 },
 ];
 
-const HEX: Record<AgentId, string> = {
-  academic: '#2F4F43',
-  life: '#4A6B5C',
-  health: '#6B8F7E',
-  schedule: '#8FAF9F',
+/**
+ * 每个方向一套渐变：同一张卡里，谁的影响最大就用谁的配色当主色。
+ * 同一组选项卡并排时，一眼能分出"这张卡主要是睡眠问题还是钱的问题"。
+ */
+const GRAD: Record<AgentId, [string, string]> = {
+  academic: ['#2F4F43', '#6FA08A'],
+  life: ['#B4762A', '#E3B776'],
+  health: ['#3F6E8C', '#93BBD2'],
+  schedule: ['#5A5F7A', '#A2A8C4'],
 };
 
 const CX = 84;
 const CY = 76;
 const R = 46;
 const MIN_R = 9;
+
+/** 把三个方向的颜色按影响大小混成一个色：形状不同，卡片的色调就不同 */
+function mixTint(weights: { id: AgentId; w: number }[], lighten = 0): string {
+  const sum = weights.reduce((s, x) => s + x.w, 0) || 1;
+  const rgb = [0, 0, 0];
+  for (const { id, w } of weights) {
+    const hex = GRAD[id][0];
+    const n = w / sum;
+    rgb[0] += parseInt(hex.slice(1, 3), 16) * n;
+    rgb[1] += parseInt(hex.slice(3, 5), 16) * n;
+    rgb[2] += parseInt(hex.slice(5, 7), 16) * n;
+  }
+  const toHex = (v: number) => {
+    const c = Math.round(v + (255 - v) * lighten);
+    return Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0');
+  };
+  return `#${toHex(rgb[0])}${toHex(rgb[1])}${toHex(rgb[2])}`;
+}
+
+/** 每个选项一个稳定的色相微调：图案接近的两张卡，颜色也不会完全一样 */
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function shiftHue(hex: string, deg: number): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  const hue = (h + deg + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * sat;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  const rgb =
+    hue < 60 ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x] : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return '#' + toHex(rgb[0]) + toHex(rgb[1]) + toHex(rgb[2]);
+}
 
 const PANEL_W = 250;
 const PANEL_GAP = 8;
@@ -40,7 +96,7 @@ function point(angle: number, radius: number) {
   return { x: CX + Math.cos(rad) * radius, y: CY + Math.sin(rad) * radius };
 }
 
-export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
+export default function ReviewRadar({ reviews, seed }: { reviews: AgentReview[]; seed?: string }) {
   const [openId, setOpenId] = useState<AgentId | null>(null);
   const [anchorBox, setAnchorBox] = useState<{ left: number; top: number; bottom: number } | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -108,6 +164,19 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
 
   const open = axes.find((a) => a.id === openId)?.review ?? null;
   const outline = axes.map((a) => `${a.at.x.toFixed(1)},${a.at.y.toFixed(1)}`).join(' ');
+  // 哪条轴影响最大，就用它的配色画这张三角；渐变从"最大"扫向"次大"，
+  // 同组几张卡对比时，颜色和方向都不一样，扫一眼就知道差在哪。
+  const dominant = axes.reduce((a, b) => (b.impact > a.impact ? b : a), axes[0]);
+  const second = axes
+    .filter((a) => a.id !== dominant.id)
+    .reduce((a, b) => (b.impact > a.impact ? b : a), axes.find((a) => a.id !== dominant.id)!);
+  const gd = point(dominant.angle, R * 0.92);
+  const gs = point(second.angle, R * 0.92);
+  const hueShift = seed ? (hashSeed(seed) % 41) - 20 : 0;
+  const tint = shiftHue(mixTint(axes.map((a) => ({ id: a.id, w: a.impact + 0.04 }))), hueShift);
+  const tintLight = shiftHue(mixTint(axes.map((a) => ({ id: a.id, w: a.impact + 0.04 })), 0.55), hueShift);
+  const gradId = `radar${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const [expanded, setExpanded] = useState(false);
 
   const panelStyle = (() => {
     if (!anchorBox) return undefined;
@@ -122,11 +191,22 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
 
   return (
     <div className="relative mt-1.5" onClick={(e) => e.stopPropagation()}>
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
+      <p className="hidden text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80 sm:block">
         三个方向怎么看
       </p>
 
-      <div className="mt-1 flex items-start gap-1">
+      {/* 手机端默认收起：卡片本来就窄，先给标题和选项让位 */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="mt-1.5 flex w-full items-center justify-between gap-2 rounded-md py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80 sm:hidden"
+      >
+        三个方向怎么看
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
+      </button>
+
+      <div className={cn('mt-1 gap-1', expanded ? 'flex items-start' : 'hidden sm:flex sm:items-start')}>
         <svg
           viewBox="0 0 168 158"
           className="h-[132px] w-[142px] shrink-0 overflow-visible"
@@ -161,13 +241,26 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
             );
           })}
 
+          <defs>
+            <linearGradient
+              id={gradId}
+              gradientUnits="userSpaceOnUse"
+              x1={gd.x}
+              y1={gd.y}
+              x2={gs.x}
+              y2={gs.y}
+            >
+              <stop offset="0%" stopColor={tint} stopOpacity={0.58} />
+              <stop offset="100%" stopColor={tintLight} stopOpacity={0.30} />
+            </linearGradient>
+          </defs>
+
           <polygon
             points={outline}
-            fill={HEX.academic}
-            fillOpacity={0.14}
-            stroke={HEX.academic}
-            strokeOpacity={0.55}
-            strokeWidth={1.6}
+            fill={`url(#${gradId})`}
+            stroke={tint}
+            strokeOpacity={0.6}
+            strokeWidth={1.7}
             strokeLinejoin="round"
           />
 
@@ -195,7 +288,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                   cx={a.at.x}
                   cy={a.at.y}
                   r={active ? 4.6 : 3.6}
-                  fill={HEX[a.id]}
+                  fill={GRAD[a.id][0]}
                   stroke="#fff"
                   strokeWidth={1.2}
                 />
@@ -205,7 +298,7 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                   textAnchor="middle"
                   fontSize={10.5}
                   fontWeight={active ? 700 : 500}
-                  fill={HEX[a.id]}
+                  fill={GRAD[a.id][0]}
                 >
                   {name}
                 </text>
@@ -230,8 +323,8 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
                 )}
               >
                 <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: HEX[a.id] }} />
-                  <span className="font-medium" style={{ color: HEX[a.id] }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: GRAD[a.id][0] }} />
+                  <span className="font-medium" style={{ color: GRAD[a.id][0] }}>
                     {name}
                   </span>
                   <span className="text-[9.5px] text-muted-foreground/80">×{a.review?.weight ?? 1}</span>
@@ -261,9 +354,9 @@ export default function ReviewRadar({ reviews }: { reviews: AgentReview[] }) {
             <div className="flex items-center justify-between gap-2">
               <p
                 className="flex items-center gap-1.5 text-[11.5px] font-medium"
-                style={{ color: HEX[open.agentId] }}
+                style={{ color: GRAD[open.agentId][0] }}
               >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: HEX[open.agentId] }} />
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: GRAD[open.agentId][0] }} />
                 {AGENT_META[open.agentId].name}
                 <span className="text-[9.5px] font-normal text-muted-foreground">×{open.weight}</span>
                 <span className="text-[9.5px] font-normal text-muted-foreground">

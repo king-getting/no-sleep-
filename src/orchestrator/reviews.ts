@@ -81,7 +81,7 @@ function says(o: OptionCard, re: RegExp): boolean {
 
 const TOPIC_ACADEMIC = /课|复习|考试|DDL|作业|自习|背|刷题/;
 const TOPIC_LIFE = /吃|饭|食堂|钱|省|快递|买|餐/;
-const TOPIC_HEALTH = /睡|午休|小憩|熬夜|困|走|运动|身体/;
+const TOPIC_HEALTH = /睡|午休|小憩|熬夜|困|运动|体检|生病|发烧/;
 
 /** 教务：这条和下一节课撞不撞，以及它怎么记账到 DDL */
 function reviewByAcademic(o: OptionCard, d: ReviewData): Verdict {

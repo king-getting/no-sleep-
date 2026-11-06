@@ -319,8 +319,8 @@ export default function Feed() {
 
   return (
     <div className="mx-auto min-h-[100dvh] w-full max-w-[1200px] px-4 pb-24 lg:pb-10 pt-6 sm:px-6">
-      {/* 顶部固定在视口里：一屏能看三四条，翻到下面还能切「收藏」 */}
-      <header className="sticky top-14 z-10 -mx-4 mb-3 bg-background/95 px-4 pb-2 pt-1 backdrop-blur lg:top-0">
+      {/* 标题与服务入口随页面滚走；真正钉住的是下面那条索引 */}
+      <header className="-mx-4 mb-1 px-4 pt-1">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h1 className="font-serif text-xl font-bold">今日校园</h1>
@@ -378,7 +378,7 @@ export default function Feed() {
               onClick={() => setTab(t.id)}
               aria-pressed={tab === t.id}
               className={cn(
-                'whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] transition-colors sm:px-3 sm:text-sm',
+                'whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium transition-colors sm:px-3 sm:text-sm',
                 tab === t.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
               )}
             >
@@ -387,62 +387,65 @@ export default function Feed() {
             </button>
           ))}
         </div>
-
-        {/* 索引条：时间 / 类型 / 相关度，三层叠加 */}
-        <div className="mt-2 space-y-1.5 border-t pt-2">
-          <div className="flex items-center gap-1 overflow-x-auto">
-            <span className="shrink-0 text-[11px] text-muted-foreground">时间</span>
-            {TIME_INDEX.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTimeIdx(t.id)}
-                aria-pressed={timeIdx === t.id}
-                className={cn(
-                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
-                  timeIdx === t.id ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1 overflow-x-auto">
-            <span className="shrink-0 text-[11px] text-muted-foreground">类型</span>
-            {['all', ...types].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                aria-pressed={type === t}
-                className={cn(
-                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
-                  type === t ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {t === 'all' ? '全部类型' : (TYPE_LABEL[t] ?? t)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1 overflow-x-auto">
-            <span className="shrink-0 text-[11px] text-muted-foreground">相关度</span>
-            {REL_INDEX.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => setRelIdx(r.id)}
-                aria-pressed={relIdx === r.id}
-                className={cn(
-                  'shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors',
-                  relIdx === r.id ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </header>
+
+      {/*
+       * 索引条单独钉住：标题与服务入口随页面滚走，只留这三行跟着你。
+       * 胶囊一律 font-medium（不再"选中才加粗"），切换时行的宽度不变，不会左右跳。
+       */}
+      <div className="sticky top-0 z-10 -mx-4 mb-2 space-y-1.5 border-t bg-background/95 px-4 pb-1.5 pt-2 backdrop-blur lg:top-[57px]">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <span className="shrink-0 text-[11px] text-muted-foreground">时间</span>
+          {TIME_INDEX.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTimeIdx(t.id)}
+              aria-pressed={timeIdx === t.id}
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+                timeIdx === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <span className="shrink-0 text-[11px] text-muted-foreground">类型</span>
+          {['all', ...types].map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              aria-pressed={type === t}
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+                type === t ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t === 'all' ? '全部类型' : (TYPE_LABEL[t] ?? t)}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <span className="shrink-0 text-[11px] text-muted-foreground">相关度</span>
+          {REL_INDEX.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setRelIdx(r.id)}
+              aria-pressed={relIdx === r.id}
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+                relIdx === r.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading && <p className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">正在按你的身份排序…</p>}
       {error && (
