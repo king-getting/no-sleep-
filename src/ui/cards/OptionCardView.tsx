@@ -6,7 +6,8 @@ import { fmtDuration, fmtEffort, fmtMoney } from '@/lib/format';
 import { nutritionLabel, nutritionTip } from '@/lib/nutrition';
 import { cn } from '@/lib/utils';
 import { DIRECTION_META } from '@/ui/directionMeta';
-import type { DirectionReview, OptionCard } from '@/types/contract';
+import ReviewRadar from '@/ui/cards/ReviewRadar';
+import type { OptionCard } from '@/types/contract';
 
 /**
  * 选项卡（契约 §2，v2.0 收紧）：
@@ -131,33 +132,7 @@ export function OptionCardView({
       {/* 跨方向评审：一方一利一弊，带当时的有效权重 */}
       {option.reviews && option.reviews.length > 0 && (
         <div className="mt-2 rounded-lg border border-dashed border-border/70 bg-secondary/25 px-2 py-1.5">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
-            其他方向怎么看
-          </p>
-          <ReviewRank reviews={option.reviews} />
-          <div className="mt-1 grid grid-cols-[3.9rem_minmax(0,1fr)] gap-x-1.5 gap-y-1">
-            {option.reviews.map((r) => {
-              const meta = DIRECTION_META[r.directionId];
-              return (
-                <Fragment key={r.directionId}>
-                  <span className={cn('flex items-baseline gap-1 text-[10.5px] font-medium', meta.color)}>
-                    {meta.name}
-                    <span className="text-[9.5px] font-normal text-muted-foreground">×{r.weight}</span>
-                  </span>
-                  <div className="space-y-0.5">
-                    <p className="text-[11px] leading-snug text-foreground/85">
-                      <span className="mr-1 text-primary/80">＋</span>
-                      {r.pro}
-                    </p>
-                    <p className="text-[11px] leading-snug text-muted-foreground">
-                      <span className="mr-1 text-muted-foreground/70">－</span>
-                      {r.con}
-                    </p>
-                  </div>
-                </Fragment>
-              );
-            })}
-          </div>
+          <ReviewRadar reviews={option.reviews} seed={option.id} />
         </div>
       )}
 
@@ -203,27 +178,3 @@ export function OptionCardView({
   );
 }
 
-/**
- * 影响排序那一行：这条选项对哪个 方向 牵动最大、对哪个几乎没影响。
- * 用的是各 方向 自己算出的 impact（0–1），不是权重——权重说的是「谁说了算」，
- * 影响说的是「这条改动了谁的域」。
- */
-function ReviewRank({ reviews }: { reviews: DirectionReview[] }) {
-  if (reviews.length < 2) return null;
-  const ranked = [...reviews].sort((a, b) => b.impact - a.impact || b.weight - a.weight);
-  const most = ranked[0];
-  const least = ranked[ranked.length - 1];
-  const name = (r: DirectionReview) => DIRECTION_META[r.directionId].name;
-  const pct = (r: DirectionReview) => Math.round(r.impact * 100) + '%';
-  return (
-    <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-[10px] text-muted-foreground/80">
-      <span>影响最大</span>
-      <span className={cn('font-medium', DIRECTION_META[most.directionId].color)}>{name(most)}</span>
-      <span className="text-muted-foreground/60">{pct(most)}</span>
-      <span className="mx-0.5 text-muted-foreground/35">·</span>
-      <span>最小</span>
-      <span className={cn('font-medium', DIRECTION_META[least.directionId].color)}>{name(least)}</span>
-      <span className="text-muted-foreground/60">{pct(least)}</span>
-    </p>
-  );
-}
