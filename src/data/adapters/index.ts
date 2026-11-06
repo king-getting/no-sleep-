@@ -7,8 +7,24 @@ import { mutedIds } from '@/data/store/feed';
 
 /**
  * 数据源 adapter 注册表（契约 §5）
- * mock 与真实教务源实现同一 DataSourceAdapter 接口；hackathon 后接真实源只需在这里换注册。
+ * mock 与真实源实现同一 DataSourceAdapter 接口；接真实源只需在这里换注册。
  */
+
+/**
+ * 教务课表 adapter —— 只留接口，不实现。
+ *
+ * 学校的课表目前只有文件导出（.xls 网格表），没有可直连的公开接口；
+ * 真要对接时需要登录态、验证码与学期参数，属于实现方自己处理的部分。
+ * 这里把形状定下来：任何未来实现只要能产出 Course[]，就能直接接进课表页。
+ */
+export interface TimetableAdapter {
+  id: string;
+  /** 拉取整学期课表；实现方自行处理登录、缓存与错误 */
+  fetchCourses(signal?: AbortSignal): Promise<Omit<import('@/types/contract').Course, 'id'>[]>;
+}
+
+/** 已注册的教务适配器；当前为空，接真实源时 push 一个实现进来 */
+export const timetableAdapters: TimetableAdapter[] = [];
 
 /** 身份过滤：通知类数据按校区 / 受众标签过滤（信息流「为什么推给我」的数据基础） */
 function matchIdentity(item: RawItem, ctx: DirectionContext): boolean {
