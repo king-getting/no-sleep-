@@ -75,6 +75,7 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   feedFav: EntityTable<FeedFavRecord, 'id'>;
   reviewBlocks: EntityTable<ReviewBlockRecord, 'id'>;
   missReasons: EntityTable<MissReasonRecord, 'id'>;
+  meta: EntityTable<{ key: string; value: unknown }, 'key'>;
 };
 
 db.version(1).stores({
@@ -105,4 +106,9 @@ db.version(4).stores({
 // v5：「没做」归因落库（§4.7 问为什么不问怎么办——归因要跨天读到，才能转成次日建议）
 db.version(5).stores({
   missReasons: '++id, topic, date',
+});
+
+// v6：本机元数据（自动备份的文件句柄等；不进备份文件本身）
+db.version(6).stores({
+  meta: 'key',
 });

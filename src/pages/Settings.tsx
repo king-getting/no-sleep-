@@ -11,6 +11,15 @@ import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
 import { DEFAULT_LLM_CONFIG, llmReady, readLlmConfig, testLlm, writeLlmConfig, type LlmConfig } from '@/lib/llm';
+import {
+  autoBackupFileName,
+  autoBackupLastAt,
+  disableAutoBackup,
+  pickBackupTarget,
+  supportsAutoBackup,
+  writeAutoBackup,
+} from '@/lib/autobackup';
+import { canPromptInstall, isIosSafari, isStandalone, promptInstall, subscribePwaInstall } from '@/lib/pwaInstall';
 import type { DirectionId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
@@ -46,6 +55,10 @@ export default function Settings() {
   const [traits, setTraits] = useState<HabitTraits | null>(null);
   const [llm, setLlm] = useState<LlmConfig>(DEFAULT_LLM_CONFIG);
   const [llmTesting, setLlmTesting] = useState(false);
+  const [installable, setInstallable] = useState(false);
+  const [autoName, setAutoName] = useState<string | null>(null);
+  const [autoAt, setAutoAt] = useState<string | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -72,7 +85,15 @@ export default function Settings() {
       const prefs = await getPreferences().catch(() => null);
       setTraits(prefs?.traits ?? null);
       setLlm(readLlmConfig());
+      setAutoName(await autoBackupFileName());
+      setAutoAt(autoBackupLastAt());
     })();
+  }, []);
+
+  // 安装能力是异步到达的（beforeinstallprompt），订阅一下，到了再刷新按钮状态
+  useEffect(() => {
+    setInstallable(canPromptInstall());
+    return subscribePwaInstall(() => setInstallable(canPromptInstall()));
   }, []);
 
   function toggleAgent(id: string) {
@@ -199,9 +220,60 @@ export default function Settings() {
     });
   }
 
+  /** 安装到桌面：Chrome/Edge 的安装提示 */
+  async function handleInstall() {
+    const outcome = await promptInstall();
+    if (outcome === 'accepted') {
+      toast('已开始安装', { description: '装好后从桌面图标打开，就是独立窗口，不经过浏览器地址栏。' });
+    } else if (outcome === 'dismissed') {
+      toast('已取消安装');
+    } else {
+      toast('这个浏览器没有提供安装入口', {
+        description: '可以手动在浏览器菜单里选「安装应用 / 添加到主屏幕」。',
+      });
+    }
+  }
+
+  /** 选一个文件作为自动备份目标（桌面浏览器） */
+  async function chooseAutoTarget() {
+    try {
+      const name = await pickBackupTarget();
+      if (!name) return;
+      setAutoName(name);
+      const res = await writeAutoBackup({ force: true, interactive: true });
+      setAutoAt(autoBackupLastAt());
+      toast(res === 'written' ? '自动备份已开启' : '已选好文件，但还没写入', {
+        description: res === 'written' ? `之后数据变化会自动写进 ${name}` : '改完数据再点一次「立即写入」。',
+      });
+    } catch (e) {
+      toast.error('没有选成文件', { description: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function writeAutoNow() {
+    setAutoBusy(true);
+    try {
+      const res = await writeAutoBackup({ force: true, interactive: true });
+      setAutoAt(autoBackupLastAt());
+      if (res === 'written') toast('已写入备份文件', { description: autoName ?? '' });
+      else if (res === 'needs-permission') toast.error('需要重新授权', { description: '请重新选择一次备份文件。' });
+      else if (res === 'no-target') toast('还没选备份文件');
+      else if (res === 'unchanged') toast('内容没变，不需要重写');
+      else toast.error('写入失败', { description: '文件可能被移动或删除，重新选一次。' });
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
+  async function turnOffAuto() {
+    await disableAutoBackup();
+    setAutoName(null);
+    setAutoAt(null);
+    toast('已关闭自动备份', { description: '手动「导出备份」仍然可用。' });
+  }
+
   /** 保存模型配置：只写本机 localStorage，key 不上传 */
-  function saveLlm() {
-    writeLlmConfig({ ...llm, apiKey: llm.apiKey.trim(), baseUrl: llm.baseUrl.trim(), model: llm.model.trim() });
+  function saveLlm() {    writeLlmConfig({ ...llm, apiKey: llm.apiKey.trim(), baseUrl: llm.baseUrl.trim(), model: llm.model.trim() });
     toast(llm.enabled ? '模型润色已开启' : '模型润色已关闭', {
       description: llm.enabled
         ? '下次打开首页会先尝试模型；失败或校验不过会自动回落到本地模板。'
@@ -343,6 +415,69 @@ export default function Settings() {
             </Button>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <h2 className="mb-1 text-sm font-semibold">安装到桌面</h2>
+        {isStandalone() ? (
+          <p className="text-xs text-muted-foreground">
+            已经以独立窗口运行（从桌面图标打开），不用再装。
+          </p>
+        ) : (
+          <>
+            <p className="mb-3 text-xs text-muted-foreground">
+              装到桌面后是全屏独立窗口，有图标、能离线打开，不再经过浏览器地址栏。数据仍然只在这台设备上。
+            </p>
+            {isIosSafari() ? (
+              <p className="rounded-lg bg-muted/50 p-2 text-xs leading-relaxed">
+                iPhone 上请用 Safari 打开本页 → 点底部「分享」→ 选「添加到主屏幕」。
+              </p>
+            ) : (
+              <Button size="sm" variant={installable ? 'default' : 'outline'} onClick={() => void handleInstall()}>
+                {installable ? '安装到桌面' : '查看安装方式'}
+              </Button>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="rounded-2xl border bg-card p-5">
+        <h2 className="mb-1 text-sm font-semibold">自动备份</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          选一个 JSON 文件，之后数据变化会自动写回它（桌面 Chrome / Edge 支持）。
+          文件放在网盘目录就等于半自动同步。手机浏览器不允许后台写文件，用下面的「导出备份」。
+        </p>
+        {supportsAutoBackup() ? (
+          <>
+            <p className="mb-2 text-xs">
+              当前文件：
+              <span className="font-medium">{autoName ?? '还没选'}</span>
+              {autoAt && (
+                <span className="ml-2 text-muted-foreground">
+                  上次写入 {new Date(autoAt).toLocaleString('zh-CN')}
+                </span>
+              )}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant={autoName ? 'outline' : 'default'} onClick={() => void chooseAutoTarget()}>
+                {autoName ? '换一个文件' : '选择备份文件'}
+              </Button>
+              <Button size="sm" variant="outline" disabled={!autoName || autoBusy} onClick={() => void writeAutoNow()}>
+                {autoBusy ? '写入中…' : '立即写入'}
+              </Button>
+              {autoName && (
+                <Button size="sm" variant="ghost" onClick={() => void turnOffAuto()}>
+                  关闭自动备份
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="rounded-lg bg-muted/50 p-2 text-xs leading-relaxed">
+            当前浏览器不支持自动写文件（手机浏览器基本都不支持）。请用下一节的「导出备份」，
+            导出的 JSON 可以随时导入回来。
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border bg-card p-5">

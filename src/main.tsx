@@ -8,12 +8,24 @@ import App from './App.tsx'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/ui/ErrorBoundary'
 import { initTheme } from '@/lib/theme'
+import { initPwaInstall } from '@/lib/pwaInstall'
+import { maybeAutoBackup } from '@/lib/autobackup'
 
 // 暗色模式：跟随系统 prefers-color-scheme，可用设置页手动覆盖
 initTheme()
 
 // 申请持久化存储：浏览器空间紧张时默认会清 IndexedDB，申请后不会被静默回收
 void navigator.storage?.persist?.().catch(() => {})
+
+// 安装引导：尽早订阅 beforeinstallprompt，设置页才能显示「安装到桌面」
+initPwaInstall()
+
+// 自动备份：打开时一次、每 5 分钟一次、切到后台时一次；内容没变不会写盘
+void maybeAutoBackup()
+window.setInterval(() => void maybeAutoBackup(), 5 * 60_000)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') void maybeAutoBackup()
+})
 
 // PWA：注册 Service Worker（离线可用的根基）
 //
