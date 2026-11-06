@@ -1,22 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { agentRegistry } from '@/agents/registry';
+import { directionRegistry } from '@/directions/registry';
 import { db } from '@/data/store/db';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
 import { downloadBackup, restoreBackup } from '@/data/store/backup';
-import { bootMode, clearLocalPrefs, readAgentEnabled, readAgentWeights, resetBootMode, setBootMode, writeAgentEnabled, writeAgentWeights } from '@/data/store/boot';
+import { bootMode, clearLocalPrefs, readDirectionEnabled, readDirectionWeights, resetBootMode, setBootMode, writeDirectionEnabled, writeDirectionWeights } from '@/data/store/boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { archetypeOf, effectsOf, traitsLine } from '@/lib/assessment';
-import type { AgentId, HabitTraits, UserProfile } from '@/types/contract';
+import type { DirectionId, HabitTraits, UserProfile } from '@/types/contract';
 
 /**
  * 设置页（dev-tasks B7 + B9 的外观开关 + A6 的演示旋钮）
  *
  * 四组能力：
- *   1. 思考方向逐个启停 —— 直接改注册表 enabled 并持久化，关掉健康 Agent 后下一轮报告不含健康建议
+ *   1. 思考方向逐个启停 —— 直接改注册表 enabled 并持久化，关掉健康 方向 后下一轮报告不含健康建议
  *   2. 画像编辑 —— 餐标 / 身体基线 / 校区（身份主力在 onboarding，这里只补常用项）
  *   3. 数据 —— 恢复示例数据 / 清除全部本机数据（回到 onboarding）
  *   4. 演示旋钮 —— 强制关闭生存模式（示例考试可能正好落在 7 天内，演示需要能控）
@@ -54,10 +54,10 @@ export default function Settings() {
         setHeight(p.bodyBaseline?.heightCm ? String(p.bodyBaseline.heightCm) : '');
         setWeight(p.bodyBaseline?.weightKg ? String(p.bodyBaseline.weightKg) : '');
       }
-      const persisted = readAgentEnabled();
-      const weights = readAgentWeights();
+      const persisted = readDirectionEnabled();
+      const weights = readDirectionWeights();
       const map: Record<string, boolean> = {};
-      for (const a of agentRegistry) {
+      for (const a of directionRegistry) {
         // 持久化的值优先；未持久化时用注册表默认值
         if (persisted[a.id] !== undefined) a.enabled = persisted[a.id];
         if (weights[a.id] !== undefined) a.defaultWeight = weights[a.id];
@@ -75,24 +75,24 @@ export default function Settings() {
     const next = !enabled[id];
     const map = { ...enabled, [id]: next };
     setEnabled(map);
-    const agent = agentRegistry.find((a) => a.id === id);
+    const agent = directionRegistry.find((a) => a.id === id);
     if (agent) agent.enabled = next;
-    writeAgentEnabled(map);
+    writeDirectionEnabled(map);
     toast(next ? `已启用${AGENT_LABEL[id] ?? id}` : `已停用${AGENT_LABEL[id] ?? id}`, {
       description: '下一份报告生效；历史报告不变。',
     });
   }
 
   /** 权重档位：0.5–3，步进 0.5。改的是注册表单例 + localStorage，下一轮报告生效 */
-  function bumpWeight(id: AgentId, delta: number) {
-    const agent = agentRegistry.find((a) => a.id === id);
+  function bumpWeight(id: DirectionId, delta: number) {
+    const agent = directionRegistry.find((a) => a.id === id);
     if (!agent) return;
     const next = Math.min(3, Math.max(0.5, Math.round((agent.defaultWeight + delta) * 10) / 10));
     if (next === agent.defaultWeight) return;
     agent.defaultWeight = next;
     const map: Record<string, number> = {};
-    for (const a of agentRegistry) map[a.id] = a.defaultWeight;
-    writeAgentWeights(map);
+    for (const a of directionRegistry) map[a.id] = a.defaultWeight;
+    writeDirectionWeights(map);
     setWeightTick((n) => n + 1);
     toast(`${AGENT_LABEL[id] ?? id} 权重 ${next}`, {
       description: `生存模式下折算为 ×${effectiveWeight(next, 'exam', id).toFixed(1)}；普通模式只影响同优先级排序。`,
@@ -211,7 +211,7 @@ export default function Settings() {
           关掉一个方向，报告的对应区块就整段消失，不会留空壳。权重决定同优先级时谁排在前面。
         </p>
         <ul className="space-y-2">
-          {agentRegistry.map((a) => (
+          {directionRegistry.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm">{AGENT_LABEL[a.id] ?? a.id}</div>

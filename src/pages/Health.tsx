@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { bedtimeRegularity, sleepDebt, weekOverWeek } from '@/data/queries';
 import { deleteSleepLog, getProfile, getSleepLogs, listChoicesToday, upsertSleepLog } from '@/data/store/profile';
 import { buildDietSummary, type DietSummary } from '@/lib/dietSummary';
-import { AGENT_META } from '@/ui/agentMeta';
+import { DIRECTION_META } from '@/ui/directionMeta';
 import type { SleepLog } from '@/types/contract';
 
 /**
@@ -467,7 +467,7 @@ export default function Health() {
 }
 
 /**
- * 饮食总结：把你今天在报告里点过的饭点选，算成三个 Agent 的看法
+ * 饮食总结：把你今天在报告里点过的饭点选，算成三个 方向 的看法
  *
  * 为什么不自己猜你今天吃了什么：小山不拍照片、也不接外卖账号。
  * 唯一的真实信号是「你点过哪张选项卡」，所以这里只统计点过的，
@@ -540,10 +540,10 @@ function DietSection() {
 
       <ul className="space-y-2">
         {diet.dims.map((d) => {
-          const meta = AGENT_META[d.agentId];
+          const meta = DIRECTION_META[d.directionId];
           const bar = d.score >= 85 ? 'bg-emerald-500' : d.score >= 65 ? 'bg-amber-500' : 'bg-destructive';
           return (
-            <li key={d.agentId} className="rounded-lg border bg-background/60 p-2.5">
+            <li key={d.directionId} className="rounded-lg border bg-background/60 p-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-medium">{d.label}</span>
                 <span className="text-[11px] text-muted-foreground">{meta?.name}</span>

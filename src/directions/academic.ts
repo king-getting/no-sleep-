@@ -1,19 +1,19 @@
 import { todayCourses, upcomingExams } from '@/data/queries';
 import { fmtMin } from '@/types/contract';
-import type { AgentModule, AgentResult, Finding } from '@/types/contract';
+import type { DirectionModule, DirectionResult, Finding } from '@/types/contract';
 
 /** 午间可用窗口低于这个值，就认为「坐下来慢慢吃」不可行 */
 const TIGHT_WINDOW_MIN = 75;
 
 /**
- * 教务 Agent：课表 / 考试
+ * 教务 方向：课表 / 考试
  * 只访问教务域数据，输出结构化 Finding（结论 / 依据 / 置信度）。
  *
  * 除了报事实，还会在课压住午间窗口时**产出一条硬约束主张**，
  * 交给仲裁器去叫停生活/健康那种「慢慢吃、走远点吃」的柔性方案。
- * 这是「多智能体互相约束」里唯一不可协商的一方：课不会等你。
+ * 这是「多方向互相约束」里唯一不可协商的一方：课不会等你。
  */
-export const academicAgent: AgentModule = {
+export const academicDirection: DirectionModule = {
   id: 'academic',
   name: '教务',
   version: '0.2.0',
@@ -34,7 +34,7 @@ export const academicAgent: AgentModule = {
         courses.length > 0
           ? `今天 ${courses.length} 节课：${courses.map((c) => `${fmtMin(c.startMin)} ${c.name}`).join('，')}`
           : '今天没有课',
-      evidences: [{ agentId: 'academic', text: '数据来源：已导入的课表（示例）', confidence: 3 }],
+      evidences: [{ directionId: 'academic', text: '数据来源：已导入的课表（示例）', confidence: 3 }],
     });
 
     const exams = await upcomingExams(ctx.now);
@@ -47,7 +47,7 @@ export const academicAgent: AgentModule = {
         topic: isExam ? '考试' : 'DDL',
         confidence: 3,
         summary: `「${e.title}」${hoursLeft < 24 ? '就在明天前' : `还剩 ${Math.round(hoursLeft / 24)} 天`}（掌握度自评 ${e.mastery ?? '-'}/5）`,
-        evidences: [{ agentId: 'academic', text: `截止：${new Date(e.at).toLocaleString('zh-CN')}`, confidence: 3 }],
+        evidences: [{ directionId: 'academic', text: `截止：${new Date(e.at).toLocaleString('zh-CN')}`, confidence: 3 }],
       });
     }
 
@@ -61,7 +61,7 @@ export const academicAgent: AgentModule = {
       });
     }
 
-    const result: AgentResult = { agentId: 'academic', findings };
+    const result: DirectionResult = { directionId: 'academic', findings };
 
     // ── 硬约束：课把午间窗口压短时，叫停「坐下来慢慢吃」的方案 ──
     const nowMin = ctx.now.getHours() * 60 + ctx.now.getMinutes();
@@ -78,7 +78,7 @@ export const academicAgent: AgentModule = {
           summary: `${fmtMin(nextClass.startMin)} 有「${nextClass.name}」，从现在起午间只剩 ${windowMin} 分钟——吃饭的时间被课挤掉了`,
           evidences: [
             {
-              agentId: 'academic',
+              directionId: 'academic',
               text: `课程时间：${fmtMin(nextClass.startMin)}–${fmtMin(nextClass.endMin)}（${nextClass.location}）`,
               confidence: 3,
             },
@@ -91,7 +91,7 @@ export const academicAgent: AgentModule = {
             side: 'hard-class',
             plan: {
               id: 'lunch-class-window',
-              agentId: 'academic',
+              directionId: 'academic',
               title: `上课优先：${fmtMin(nextClass.startMin)} 有「${nextClass.name}」，午间只剩 ${windowMin} 分钟`,
               note: `${nextClass.location} · 走过去还要时间`,
               when: `今天 ${fmtMin(nowMin)}–${fmtMin(nextClass.startMin)}`,
@@ -106,12 +106,12 @@ export const academicAgent: AgentModule = {
                 {
                   horizon: 'short',
                   text: '迟到一次可能被记，而且前半节课基本在喘气',
-                  agentId: 'academic',
+                  directionId: 'academic',
                 },
               ],
               evidences: [
                 {
-                  agentId: 'academic',
+                  directionId: 'academic',
                   text: `课表：${fmtMin(nextClass.startMin)} ${nextClass.name}（${nextClass.location}）`,
                   confidence: 3,
                 },

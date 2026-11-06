@@ -1,10 +1,10 @@
 import { db } from './db';
 import {
-  readAgentEnabled,
-  readAgentWeights,
+  readDirectionEnabled,
+  readDirectionWeights,
   setBootMode,
-  writeAgentEnabled,
-  writeAgentWeights,
+  writeDirectionEnabled,
+  writeDirectionWeights,
   type BootMode,
 } from './boot';
 import { getThemeChoice, setTheme, type ThemeChoice } from '@/lib/theme';
@@ -43,7 +43,7 @@ export interface BackupFile {
   tables: Partial<Record<TableName, unknown[]>>;
   settings: {
     boot?: BootMode;
-    agents?: Record<string, boolean>;
+    directions?: Record<string, boolean>;
     weights?: Record<string, number>;
     theme?: ThemeChoice;
     forceNormal?: string | null;
@@ -72,8 +72,8 @@ export async function buildBackup(): Promise<BackupFile> {
     tables,
     settings: {
       boot: localStorage.getItem('xiaoshan:boot') === 'real' ? 'real' : 'demo',
-      agents: readAgentEnabled(),
-      weights: readAgentWeights(),
+      directions: readDirectionEnabled(),
+      weights: readDirectionWeights(),
       theme: getThemeChoice(),
       forceNormal: localStorage.getItem(FORCE_NORMAL_KEY),
     },
@@ -160,10 +160,10 @@ export async function restoreBackup(json: string): Promise<BackupSummary> {
   });
 
   if (data.settings) {
-    const { boot, agents, weights, theme, forceNormal } = data.settings;
+    const { boot, directions, weights, theme, forceNormal } = data.settings;
     if (boot === 'real' || boot === 'demo') setBootMode(boot);
-    if (agents) writeAgentEnabled(agents);
-    if (weights) writeAgentWeights(weights);
+    if (directions) writeDirectionEnabled(directions);
+    if (weights) writeDirectionWeights(weights);
     if (theme === 'light' || theme === 'dark' || theme === 'system') setTheme(theme);
     if (forceNormal === '1' || forceNormal === '0') localStorage.setItem(FORCE_NORMAL_KEY, forceNormal);
   }

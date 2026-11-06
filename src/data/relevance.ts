@@ -1,5 +1,5 @@
 import { db } from '@/data/store/db';
-import type { AgentContext, RawItem } from '@/types/contract';
+import type { DirectionContext, RawItem } from '@/types/contract';
 
 /**
  * 信息流相关性打分（dev-tasks A7）
@@ -49,7 +49,7 @@ export async function loadInterests(): Promise<InterestProfile> {
 /** 单条打分；返回 null 表示被负反馈过滤掉 */
 export function scoreItem(
   item: RawItem,
-  ctx: AgentContext,
+  ctx: DirectionContext,
   interest: InterestProfile,
   muted: Set<string>,
 ): ScoredItem | null {
@@ -120,7 +120,7 @@ export function scoreItem(
 /** 批量打分 + 排序；同分时保持原始顺序，避免每次刷新跳动 */
 export function rankFeed(
   items: RawItem[],
-  ctx: AgentContext,
+  ctx: DirectionContext,
   interest: InterestProfile,
   muted: Set<string>,
   opts?: { includeMuted?: boolean },

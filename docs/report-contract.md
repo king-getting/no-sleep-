@@ -12,18 +12,18 @@
 
 ---
 
-## 1. Agent 模块接口
+## 1. 方向 模块接口
 
 ```ts
-// 每个 Agent 一个文件，实现此接口并在注册表登记
-interface AgentModule {
-  id: AgentId;                  // 'academic' | 'life' | 'health' | 'schedule'
+// 每个方向 一个文件，实现此接口并在注册表登记
+interface DirectionModule {
+  id: DirectionId;                  // 'academic' | 'life' | 'health' | 'schedule'
   name: string;                 // 展示名：教务 / 生活 / 健康 / 日程
   version: string;
   capabilities: Capability[];   // 能力清单，编排器按能力发现模块
   defaultWeight: number;        // 默认权重（生存模式下由编排器动态调整）
   enabled: boolean;             // 用户可在设置里启停
-  run(ctx: AgentContext): Promise<AgentResult>;
+  run(ctx: DirectionContext): Promise<DirectionResult>;
 }
 
 type Capability =
@@ -32,15 +32,15 @@ type Capability =
   | 'sleep.assess' | 'fatigue.warn'      // 健康
   | 'timeblock.analyze' | 'ddl.warn';    // 日程
 
-interface AgentContext {
+interface DirectionContext {
   user: UserProfile;            // 身份 / 课表 / 餐标 / 身体基线（只读快照）
-  preferences: Preferences;     // 偏好与遵从度（Agent 只读与自己相关的部分）
+  preferences: Preferences;     // 偏好与遵从度（方向 只读与自己相关的部分）
   mode: 'normal' | 'exam';      // 当前模式（生存模式见设计文档 §4.8）
   now: Date;
 }
 
-interface AgentResult {
-  agentId: AgentId;
+interface DirectionResult {
+  directionId: DirectionId;
   findings: Finding[];          // 本轮发现的全部事实 / 判断 / 建议 / 冲突主张
 }
 
@@ -54,7 +54,7 @@ interface Finding {
 }
 
 interface Evidence {
-  agentId: AgentId;
+  directionId: DirectionId;
   text: string;                 // 例：「该窗口 12:10 前为低峰」
   confidence: 0 | 1 | 2 | 3;
 }
@@ -79,7 +79,7 @@ interface OptionCard {
   pros: string[];                         // 优势
   cons: string[];                         // 代价
   impacts: Impact[];                      // 可能影响（决策模拟，见 §4.4）
-  evidences: Evidence[];                  // 各 Agent 依据（「为什么」展开渲染）
+  evidences: Evidence[];                  // 各方向 依据（「为什么」展开渲染）
 }
 
 /**
@@ -96,7 +96,7 @@ interface MealNutrition {
 interface Impact {
   horizon: 'short' | 'long';
   text: string;                           // 「明早前两节课注意力下降风险高」
-  agentId: AgentId;                       // 预测来源
+  directionId: DirectionId;                       // 预测来源
 }
 ```
 
@@ -115,7 +115,7 @@ interface ConflictCard {
 }
 
 interface ConflictPlan extends OptionCard {
-  agentId: AgentId;                       // 主张方
+  directionId: DirectionId;                       // 主张方
 }
 ```
 
@@ -132,7 +132,7 @@ type ReportBlock =
   | { kind: 'overview'; items: OverviewItem[] }          // 今日概览 / 上午回顾
   | { kind: 'suggestionGroup'; suggestion: Suggestion }  // 一组选项卡
   | { kind: 'conflict'; conflict: ConflictCard }         // 冲突卡
-  | { kind: 'warning'; text: string; agentId: AgentId }  // 红线警告
+  | { kind: 'warning'; text: string; directionId: DirectionId }  // 红线警告
   | { kind: 'recap'; stats: RecapStats }                 // 晚间复盘 / 考后小结
   | { kind: 'preview'; items: string[] }                 // 明日预告
   | { kind: 'checklist'; title: string; items: string[] }; // 清单卡（v1.2：考试日物品清单）
@@ -150,7 +150,7 @@ const RECIPES: Record<Report['type'], BlockKind[]> = {
 
 ### 4.1 生存模式注入（v1.2 新增）
 
-生存模式**不改 Agent，也不新增 Agent**：编排器在 `mode === 'exam'` 时额外跑一次考试域，把产出当作一个合成 `AgentResult` 推进结果数组，之后所有下游（富化 / 仲裁 / 拼装）完全不感知差异。因此关掉生存模式 = 删掉一次函数调用，普通链路零风险。
+生存模式**不改 方向，也不新增 方向**：编排器在 `mode === 'exam'` 时额外跑一次考试域，把产出当作一个合成 `DirectionResult` 推进结果数组，之后所有下游（富化 / 仲裁 / 拼装）完全不感知差异。因此关掉生存模式 = 删掉一次函数调用，普通链路零风险。
 
 ```ts
 // 判定（src/lib/examMode.ts）
@@ -160,12 +160,12 @@ interface ExamWindow { mode: Mode; daysToExam: number | null; isExamDay: boolean
                        nextExam: ExamItem | null; upcoming: ExamItem[] }
 
 // 权重（src/orchestrator/weights.ts，v1.7 起统一到一处）
-//   有效权重 = AgentModule.defaultWeight × 生存因子（普通模式因子为 1）
+//   有效权重 = DirectionModule.defaultWeight × 生存因子（普通模式因子为 1）
 const SURVIVAL_FACTOR = { academic: 0.6, life: 0.5, health: 0.65, schedule: 0.7 };
 //   默认权重 2/1/2/2 折算后 = 1.2 / 0.5 / 1.3 / 1.4，与 v1.2 的硬编码表一致；
 //   ≥1.3 上浮一级 priority，≤0.8 降一级，其余不动（仅生存模式动 priority）
 //   普通模式：权重只作同优先级内的排序依据，不改 priority（否则午饭会被永久压到睡眠后面）
-//   归属规则：建议归给 sourceFindingIds 指向的 finding 的产出 Agent，取不到归 schedule
+//   归属规则：建议归给 sourceFindingIds 指向的 finding 的产出 方向，取不到归 schedule
 // 合成结果的 finding id 约定（B 侧渲染与文案依赖这几个 id，改名视为契约变更）
 //   exam:title       考试标题（checklist 卡标题取它）
 //   exam:countdown   倒计时一句话（概览「倒计时」行）
@@ -184,7 +184,7 @@ const SURVIVAL_FACTOR = { academic: 0.6, life: 0.5, health: 0.65, schedule: 0.7 
 ```ts
 EXAM_DONE_AFTER_MS  = 120 * 60_000   // 开考后 2h 之后才算「已考完」
 EXAM_DONE_WINDOW_MS =   6 * 3600_000 // 6h 之后回到正常模式
-// 合成的 finding（agentId 记在各自的 evidences 里）
+// 合成的 finding（directionId 记在各自的 evidences 里）
 //   exam:done           「<考试名> HH:MM 开考，已结束 N 小时」+ 掌握度自评
 //   exam:sleep-night    昨晚睡了多久（没有记录就直说没有）
 //   exam:review         本周这个主题被点了 N 次「做了」
@@ -209,7 +209,7 @@ MISSES_BEFORE_DOWNGRADE = 2   // 同一 topic 连续 2 天标「没做」即触�
 
 健康与日程对**同一段时间**提出相反主张时，不合并、不替用户决定，生成一张 L2 冲突卡（`arbitrateClaims` 要求同 topic 至少两方主张）。当前唯一规则：
 
-| | 健康 Agent | 日程 Agent |
+| | 健康 方向 | 日程 方向 |
 |---|---|---|
 | topic | `今晚的空档` | `今晚的空档` |
 | side | `health` | `study` |
@@ -224,9 +224,9 @@ MISSES_BEFORE_DOWNGRADE = 2   // 同一 topic 连续 2 天标「没做」即触�
 
 ### 4.5 「今天的午饭」L2 冲突（v1.7 新增）
 
-省钱和吃好是同一顿饭上的两件事，各自都成立，所以显性化成一张 L2 卡，而不是让 Agent 替用户定。
+省钱和吃好是同一顿饭上的两件事，各自都成立，所以显性化成一张 L2 卡，而不是让 方向 替用户定。
 
-| | 生活 Agent | 健康 Agent |
+| | 生活 方向 | 健康 方向 |
 |---|---|---|
 | topic | `今天的午饭` | `今天的午饭` |
 | side | `saving` | `balanced` |
@@ -248,7 +248,7 @@ MISSES_BEFORE_DOWNGRADE = 2   // 同一 topic 连续 2 天标「没做」即触�
 interface DataSourceAdapter {
   id: string;                       // 'mock-canteen' | 'mock-notice' | 'jwgl' …
   provides: string[];               // 提供的数据类型
-  fetch(type: string, ctx: AgentContext): Promise<RawItem[]>;
+  fetch(type: string, ctx: DirectionContext): Promise<RawItem[]>;
 }
 // mock 与真实教务系统实现同一接口，切换只改注册表
 ```
@@ -259,8 +259,8 @@ interface DataSourceAdapter {
 // 编排动画 UI 监听此事件流渲染，不需要知道引擎内部任何实现
 type OrchestratorEvent =
   | { type: 'run:start'; trigger: string }                     // 'noon-report' | 'user-ask'
-  | { type: 'agent:start'; agentId: AgentId }
-  | { type: 'agent:done'; agentId: AgentId; result: AgentResult }
+  | { type: '方向:start'; directionId: DirectionId }
+  | { type: '方向:done'; directionId: DirectionId; result: DirectionResult }
   | { type: 'merge:applied'; text: string }                    // L1 自动合并结果
   | { type: 'conflict:detected'; conflict: ConflictCard }      // L2 弹出冲突卡
   | { type: 'report:composed'; report: Report };
@@ -270,8 +270,8 @@ type OrchestratorEvent =
 
 ```
 src/
-  agents/               # 每个 Agent 一个文件，实现 AgentModule
-    registry.ts         # 注册表（新增 Agent = 这里加一行）
+  directions/               # 每个方向 一个文件，实现 DirectionModule
+    registry.ts         # 注册表（新增 方向 = 这里加一行）
     academic.ts  life.ts  health.ts  schedule.ts
   orchestrator/         # 总控编排器 + 冲突仲裁 + 事件流
     index.ts  arbiter.ts  events.ts
@@ -287,7 +287,7 @@ src/
 
 ## 8. 双人开发约定
 
-- A 负责 `orchestrator/` + `agents/` + `data/`；B 负责 `ui/`
+- A 负责 `orchestrator/` + `directions/` + `data/`；B 负责 `ui/`
 - B 开发一律用 `mock-orchestrator.ts`（预置一份完整的午间报告 JSON），不依赖 A 的进度
 - 契约文件改动 = 必须双方确认，commit message 用 `docs(contract): …`
 
@@ -295,12 +295,12 @@ src/
 
 ## 9. 变更记录
 
-- **v1.1**（2026-10-21，主体架构落地时同步）：`AgentResult` 增加两个可选扩展字段——`suggestions`（Agent 直接产出的结构化建议草案）与 `conflictClaims`（对某时段/资源的方案主张，由仲裁器配对成 L2 冲突卡）；`Suggestion` 增加 `slot` 字段标记所属报告时段（morning/noon/evening）。代码唯一实现：`src/types/contract.ts`。
+- **v1.1**（2026-10-21，主体架构落地时同步）：`DirectionResult` 增加两个可选扩展字段——`suggestions`（方向直接产出的结构化建议草案）与 `conflictClaims`（对某时段/资源的方案主张，由仲裁器配对成 L2 冲突卡）；`Suggestion` 增加 `slot` 字段标记所属报告时段（morning/noon/evening）。代码唯一实现：`src/types/contract.ts`。
 - **v1.2**（2026-10-22，生存模式与信息流落地时同步）：
   - `ReportBlock` 增加第七种区块 `{ kind: 'checklist'; title: string; items: string[] }`，用于考试日物品清单；新增渲染器 `src/ui/reports/ChecklistBlock.tsx`
   - `RECIPES` 补齐 `exam-day` / `exam-week` 两条配方（v1.1 时这两条只有类型、无实现路径，属**死代码**）；同时把 `noon` 配方补上代码里早已存在的 `warning`
   - 新增 §4.1 生存模式注入约定：`mode` 判定阈值（7 天 / 6 小时 grace）、`EXAM_WEIGHT` 权重表、合成 finding 的 id 集合（`exam:title` 等五个）
-  - 契约层原本就预留了 `Mode`、`AgentContext.mode`、`ExamItem.mastery`、`AgentModule.defaultWeight`，本次只是把它们**接上实现**，未改类型定义本身
+  - 契约层原本就预留了 `Mode`、`DirectionContext.mode`、`ExamItem.mastery`、`DirectionModule.defaultWeight`，本次只是把它们**接上实现**，未改类型定义本身
 - **v1.3**（2026-10-23，周历可编辑落地时同步）：
   - `OverviewItem` 增加可选字段 `link?: string`：概览里的某一行可以指向站内路由（当前只有「今日课程」用它，值形如 `/week?dow=3`）
   - `OverviewBlock` 在有 `link` 时渲染成 `react-router` 的 `Link`（虚线下划线 + 箭头），无 `link` 时保持纯文本，**其他概览行不受影响**
@@ -314,10 +314,10 @@ src/
 - **v1.5**（2026-10-25，健康口径与一周尺度指标落地时同步）：
   - **睡眠口径**：`lastNightSleep(logs, now)` 只认「昨天那一条」；`avgSleepHours(logs, lastN, now)` 按日历窗口统计且**可返回 `null`**；新增 `wakePlanOf(now)`（按次日最早一节课反推起床时间）与 `hoursIfSleepNow(now, wakeMin)`（自动跨午夜）。调用方拿到 `null` 必须写「—（尚未录入）」，不得回退到健康基线
   - **一周尺度**：新增 `sleepDebt()`（每晚按 `SLEEP_NEED_HOURS = 7.5` 计缺口，同时返回覆盖晚数）、`bedtimeRegularity()`（入睡时刻标准差，凌晨入睡统一 +1440 后计算）、`weekOverWeek()`（本周 7 晚 vs 上周 7 晚，两边都有数才给 `delta`）
-  - 健康 Agent 新增三条 finding：`health:sleep-load`（fact，一句话讲清债 / 波动 / 同比）、`health:sleep-debt-warn`（≥6h 才报）、`health:sleep-irregular`（标准差 ≥90 分钟才报）
+  - 健康 方向 新增三条 finding：`health:sleep-load`（fact，一句话讲清债 / 波动 / 同比）、`health:sleep-debt-warn`（≥6h 才报）、`health:sleep-irregular`（标准差 ≥90 分钟才报）
   - `recap` 新增「睡眠债」一行，与「昨晚睡眠」「近 7 天平均」并列，口径各自写明
   - `RECIPES['exam-week']` 补上 `warning`：此前冲刺报告只在概览里写「N 项需留意」却没有任何一处能读到具体是哪几项
-  - `compose` 的警告卡归属改为「先看证据、再看它落在哪个 Agent 的结果里」：此前无证据的警告一律显示成「日程 Agent」，会张冠李戴
+  - `compose` 的警告卡归属改为「先看证据、再看它落在哪个方向 的结果里」：此前无证据的警告一律显示成「日程视角」，会张冠李戴
 - **v1.6**（2026-10-25，健康 × 日程 L2 冲突卡落地时同步）：
   - `ConflictCard` 增加 `presetChoice?: 'A' | 'B'`。此前只有布尔 `preset`：卡上挂着「已按你上次的选择预填」，两个按钮却都是未选状态——说法与界面不一致，等于骗人
   - 新增 §4.4「今晚的空档」L2 冲突的触发口径：健康侧要求「近 3 天平均 <6h **且** 今晚 18:00 后有 ≥2h 可支配空档」，日程侧要求「48h 内有 DDL **且** 同一空档存在」，两侧同 topic 由仲裁器配对
@@ -329,15 +329,15 @@ src/
   - 新增 §4.5「今天的午饭」L2 冲突的触发口径与三条门槛（日均餐标 <¥30、健康侧仅缺觉时提、结构标签不参与排序）
   - 选项卡与冲突卡渲染同一行结构文案（`nutritionLabel()` / `nutritionTip()` 放在 `src/lib/nutrition.ts`），避免两处口径不一
   - 冲突卡两列改为 `min-w-0 flex-1 basis-0`：此前两列宽度随内容伸缩，一边长一边短，看着像两个不相关的卡
-- **v1.8**（2026-10-25，Agent 权重真正接线）：
-  - 新增 `src/orchestrator/weights.ts`：`SURVIVAL_FACTOR`（academic 0.6 / life 0.5 / health 0.65 / schedule 0.7）、`effectiveWeight(base, mode, agentId)`、`applyAgentWeights(...)`
-  - **`AgentModule.defaultWeight` 从此刻起真的被读取**（此前四个 Agent 都声明了它、设置页也展示它，但编排器从未使用；生存模式用的是 `exam.ts` 里另一张硬编码表 `EXAM_WEIGHT`，现已被删除）
+- **v1.8**（2026-10-25，方向 权重真正接线）：
+  - 新增 `src/orchestrator/weights.ts`：`SURVIVAL_FACTOR`（academic 0.6 / life 0.5 / health 0.65 / schedule 0.7）、`effectiveWeight(base, mode, directionId)`、`applyDirectionWeights(...)`
+  - **`DirectionModule.defaultWeight` 从此刻起真的被读取**（此前四个方向 都声明了它、设置页也展示它，但编排器从未使用；生存模式用的是 `exam.ts` 里另一张硬编码表 `EXAM_WEIGHT`，现已被删除）
   - 语义：生存模式下 `有效权重 = defaultWeight × 生存因子`，≥1.3 上浮一级、≤0.8 降一级、其余不动；**普通模式不动 priority**，权重只作同优先级内的排序依据
-  - 建议归属规则：`sourceFindingIds` → finding 的产出 Agent；找不到归属时归 `schedule`
-  - 设置页的权重从「只读展示」改成可调（0.5–3，步进 0.5，持久化在 `localStorage['xiaoshan:agent-weights']`）
-  - 修复：启停与权重的恢复从 `App` 的 `useEffect` 移到 `registry` 模块加载时（`src/agents/restore.ts`）。React 子组件 effect 先于父组件执行，原先**首屏那份报告总是用默认设置生成**
-- **v1.9**（2026-10-25，日程 Agent 从「报警器」变「调度器」）：
-  - 日程 Agent 的第一条建议：`早八那一早`（`slot: 'morning'`、`priority: 1`）。按当天最早一节课的上课时间**倒推起床时间**：
+  - 建议归属规则：`sourceFindingIds` → finding 的产出 方向；找不到归属时归 `schedule`
+  - 设置页的权重从「只读展示」改成可调（0.5–3，步进 0.5，持久化在 `localStorage['xiaoshan:方向-weights']`）
+  - 修复：启停与权重的恢复从 `App` 的 `useEffect` 移到 `registry` 模块加载时（`src/directions/restore.ts`）。React 子组件 effect 先于父组件执行，原先**首屏那份报告总是用默认设置生成**
+- **v1.9**（2026-10-25，日程 方向 从「报警器」变「调度器」）：
+  - 日程 方向 的第一条建议：`早八那一早`（`slot: 'morning'`、`priority: 1`）。按当天最早一节课的上课时间**倒推起床时间**：
     `起床 = 上课时间 − 5 分钟缓冲 − 10 分钟步行 − 该档准备时间`（食堂坐着吃 35 分钟 / 路上买着吃 15 分钟 / 不吃直接去 5 分钟）。
     三个档位的差别只有一件事——愿意把多少时间花在早饭和路上；代价与短期影响逐档不同，不做「哪个更好」的判断
   - 新增 finding `schedule:early8-plan`（`fact`）作为该建议的锚点；`schedule:early8` 的文案改为带上上课时间与课名
@@ -346,7 +346,7 @@ src/
   - 边界：`早餐吃什么` 在没有早八的日子照常出现，不受影响
 - **v2.0**（2026-10-25，选项卡文案口径收紧 + 密度重整）：
   - `OptionCard` 新增三个可选字段：`when`（时间锚，如「今天 12:10 前」）、`note`（对象与地点）、`fallback`（不选这一项时会发生什么）；`cost` 增加 `effort`（1 省心 / 2 要跑一趟 / 3 挺折腾）
-  - **文案口径**（写进类型注释，四个 Agent 一起遵守）：
+  - **文案口径**（写进类型注释，四个方向 一起遵守）：
     1. `title` = 动作 + 取舍（「去一食堂吃（比轻食省 7 元）」），不再是店名
     2. `pros` / `cons` **各 ≤2 条**，且逐条对应；`cost` 已经表达过的「省钱」「快」不再重复写进 `pros`
     3. `impacts` 必须**可观察**（「14:00 那节课不容易走神」），禁止「概率更高」这类不可证伪的说法

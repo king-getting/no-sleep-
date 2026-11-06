@@ -6,15 +6,15 @@
  * - 契约变更 = 双方确认 + commit message `docs(contract): …`
  *
  * v1.1 扩展（相对文档 v1，已在文档中同步注明）：
- * - AgentResult 增加 suggestions / conflictClaims 两个可选字段：
- *   Agent 除了产出事实 Finding，还可以直接产出结构化建议草案与冲突主张，
+ * - DirectionResult 增加 suggestions / conflictClaims 两个可选字段：
+ *   方向 除了产出事实 Finding，还可以直接产出结构化建议草案与冲突主张，
  *   由编排器汇总、仲裁器配对后进入报告
  * - Suggestion 增加 slot 字段，标记该建议属于哪个报告时段
  */
 
 // ── 基础标识 ────────────────────────────────────────────────
 
-export type AgentId = 'academic' | 'life' | 'health' | 'schedule';
+export type DirectionId = 'academic' | 'life' | 'health' | 'schedule';
 
 export type Capability =
   | 'course.query'
@@ -31,7 +31,7 @@ export type Confidence = 0 | 1 | 2 | 3;
 
 export type Mode = 'normal' | 'exam';
 
-// ── 领域模型（数据层与 Agent 共用）───────────────────────────
+// ── 领域模型（数据层与 方向 共用）───────────────────────────
 
 export type Campus = 'guizishan' | 'nanhu';
 
@@ -150,17 +150,17 @@ export interface RawItem {
   url?: string;
 }
 
-// ── Agent 模块接口（契约 §1）─────────────────────────────────
+// ── 方向 模块接口（契约 §1）─────────────────────────────────
 
-export interface AgentContext {
+export interface DirectionContext {
   user: UserProfile; // 只读快照
-  preferences: Preferences; // Agent 只读与自己相关的部分
+  preferences: Preferences; // 方向只读与自己相关的部分
   mode: Mode;
   now: Date;
 }
 
 export interface Evidence {
-  agentId: AgentId;
+  directionId: DirectionId;
   text: string; // 例：「该窗口 12:10 前为低峰」
   confidence: Confidence;
 }
@@ -174,15 +174,15 @@ export interface Finding {
   evidences?: Evidence[];
 }
 
-/** 冲突主张：Agent 对某个时段/资源的方案主张，由仲裁器配对成冲突卡 */
+/** 冲突主张：方向 对某个时段/资源的方案主张，由仲裁器配对成冲突卡 */
 export interface ConflictClaim {
   topic: string; // 如 'tonight-slot'（明晚空档怎么用）
   side: string; // 主张标识：'study' | 'health' …
   plan: ConflictPlan;
 }
 
-export interface AgentResult {
-  agentId: AgentId;
+export interface DirectionResult {
+  directionId: DirectionId;
   findings: Finding[];
   /** v1.1：结构化建议草案（选项卡组） */
   suggestions?: Suggestion[];
@@ -190,14 +190,14 @@ export interface AgentResult {
   conflictClaims?: ConflictClaim[];
 }
 
-export interface AgentModule {
-  id: AgentId;
+export interface DirectionModule {
+  id: DirectionId;
   name: string; // 展示名：教务 / 生活 / 健康 / 日程
   version: string;
   capabilities: Capability[];
   defaultWeight: number; // 生存模式下由编排器动态调整
-  enabled: boolean; // 设置里可按 Agent 单独启停
-  run(ctx: AgentContext): Promise<AgentResult>;
+  enabled: boolean; // 设置里可按方向单独启停
+  run(ctx: DirectionContext): Promise<DirectionResult>;
 }
 
 // ── 选项卡 Schema（契约 §2）──────────────────────────────────
@@ -235,12 +235,12 @@ export interface OptionCard {
    * 其他方向对这条建议的评审（v1.4）：一方一利一弊，带当时的有效权重。
    * 由编排器在汇总阶段按各方向的域规则算出来，不是 UI 编的漂亮话。
    */
-  reviews?: AgentReview[];
+  reviews?: DirectionReview[];
 }
 
 /** 跨方向评审：别的方向怎么看这条建议 */
-export interface AgentReview {
-  agentId: AgentId;
+export interface DirectionReview {
+  directionId: DirectionId;
   /** 当时的有效权重（生存模式下与 defaultWeight 不同） */
   weight: number;
   /** 它认可这一点 */
@@ -269,13 +269,13 @@ export interface MealNutrition {
 export interface Impact {
   horizon: 'short' | 'long';
   text: string; // 「明早前两节课注意力下降风险高」
-  agentId: AgentId; // 预测来源
+  directionId: DirectionId; // 预测来源
 }
 
 // ── 冲突卡 Schema（契约 §3）──────────────────────────────────
 
 export interface ConflictPlan extends OptionCard {
-  agentId: AgentId; // 主张方
+  directionId: DirectionId; // 主张方
 }
 
 export interface ConflictCard {
@@ -311,7 +311,7 @@ export type ReportBlock =
   | { kind: 'overview'; items: OverviewItem[] }
   | { kind: 'suggestionGroup'; suggestion: Suggestion }
   | { kind: 'conflict'; conflict: ConflictCard }
-  | { kind: 'warning'; text: string; agentId: AgentId }
+  | { kind: 'warning'; text: string; directionId: DirectionId }
   | { kind: 'recap'; stats: RecapStats }
   | { kind: 'preview'; items: string[] }
   // 契约 v1.2（补丁新增）：考场物品清单，仅生存模式考试日使用
@@ -330,15 +330,15 @@ export interface Report {
 export interface DataSourceAdapter {
   id: string; // 'mock-canteen' | 'mock-notice' | 'jwgl' …
   provides: string[]; // 提供的数据类型
-  fetch(type: string, ctx: AgentContext): Promise<RawItem[]>;
+  fetch(type: string, ctx: DirectionContext): Promise<RawItem[]>;
 }
 
 // ── 编排事件流（契约 §6）─────────────────────────────────────
 
 export type OrchestratorEvent =
   | { type: 'run:start'; trigger: string } // 'noon-report' | 'user-ask'
-  | { type: 'agent:start'; agentId: AgentId }
-  | { type: 'agent:done'; agentId: AgentId; result: AgentResult }
+  | { type: 'direction:start'; directionId: DirectionId }
+  | { type: 'direction:done'; directionId: DirectionId; result: DirectionResult }
   | { type: 'merge:applied'; text: string } // L1 自动合并结果
   | { type: 'conflict:detected'; conflict: ConflictCard } // L2 弹出冲突卡
   | { type: 'report:composed'; report: Report };

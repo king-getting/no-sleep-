@@ -7,13 +7,13 @@ import {
   SlidersHorizontal,
   Users,
 } from 'lucide-react';
-import { AGENT_META } from '@/ui/agentMeta';
-import { agentRegistry } from '@/agents/registry';
+import { DIRECTION_META } from '@/ui/directionMeta';
+import { directionRegistry } from '@/directions/registry';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { orchestratorEvents } from '@/orchestrator/events';
 import type {
-  AgentId,
-  AgentResult,
+  DirectionId,
+  DirectionResult,
   ConflictCard,
   Mode,
   OrchestratorEvent,
@@ -22,7 +22,7 @@ import type {
 import { cn } from '@/lib/utils';
 
 /**
- * Agent 讨论纪要（竖式）
+ * 方向 讨论纪要（竖式）
  *
  * 为什么竖着排：报告只给结论，看不出「谁先提的、被谁拦下的」。
  * 这一栏按事件流真实发生的顺序，把一轮讨论铺成竖线：
@@ -35,24 +35,24 @@ type Turn =
   | {
       kind: 'propose';
       id: string;
-      agentId: AgentId;
+      directionId: DirectionId;
       topic: string;
       title: string;
       pros: string[];
       cons: string[];
       dropped: { title: string; why?: string }[];
     }
-  | { kind: 'findings'; id: string; agentId: AgentId; lines: string[]; claimTopic?: string }
+  | { kind: 'findings'; id: string; directionId: DirectionId; lines: string[]; claimTopic?: string }
   | {
       kind: 'clash';
       id: string;
       topic: string;
-      a: { agentId: AgentId; title: string; reason?: string };
-      b: { agentId: AgentId; title: string; reason?: string };
+      a: { directionId: DirectionId; title: string; reason?: string };
+      b: { directionId: DirectionId; title: string; reason?: string };
       resolved?: 'A' | 'B';
     }
   | { kind: 'merge'; id: string; text: string }
-  | { kind: 'weight'; id: string; rows: { agentId: AgentId; base: number; eff: number }[] }
+  | { kind: 'weight'; id: string; rows: { directionId: DirectionId; base: number; eff: number }[] }
   | { kind: 'conclusion'; id: string; text: string };
 
 const WEIGHT_RE = /^权重调整/;
@@ -72,21 +72,21 @@ const TYPE_LABEL: Record<string, string> = {
  * 教务产的是硬约束（课不会等你），不管它排在 A 还是 B，都显示成「叫停」。
  */
 function ClashBody({ t }: { t: Extract<Turn, { kind: 'clash' }> }) {
-  const hardIsA = t.a.agentId === 'academic';
-  const hardIsB = t.b.agentId === 'academic';
+  const hardIsA = t.a.directionId === 'academic';
+  const hardIsB = t.b.directionId === 'academic';
   const proposer = hardIsA ? t.b : t.a;
   const blocker = hardIsA ? t.a : t.b;
   const blockerIsHard = hardIsA || hardIsB;
-  const label = (id: AgentId) => AGENT_META[id]?.name ?? id;
+  const label = (id: DirectionId) => DIRECTION_META[id]?.name ?? id;
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5">
       <p className="text-[11px] font-medium text-amber-900">
-        {label(proposer.agentId)} 与 {label(blocker.agentId)} 撞上了 · {t.topic}
+        {label(proposer.directionId)} 与 {label(blocker.directionId)} 撞上了 · {t.topic}
       </p>
       <div className="mt-1 space-y-1">
         <p className="text-[11px] leading-snug">
-          <span className="font-medium">{label(proposer.agentId)}</span>
+          <span className="font-medium">{label(proposer.directionId)}</span>
           <span className="text-muted-foreground"> 主张：</span>
           {proposer.title}
           {proposer.reason && (
@@ -94,7 +94,7 @@ function ClashBody({ t }: { t: Extract<Turn, { kind: 'clash' }> }) {
           )}
         </p>
         <p className="text-[11px] leading-snug">
-          <span className="font-medium">{label(blocker.agentId)}</span>
+          <span className="font-medium">{label(blocker.directionId)}</span>
           <span className="text-muted-foreground">
             {blockerIsHard ? ' 叫停（硬约束）：' : ' 叫停：'}
           </span>
@@ -117,19 +117,19 @@ function buildTurns(
   resolutions: Record<string, 'A' | 'B'>,
 ): Turn[] {
   const turns: Turn[] = [];
-  const baseOf = (id: AgentId) =>
-    agentRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
+  const baseOf = (id: DirectionId) =>
+    directionRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
 
   history.forEach((e, i) => {
-    if (e.type === 'agent:done') {
-      const r: AgentResult = e.result;
+    if (e.type === 'direction:done') {
+      const r: DirectionResult = e.result;
       const top = [...(r.suggestions ?? [])].sort((x, y) => x.priority - y.priority)[0];
       if (top && top.options[0]) {
         const picked = top.options[0];
         turns.push({
           kind: 'propose',
           id: `p${i}`,
-          agentId: r.agentId,
+          directionId: r.directionId,
           topic: top.topic,
           title: picked.title,
           pros: picked.pros.slice(0, 2),
@@ -140,7 +140,7 @@ function buildTurns(
         turns.push({
           kind: 'findings',
           id: `f${i}`,
-          agentId: r.agentId,
+          directionId: r.directionId,
           lines: r.findings.slice(0, 2).map((f) => f.summary),
         });
       }
@@ -152,23 +152,23 @@ function buildTurns(
         kind: 'clash',
         id: `c${i}`,
         topic: c.topic,
-        a: { agentId: c.planA.agentId, title: c.planA.title, reason: c.planA.cons[0] },
-        b: { agentId: c.planB.agentId, title: c.planB.title, reason: c.planB.cons[0] },
+        a: { directionId: c.planA.directionId, title: c.planA.title, reason: c.planA.cons[0] },
+        b: { directionId: c.planB.directionId, title: c.planB.title, reason: c.planB.cons[0] },
         resolved: resolutions[c.id],
       });
       return;
     }
     if (e.type === 'merge:applied') {
       if (WEIGHT_RE.test(e.text)) {
-        const ids: AgentId[] = ['academic', 'life', 'health', 'schedule'];
+        const ids: DirectionId[] = ['academic', 'life', 'health', 'schedule'];
         turns.push({
           kind: 'weight',
           id: `w${i}`,
           rows: ids
-            .map((agentId) => ({
-              agentId,
-              base: baseOf(agentId),
-              eff: effectiveWeight(baseOf(agentId), mode, agentId),
+            .map((directionId) => ({
+              directionId,
+              base: baseOf(directionId),
+              eff: effectiveWeight(baseOf(directionId), mode, directionId),
             }))
             .filter((r) => r.eff !== r.base || mode === 'exam'),
         });
@@ -181,18 +181,18 @@ function buildTurns(
 
   const report = history.find((e) => e.type === 'report:composed');
 
-  // 「只报了事实」的 Agent 如果其实在下面叫停了谁，得说清楚，不然读者会以为它什么也没主张
-  const claimOf = new Map<AgentId, string>();
-  const proposers = new Set(turns.filter((t) => t.kind === 'propose').map((t) => t.agentId));
+  // 「只报了事实」的 方向 如果其实在下面叫停了谁，得说清楚，不然读者会以为它什么也没主张
+  const claimOf = new Map<DirectionId, string>();
+  const proposers = new Set(turns.filter((t) => t.kind === 'propose').map((t) => t.directionId));
   for (const t of turns) {
     if (t.kind !== 'clash') continue;
     for (const side of [t.a, t.b]) {
-      if (!proposers.has(side.agentId)) claimOf.set(side.agentId, t.topic);
+      if (!proposers.has(side.directionId)) claimOf.set(side.directionId, t.topic);
     }
   }
   for (const t of turns) {
-    if (t.kind === 'findings' && claimOf.has(t.agentId)) {
-      t.claimTopic = claimOf.get(t.agentId);
+    if (t.kind === 'findings' && claimOf.has(t.directionId)) {
+      t.claimTopic = claimOf.get(t.directionId);
     }
   }
 
@@ -202,7 +202,7 @@ function buildTurns(
   return turns;
 }
 
-export function AgentDebate({
+export function DebatePanel({
   report,
   resolutions = {},
 }: {
@@ -225,14 +225,14 @@ export function AgentDebate({
   );
 
   const participants = useMemo(() => {
-    const ids = new Set<AgentId>();
-    for (const e of history) if (e.type === 'agent:done') ids.add(e.agentId);
+    const ids = new Set<DirectionId>();
+    for (const e of history) if (e.type === 'direction:done') ids.add(e.directionId);
     return [...ids];
   }, [history]);
 
   if (turns.length < 2) return null;
 
-  const label = (id: AgentId) => AGENT_META[id]?.name ?? id;
+  const label = (id: DirectionId) => DIRECTION_META[id]?.name ?? id;
 
   return (
     <section className="mb-3 rounded-2xl border bg-card shadow-xs">
@@ -251,7 +251,7 @@ export function AgentDebate({
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             {participants.map((id) => {
-              const base = agentRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
+              const base = directionRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
               const eff = effectiveWeight(base, mode, id);
               return (
                 <span key={id} className="rounded-full border px-1.5 py-px">
@@ -281,11 +281,11 @@ export function AgentDebate({
                     <span
                       className={cn(
                         'flex h-7 w-7 items-center justify-center rounded-full text-white',
-                        AGENT_META[t.agentId].bg,
+                        DIRECTION_META[t.directionId].bg,
                       )}
                     >
                       {(() => {
-                        const Icon = AGENT_META[t.agentId].icon;
+                        const Icon = DIRECTION_META[t.directionId].icon;
                         return <Icon className="h-3.5 w-3.5" />;
                       })()}
                     </span>
@@ -312,7 +312,7 @@ export function AgentDebate({
                   {t.kind === 'propose' && (
                     <div>
                       <p className="text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground">{label(t.agentId)}</span>
+                        <span className="font-medium text-foreground">{label(t.directionId)}</span>
                         <span> 提议 · {t.topic}</span>
                       </p>
                       <p className="mt-0.5 text-[13px] font-medium leading-snug">{t.title}</p>
@@ -342,7 +342,7 @@ export function AgentDebate({
                   {t.kind === 'findings' && (
                     <div>
                       <p className="text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground">{label(t.agentId)}</span>
+                        <span className="font-medium text-foreground">{label(t.directionId)}</span>
                         <span> 只报了事实，没给方案</span>
                         {t.claimTopic && (
                           <span className="text-amber-700">
@@ -374,8 +374,8 @@ export function AgentDebate({
                       <p className="text-[11px] font-medium">按设置里的权重调整次序</p>
                       <p className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                         {t.rows.map((r) => (
-                          <span key={r.agentId} className="tabular-nums">
-                            {label(r.agentId)} {r.base}→{r.eff}
+                          <span key={r.directionId} className="tabular-nums">
+                            {label(r.directionId)} {r.base}→{r.eff}
                             {r.eff >= 1.3 ? '（上浮）' : r.eff <= 0.8 ? '（降级）' : ''}
                           </span>
                         ))}

@@ -36,7 +36,7 @@ export default function App() {
   const [bootError, setBootError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Agent 的启停与权重已在 registry 模块加载时恢复（见 @/agents/restore），
+    // 方向 的启停与权重已在 registry 模块加载时恢复（见 @/directions/restore），
     // 这里不再重复——放在 effect 里会晚于 Home 的首次报告，导致首屏用默认设置生成。
 
     void (async () => {

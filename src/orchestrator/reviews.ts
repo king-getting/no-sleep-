@@ -1,13 +1,13 @@
 import { getSleepLogs } from '@/data/store/profile';
 import { listExams } from '@/data/store/courses';
 import { avgSleepHours, lastNightSleep, todayCourses } from '@/data/queries';
-import { agentRegistry } from '@/agents/registry';
+import { directionRegistry } from '@/directions/registry';
 import { effectiveWeight } from '@/orchestrator/weights';
 import { dailyBudget, fmtMin } from '@/types/contract';
 import type {
-  AgentContext,
-  AgentId,
-  AgentReview,
+  DirectionContext,
+  DirectionId,
+  DirectionReview,
   Course,
   ExamItem,
   OptionCard,
@@ -15,13 +15,13 @@ import type {
 } from '@/types/contract';
 
 /**
- * 跨 Agent 评审（选项卡底下的「其他 Agent 怎么看」）
+ * 跨 方向 评审（选项卡底下的「其他 方向 怎么看」）
  *
- * 每个 Agent 只用自己的那一域数据给这条选项下一句判断：
+ * 每个 方向 只用自己的那一域数据给这条选项下一句判断：
  * 教务看「这条和课/DDL 撞不撞」，生活看「钱超没超今天的餐标」，
  * 健康看「占掉的时间从睡眠里出不出」，日程看「今天还剩多少机动时间」。
  *
- * 对同一条选项，四个 Agent 看到的是四个不同的数字，所以四句话不会撞车；
+ * 对同一条选项，四个 方向 看到的是四个不同的数字，所以四句话不会撞车；
  * 对同一组里的不同选项，成本不同，判断也不同（8 分钟赶得上 / 50 分钟很紧）。
  *
  * 为什么放在编排器而不是 UI：课表、睡眠、DDL、餐标都是别的域的数据，
@@ -37,17 +37,17 @@ interface ReviewData {
   daily: number;
 }
 
-/** 一个 Agent 的评审结论：一句认可、一句不放心、一个影响强度 */
+/** 一个 方向 的评审结论：一句认可、一句不放心、一个影响强度 */
 interface Verdict {
   pro: string;
   con: string;
   impact: number;
 }
 
-const ALL_AGENTS: AgentId[] = ['academic', 'life', 'health', 'schedule'];
+const ALL_DIRECTIONS: DirectionId[] = ['academic', 'life', 'health', 'schedule'];
 
-function defaultWeightOf(id: AgentId): number {
-  return agentRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
+function defaultWeightOf(id: DirectionId): number {
+  return directionRegistry.find((a) => a.id === id)?.defaultWeight ?? 1;
 }
 
 /** 今天从 now 到 23:00 还剩多少分钟机动时间（扣掉还没上的课） */
@@ -61,7 +61,7 @@ function freeMinutesLeft(data: ReviewData): number {
   return Math.max(0, dayEnd - nowMin - classMin);
 }
 
-export async function loadReviewData(ctx: AgentContext): Promise<ReviewData> {
+export async function loadReviewData(ctx: DirectionContext): Promise<ReviewData> {
   const [courses, logs, exams] = await Promise.all([todayCourses(ctx.now), getSleepLogs(), listExams()]);
   const upcoming = exams
     .filter((e) => new Date(e.at).getTime() > ctx.now.getTime())
@@ -172,7 +172,7 @@ function reviewBySchedule(o: OptionCard, d: ReviewData): Verdict {
   };
 }
 
-const LENS: Record<AgentId, (o: OptionCard, d: ReviewData) => Verdict> = {
+const LENS: Record<DirectionId, (o: OptionCard, d: ReviewData) => Verdict> = {
   academic: reviewByAcademic,
   life: reviewByLife,
   health: reviewByHealth,
@@ -180,21 +180,21 @@ const LENS: Record<AgentId, (o: OptionCard, d: ReviewData) => Verdict> = {
 };
 
 /**
- * 给一条选项算出「另外三个 Agent」的一句话评审。
- * owner 是提出这条选项的 Agent——它自己已经在卡上写了优势/代价，不重复凑数。
+ * 给一条选项算出「另外三个 方向」的一句话评审。
+ * owner 是提出这条选项的 方向——它自己已经在卡上写了优势/代价，不重复凑数。
  */
 export function buildOptionReviews(
   option: OptionCard,
-  owner: AgentId | undefined,
-  ctx: AgentContext,
+  owner: DirectionId | undefined,
+  ctx: DirectionContext,
   data: ReviewData,
-): AgentReview[] {
-  return ALL_AGENTS.filter((id) => id !== owner)
+): DirectionReview[] {
+  return ALL_DIRECTIONS.filter((id) => id !== owner)
     .slice(0, 3)
     .map((id) => {
       const { pro, con, impact } = LENS[id](option, data);
       return {
-        agentId: id,
+        directionId: id,
         weight: effectiveWeight(defaultWeightOf(id), ctx.mode, id),
         pro,
         con,

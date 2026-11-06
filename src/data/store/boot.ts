@@ -9,8 +9,8 @@
  */
 
 const BOOT_KEY = 'xiaoshan:boot';
-const AGENT_KEY = 'xiaoshan:agents';
-const WEIGHT_KEY = 'xiaoshan:agent-weights';
+const DIRECTION_KEY = 'xiaoshan:directions';
+const WEIGHT_KEY = 'xiaoshan:direction-weights';
 
 export type BootMode = 'demo' | 'real';
 
@@ -26,7 +26,7 @@ export function setBootMode(mode: BootMode): void {
 /** 换台设备 / 清缓存后回到示例态，用于演示复位 */
 export function resetBootMode(): void {
   localStorage.removeItem(BOOT_KEY);
-  localStorage.removeItem(AGENT_KEY);
+  localStorage.removeItem(DIRECTION_KEY);
   localStorage.removeItem(WEIGHT_KEY);
 }
 
@@ -45,22 +45,22 @@ export function clearLocalPrefs(): void {
   for (const key of keys) localStorage.removeItem(key);
 }
 
-/** 设置页的 Agent 启停持久化（重启后仍然生效） */
-export function readAgentEnabled(): Record<string, boolean> {
+/** 设置页的 方向 启停持久化（重启后仍然生效） */
+export function readDirectionEnabled(): Record<string, boolean> {
   try {
-    const raw = localStorage.getItem(AGENT_KEY);
+    const raw = localStorage.getItem(DIRECTION_KEY);
     return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
   } catch {
     return {};
   }
 }
 
-export function writeAgentEnabled(map: Record<string, boolean>): void {
-  localStorage.setItem(AGENT_KEY, JSON.stringify(map));
+export function writeDirectionEnabled(map: Record<string, boolean>): void {
+  localStorage.setItem(DIRECTION_KEY, JSON.stringify(map));
 }
 
-/** 设置页的 Agent 权重持久化（注册表是模块级单例，改完要存活到下次打开） */
-export function readAgentWeights(): Record<string, number> {
+/** 设置页的 方向 权重持久化（注册表是模块级单例，改完要存活到下次打开） */
+export function readDirectionWeights(): Record<string, number> {
   try {
     const raw = localStorage.getItem(WEIGHT_KEY);
     return raw ? (JSON.parse(raw) as Record<string, number>) : {};
@@ -69,6 +69,6 @@ export function readAgentWeights(): Record<string, number> {
   }
 }
 
-export function writeAgentWeights(map: Record<string, number>): void {
+export function writeDirectionWeights(map: Record<string, number>): void {
   localStorage.setItem(WEIGHT_KEY, JSON.stringify(map));
 }

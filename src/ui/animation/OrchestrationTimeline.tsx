@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Check, ChevronDown, GitMerge, Loader2, Mountain, RotateCcw, Scale } from 'lucide-react';
 import { orchestratorEvents } from '@/orchestrator/events';
 import { cn } from '@/lib/utils';
-import { AGENT_META } from '@/ui/agentMeta';
+import { DIRECTION_META } from '@/ui/directionMeta';
 import type {
-  AgentId,
-  AgentResult,
+  DirectionId,
+  DirectionResult,
   ConflictCard,
   Finding,
   OrchestratorEvent,
@@ -18,7 +18,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   'user-ask': '用户提问触发',
 };
 
-const AGENT_IDS: AgentId[] = ['academic', 'life', 'health', 'schedule'];
+const DIRECTION_IDS: DirectionId[] = ['academic', 'life', 'health', 'schedule'];
 
 /** 冲突 topic 在契约里是稳定 id（也是偏好预填的键），展示层才转成中文 */
 const TOPIC_LABEL: Record<string, string> = {
@@ -30,16 +30,16 @@ const TOPIC_LABEL: Record<string, string> = {
 const STEPS = ['拆解任务', '并行执行', '汇总决策'];
 
 /* ── 演出节奏（任务 B8 / P0）─────────────────────────────────────
- * 引擎里 4 个 Agent 在几毫秒内全部跑完，事件几乎同帧到达；
+ * 引擎里 4 个 方向 在几毫秒内全部跑完，事件几乎同帧到达；
  * 直接渲染只能看到一张「终态快照」，协同过程反而是不可见的。
  * 这里把一轮完整事件序列重新铺成约 2.5 秒的时间轴：
- *   拆解任务 → 4 Agent 错峰并行 → 冲突/合并 → 汇总决策
- * 这是**展示用节奏，不是真实耗时**，各 Agent 时长按产出量估算。
+ *   拆解任务 → 4 方向 错峰并行 → 冲突/合并 → 汇总决策
+ * 这是**展示用节奏，不是真实耗时**，各 方向 时长按产出量估算。
  * ──────────────────────────────────────────────────────────── */
 const INTRO_MS = 320; // 总控拆解任务的过场
 const STAGGER_MS = 100; // 错峰启动，看得出「并行」而不是「排队」
-const MIN_AGENT_MS = 380;
-const MAX_AGENT_MS = 820;
+const MIN_DIRECTION_MS = 380;
+const MAX_DIRECTION_MS = 820;
 const PER_ITEM_MS = 55; // 每多一条发现/建议，多跑这么久
 const GAP_BEFORE_CONFLICT = 200;
 const CONFLICT_STEP = 150;
@@ -47,31 +47,31 @@ const MERGE_STEP = 130;
 const GAP_BEFORE_COMPOSE = 240;
 const TAIL_MS = 260;
 
-type AgentBeat = {
-  id: AgentId;
+type DirectionBeat = {
+  id: DirectionId;
   start: number;
   dur: number;
   findings: number;
   extra: number;
-  result: AgentResult | null;
+  result: DirectionResult | null;
 };
 
 type Script = {
   trigger: string | null;
-  agents: AgentBeat[];
+  agents: DirectionBeat[];
   conflicts: { at: number; conflict: ConflictCard }[];
   merges: { at: number; text: string }[];
   composeAt: number;
   total: number;
 };
 
-type AgentView = {
+type DirectionView = {
   status: 'waiting' | 'running' | 'done';
   findings: number;
   extra: number;
   progress: number;
-  /** 该 Agent 这一轮的真实产出：展开后才看得到「它到底发现了什么」 */
-  result?: AgentResult | null;
+  /** 该 方向 这一轮的真实产出：展开后才看得到「它到底发现了什么」 */
+  result?: DirectionResult | null;
 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -83,37 +83,37 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
   );
   if (!started) return null;
 
-  const finished = new Map<AgentId, AgentResult>();
-  const dispatched = new Set<AgentId>();
+  const finished = new Map<DirectionId, DirectionResult>();
+  const dispatched = new Set<DirectionId>();
   const conflicts: ConflictCard[] = [];
   const merges: string[] = [];
   let composed = false;
 
   for (const e of events) {
-    if (e.type === 'agent:start') dispatched.add(e.agentId);
-    if (e.type === 'agent:done') {
-      dispatched.add(e.agentId);
-      finished.set(e.agentId, e.result);
+    if (e.type === 'direction:start') dispatched.add(e.directionId);
+    if (e.type === 'direction:done') {
+      dispatched.add(e.directionId);
+      finished.set(e.directionId, e.result);
     }
     if (e.type === 'conflict:detected') conflicts.push(e.conflict);
     if (e.type === 'merge:applied') merges.push(e.text);
     if (e.type === 'report:composed') composed = true;
   }
 
-  // 只演本轮真正被分派的 Agent：设置页关掉某个 Agent 时，面板要跟着变
-  const ids = AGENT_IDS.filter((id) => dispatched.has(id));
+  // 只演本轮真正被分派的 方向：设置页关掉某个 方向 时，面板要跟着变
+  const ids = DIRECTION_IDS.filter((id) => dispatched.has(id));
   if (ids.length === 0) return null;
 
-  const agents: AgentBeat[] = ids.map((id, i) => {
+  const agents: DirectionBeat[] = ids.map((id, i) => {
     const result = finished.get(id) ?? null;
     const d = { findings: result?.findings.length ?? 0, extra: (result?.suggestions?.length ?? 0) + (result?.conflictClaims?.length ?? 0) };
     return {
       id,
       start: INTRO_MS + i * STAGGER_MS,
       dur: clamp(
-        MIN_AGENT_MS + PER_ITEM_MS * (d.findings + d.extra),
-        MIN_AGENT_MS,
-        MAX_AGENT_MS,
+        MIN_DIRECTION_MS + PER_ITEM_MS * (d.findings + d.extra),
+        MIN_DIRECTION_MS,
+        MAX_DIRECTION_MS,
       ),
       findings: d.findings,
       extra: d.extra,
@@ -145,7 +145,7 @@ function buildScript(events: OrchestratorEvent[]): Script | null {
 
 /**
  * 编排动画（契约 §6 / 任务 B8）：
- * 订阅编排事件流，渲染「总控拆任务 → 4 个 Agent 并行 → 冲突/合并 → 汇总」全过程。
+ * 订阅编排事件流，渲染「总控拆任务 → 4 个 方向 并行 → 冲突/合并 → 汇总」全过程。
  * 引擎跑完后把事件重放成 2.5 秒的演出，让「协同过程」真正被看见；
  * 只认识事件流，对引擎实现零依赖——A 侧换实现，这里不用改。
  */
@@ -207,7 +207,7 @@ export function OrchestrationTimeline() {
   }, [composedEvent, replayToken]);
 
   const view = useMemo(() => {
-    const agentStates = new Map<AgentId, AgentView>();
+    const agentStates = new Map<DirectionId, DirectionView>();
     const allConflicts: ConflictCard[] = [];
     const allMerges: string[] = [];
     let trigger: string | null = null;
@@ -219,11 +219,11 @@ export function OrchestrationTimeline() {
         case 'run:start':
           trigger = e.trigger;
           break;
-        case 'agent:start':
+        case 'direction:start':
           anyStarted = true;
           break;
-        case 'agent:done':
-          agentStates.set(e.agentId, {
+        case 'direction:done':
+          agentStates.set(e.directionId, {
             status: 'done',
             findings: e.result.findings.length,
             extra:
@@ -246,7 +246,7 @@ export function OrchestrationTimeline() {
 
     // 终态模式：本轮还没跑完（或没剧本）时不做演出，避免「假的进行中」
     if (now === null || !script || !composedEvent) {
-      for (const id of AGENT_IDS) {
+      for (const id of DIRECTION_IDS) {
         if (!agentStates.has(id)) {
           agentStates.set(id, { status: 'waiting', findings: 0, extra: 0, progress: 0 });
         }
@@ -260,13 +260,13 @@ export function OrchestrationTimeline() {
         doneCount: [...agentStates.values()].filter((a) => a.status === 'done').length,
         isRunning: events.length > 0 && !composed,
         step: composed ? 3 : anyStarted ? 1 : 0,
-        totalAgents: AGENT_IDS.length,
+        totalAgents: DIRECTION_IDS.length,
         animating: false,
       };
     }
 
     // 剧本模式：按播放头揭示
-    const agentViews = new Map<AgentId, AgentView>();
+    const agentViews = new Map<DirectionId, DirectionView>();
     for (const beat of script.agents) {
       const t = now - beat.start;
       if (t <= 0) {
@@ -306,9 +306,9 @@ export function OrchestrationTimeline() {
   const replay = useCallback(() => setReplayToken((t) => t + 1), []);
   const canReplay = Boolean(script && composedEvent);
 
-  /** 展开中的 Agent：点一下「完成 · N 条发现」就能看它究竟发现了什么 */
-  const [expanded, setExpanded] = useState<Set<AgentId>>(() => new Set());
-  const toggle = useCallback((id: AgentId) => {
+  /** 展开中的 方向：点一下「完成 · N 条发现」就能看它究竟发现了什么 */
+  const [expanded, setExpanded] = useState<Set<DirectionId>>(() => new Set());
+  const toggle = useCallback((id: DirectionId) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -395,13 +395,13 @@ export function OrchestrationTimeline() {
               rail
             />
 
-            {/* 4 个 Agent 并行 */}
-            {AGENT_IDS.map((id) => {
+            {/* 4 个方向并行 */}
+            {DIRECTION_IDS.map((id) => {
               const state = view.agentStates.get(id);
               if (!state) return null;
-              const meta = AGENT_META[id];
+              const meta = DIRECTION_META[id];
               const inConflict = view.conflicts.some(
-                (c) => c.planA.agentId === id || c.planB.agentId === id,
+                (c) => c.planA.directionId === id || c.planB.directionId === id,
               );
               const detail = state.result;
               const open = Boolean(detail) && expanded.has(id);
@@ -430,7 +430,7 @@ export function OrchestrationTimeline() {
                   onToggle={detail ? () => toggle(id) : undefined}
                   toggleHint={detail ? '展开看它产出了什么' : undefined}
                 >
-                  {detail && <AgentDetail result={detail} />}
+                  {detail && <DirectionDetail result={detail} />}
                 </Row>
               );
             })}
@@ -442,7 +442,7 @@ export function OrchestrationTimeline() {
                 icon={<Scale className="h-3.5 w-3.5" />}
                 tone="warn"
                 title={`冲突待裁决 · ${TOPIC_LABEL[c.topic] ?? c.topic}`}
-                detail={`${AGENT_META[c.planA.agentId].name} vs ${AGENT_META[c.planB.agentId].name}`}
+                detail={`${DIRECTION_META[c.planA.directionId].name} vs ${DIRECTION_META[c.planB.directionId].name}`}
                 animate
                 rail={false}
               />
@@ -620,8 +620,8 @@ const FINDING_DOT: Record<Finding['type'], string> = {
   conflict: 'bg-destructive',
 };
 
-/** 展开后看到的东西：这个 Agent 一轮里真正看到了什么、提了什么 */
-function AgentDetail({ result }: { result: AgentResult }) {
+/** 展开后看到的东西：这个 方向 一轮里真正看到了什么、提了什么 */
+function DirectionDetail({ result }: { result: DirectionResult }) {
   const findings = result.findings ?? [];
   const suggestions = result.suggestions ?? [];
 

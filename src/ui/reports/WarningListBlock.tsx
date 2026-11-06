@@ -1,14 +1,14 @@
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AGENT_META } from '@/ui/agentMeta';
-import type { AgentId } from '@/types/contract';
+import { DIRECTION_META } from '@/ui/directionMeta';
+import type { DirectionId } from '@/types/contract';
 
 /**
  * 风险项列表：把连续的多条 warning 收进一张卡里。
  * 以前每条 warning 都是一张琥珀色卡片，6 条连排时整屏都是黄块，
- * 反而看不出哪条更要紧——收成列表后，注意力落在文字上，Agent 归属退到右侧。
+ * 反而看不出哪条更要紧——收成列表后，注意力落在文字上，方向 归属退到右侧。
  */
-export function WarningListBlock({ items }: { items: { text: string; agentId: AgentId }[] }) {
+export function WarningListBlock({ items }: { items: { text: string; directionId: DirectionId }[] }) {
   return (
     <section className="overflow-hidden rounded-2xl border bg-card shadow-xs">
       <div className="flex items-center gap-2 border-b px-4 py-2.5">
@@ -18,7 +18,7 @@ export function WarningListBlock({ items }: { items: { text: string; agentId: Ag
       </div>
       <ul className="divide-y">
         {items.map((item, i) => {
-          const meta = AGENT_META[item.agentId];
+          const meta = DIRECTION_META[item.directionId];
           return (
             <li key={i} className="flex items-start gap-2.5 px-4 py-2.5">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/80" />

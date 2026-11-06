@@ -2,8 +2,8 @@ import { queryAdapters } from '@/data/adapters';
 import { fmtMoney } from '@/lib/format';
 import { dailyBudget } from '@/types/contract';
 import type {
-  AgentModule,
-  AgentResult,
+  DirectionModule,
+  DirectionResult,
   Finding,
   MealNutrition,
   OptionCard,
@@ -34,10 +34,10 @@ function queueMin(w: RawItem, now: Date): number {
 }
 
 /**
- * 生活 Agent：食堂 / 天气 / 生活服务
+ * 生活 方向：食堂 / 天气 / 生活服务
  * 午饭选项卡严格对应设计文档 §5.2 的三卡结构（钱 / 时间 / 依据全标注）。
  */
-export const lifeAgent: AgentModule = {
+export const lifeDirection: DirectionModule = {
   id: 'life',
   name: '生活',
   version: '0.1.0',
@@ -47,8 +47,8 @@ export const lifeAgent: AgentModule = {
 
   async run(ctx) {
     const findings: Finding[] = [];
-    const suggestions: NonNullable<AgentResult['suggestions']> = [];
-    const claims: NonNullable<AgentResult['conflictClaims']> = [];
+    const suggestions: NonNullable<DirectionResult['suggestions']> = [];
+    const claims: NonNullable<DirectionResult['conflictClaims']> = [];
     const daily = dailyBudget(ctx.user);
     const hour = ctx.now.getHours() + ctx.now.getMinutes() / 60;
 
@@ -61,7 +61,7 @@ export const lifeAgent: AgentModule = {
         topic: '天气',
         confidence: 2,
         summary: weather[0].title,
-        evidences: [{ agentId: 'life', text: weather[0].body ?? '', confidence: 2 }],
+        evidences: [{ directionId: 'life', text: weather[0].body ?? '', confidence: 2 }],
       });
     }
 
@@ -91,8 +91,8 @@ export const lifeAgent: AgentModule = {
             pros: ['顺路，不用单独跑一趟'],
             cons: ['午间人略多，可能排 2 分钟'],
             fallback: '件继续放在驿站，明天 21:00 前还得来一趟',
-            impacts: [{ horizon: 'short', text: '下午手上就有件，不用再惦记', agentId: 'life' }],
-            evidences: [{ agentId: 'life', text: '驿站 21:00 关门，午后为低峰', confidence: 2 }],
+            impacts: [{ horizon: 'short', text: '下午手上就有件，不用再惦记', directionId: 'life' }],
+            evidences: [{ directionId: 'life', text: '驿站 21:00 关门，午后为低峰', confidence: 2 }],
           },
           {
             id: 'express-evening',
@@ -103,8 +103,8 @@ export const lifeAgent: AgentModule = {
             pros: ['午间休息时间完整'],
             cons: ['晚高峰排队更久', '拖过 21:00 就得改天'],
             fallback: '件在驿站过夜，明天还得记着',
-            impacts: [{ horizon: 'short', text: '晚间空档少 15 分钟', agentId: 'schedule' }],
-            evidences: [{ agentId: 'life', text: express[0].body ?? '', confidence: 3 }],
+            impacts: [{ horizon: 'short', text: '晚间空档少 15 分钟', directionId: 'schedule' }],
+            evidences: [{ directionId: 'life', text: express[0].body ?? '', confidence: 3 }],
           },
         ],
       });
@@ -137,10 +137,10 @@ export const lifeAgent: AgentModule = {
           pros: [`一天省 ${saveByA} 元，一个月约 ${saveByA * 30} 元`],
           cons: ['没有蔬菜、油偏重，下午三四点容易饿'],
           fallback: `到点随手买，花多少、有没有菜都不受控（今天日均 ${daily.toFixed(0)} 元）`,
-          impacts: [{ horizon: 'short', text: '吃完还能歇 40 分钟再进教室', agentId: 'life' }],
+          impacts: [{ horizon: 'short', text: '吃完还能歇 40 分钟再进教室', directionId: 'life' }],
           evidences: [
-            { agentId: 'life', text: '该窗口 12:10 前为低峰', confidence: 2 },
-            { agentId: 'life', text: `符合餐标预算：${budgetText(Number(w1.payload?.avgPrice ?? 8), daily)}`, confidence: 3 },
+            { directionId: 'life', text: '该窗口 12:10 前为低峰', confidence: 2 },
+            { directionId: 'life', text: `符合餐标预算：${budgetText(Number(w1.payload?.avgPrice ?? 8), daily)}`, confidence: 3 },
           ],
         },
         {
@@ -153,10 +153,10 @@ export const lifeAgent: AgentModule = {
           pros: ['蔬菜蛋白齐全，午后不容易犯困'],
           cons: [`贵 ${saveByA} 元，本周餐标会吃紧`],
           fallback: '继续吃油重的那家，下午第二节课容易困',
-          // 跨域依据（睡眠×轻食）由编排器在汇总阶段富化挂载，生活 Agent 不越域读数据（契约 §5.1）
-          impacts: [{ horizon: 'long', text: '常选轻食会让本周餐标吃紧', agentId: 'life' }],
+          // 跨域依据（睡眠×轻食）由编排器在汇总阶段富化挂载，生活 方向 不越域读数据（契约 §5.1）
+          impacts: [{ horizon: 'long', text: '常选轻食会让本周餐标吃紧', directionId: 'life' }],
           evidences: [
-            { agentId: 'life', text: budgetText(priceB, daily), confidence: 3 },
+            { directionId: 'life', text: budgetText(priceB, daily), confidence: 3 },
           ],
         },
         {
@@ -169,10 +169,10 @@ export const lifeAgent: AgentModule = {
           pros: ['省下约 25 分钟，能提前进教室'],
           cons: ['没有蔬菜，吃得将就'],
           fallback: '午休按 90 分钟走，晚上可能得挤时间补预习',
-          impacts: [{ horizon: 'short', text: '下午第一节课前能过一遍预习', agentId: 'schedule' }],
+          impacts: [{ horizon: 'short', text: '下午第一节课前能过一遍预习', directionId: 'schedule' }],
           // 跨域依据（碎片时间可预习）同样交给编排器富化
           evidences: [
-            { agentId: 'life', text: budgetText(Number(cvs.payload?.avgPrice ?? 10), daily), confidence: 3 },
+            { directionId: 'life', text: budgetText(Number(cvs.payload?.avgPrice ?? 10), daily), confidence: 3 },
           ],
         },
       ];
@@ -185,7 +185,7 @@ export const lifeAgent: AgentModule = {
         options: lunchOptions,
       });
 
-      // 「省钱」侧主张（契约 §4.5）：与健康 Agent 的「吃好」侧配对成 L2。
+      // 「省钱」侧主张（契约 §4.5）：与健康 方向 的「吃好」侧配对成 L2。
       // 只在日均餐标 30 元以下时成立——预算宽裕时这顿的差价本来就不痛不痒，
       // 天天弹一张「省 7 元还是吃好点」的卡只会变成噪音。
       if (daily < 30 && n1) {
@@ -193,7 +193,7 @@ export const lifeAgent: AgentModule = {
           topic: '今天的午饭',
           side: 'saving',
           plan: {
-            agentId: 'life',
+            directionId: 'life',
             id: 'lunch-saving',
             title: `省钱优先：一食堂 ${fmtMoney(priceA)} 一顿`,
             note: '一食堂二楼 · 12:10 前是低峰',
@@ -204,10 +204,10 @@ export const lifeAgent: AgentModule = {
             // 结构由卡上的「这一餐」那行给出，这里不再重复一遍
             cons: ['下午三四点容易饿'],
             fallback: '照昨天的吃法走，这个月餐标会提前见底',
-            impacts: [{ horizon: 'long', text: '月底餐标还有余量，不用靠泡面收尾', agentId: 'life' }],
+            impacts: [{ horizon: 'long', text: '月底餐标还有余量，不用靠泡面收尾', directionId: 'life' }],
             evidences: [
-              { agentId: 'life', text: budgetText(priceA, daily), confidence: 3 },
-              { agentId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}，低于 30 元时才提这条`, confidence: 2 },
+              { directionId: 'life', text: budgetText(priceA, daily), confidence: 3 },
+              { directionId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}，低于 30 元时才提这条`, confidence: 2 },
             ],
           },
         });
@@ -230,8 +230,8 @@ export const lifeAgent: AgentModule = {
             pros: ['5 元顶饱，7:40 前基本不排队'],
             cons: ['要坐下吃，比路上多花 7 分钟'],
             fallback: '7:50 之后只剩冷的，或者空着上第一节课',
-            impacts: [{ horizon: 'short', text: '上午连排不饿肚子', agentId: 'health' }],
-            evidences: [{ agentId: 'life', text: budgetText(5, daily), confidence: 3 }],
+            impacts: [{ horizon: 'short', text: '上午连排不饿肚子', directionId: 'health' }],
+            evidences: [{ directionId: 'life', text: budgetText(5, daily), confidence: 3 }],
           },
           {
             id: 'breakfast-b',
@@ -242,8 +242,8 @@ export const lifeAgent: AgentModule = {
             pros: ['3 分钟拿到，能多睡 10 分钟'],
             cons: ['比食堂贵 3 元，还没热的'],
             fallback: '要么更早起到食堂，要么空着上第一节课',
-            impacts: [{ horizon: 'short', text: '早八不迟到', agentId: 'schedule' }],
-            evidences: [{ agentId: 'life', text: budgetText(8, daily), confidence: 3 }],
+            impacts: [{ horizon: 'short', text: '早八不迟到', directionId: 'schedule' }],
+            evidences: [{ directionId: 'life', text: budgetText(8, daily), confidence: 3 }],
           },
         ],
       });
@@ -265,8 +265,8 @@ export const lifeAgent: AgentModule = {
             pros: ['热乎，回宿舍顺路'],
             cons: ['比经济窗口贵 4 元', '17:30 后排队明显变长'],
             fallback: '拖到 19:00 才吃，晚自习少 40 分钟',
-            impacts: [{ horizon: 'short', text: '吃完走到自习室不耽误', agentId: 'life' }],
-            evidences: [{ agentId: 'life', text: budgetText(12, daily), confidence: 3 }],
+            impacts: [{ horizon: 'short', text: '吃完走到自习室不耽误', directionId: 'life' }],
+            evidences: [{ directionId: 'life', text: budgetText(12, daily), confidence: 3 }],
           },
           {
             id: 'dinner-b',
@@ -277,14 +277,14 @@ export const lifeAgent: AgentModule = {
             pros: ['比面档省 4 元'],
             cons: ['窗口少，选择不多'],
             fallback: '今天餐标多花 4 元，本周余量变窄',
-            impacts: [{ horizon: 'long', text: '守住本周餐标', agentId: 'life' }],
-            evidences: [{ agentId: 'life', text: budgetText(8, daily), confidence: 3 }],
+            impacts: [{ horizon: 'long', text: '守住本周餐标', directionId: 'life' }],
+            evidences: [{ directionId: 'life', text: budgetText(8, daily), confidence: 3 }],
           },
         ],
       });
     }
 
-    const result: AgentResult = { agentId: 'life', findings };
+    const result: DirectionResult = { directionId: 'life', findings };
     if (suggestions.length > 0) result.suggestions = suggestions;
     if (claims.length > 0) result.conflictClaims = claims;
     return result;

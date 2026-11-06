@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import type { AgentId, OptionCard, Report, ReportBlock } from '@/types/contract';
+import type { DirectionId, OptionCard, Report, ReportBlock } from '@/types/contract';
 import { ConflictCardView } from '@/ui/cards/ConflictCardView';
 import { ChecklistBlock } from './ChecklistBlock';
 import { OverviewBlock } from './OverviewBlock';
@@ -53,7 +53,7 @@ function jumpTo(id: string) {
  * 报告渲染器：只按 Schema 渲染区块，不认识引擎内部任何实现。
  *
  * 动效只做两件事（见 docs/dev-tasks.md「动效口径」）：
- * 1. 区块**逐个**入场——让「4 个 Agent 汇总成一份报告」这件事在画面上成立；
+ * 1. 区块**逐个**入场——让「4 个 方向 汇总成一份报告」这件事在画面上成立；
  * 2. 换时段时整体淡入——演示时这个动作要连点三次，硬切会闪。
  * 所有动效都挂在 `motion-safe:` 下，系统开了「减少动态效果」就自动关掉。
  */
@@ -81,16 +81,16 @@ export function ReportView({
 }) {
   // 连续的 warning 合成一个「风险项」区块：6 条各占一张琥珀卡，整屏都是黄块，
   // 反而看不出哪条更要紧。分组后既省版面，也能在锚点里只占一格。
-  const units: { key: number; block: ReportBlock; warnings?: { text: string; agentId: AgentId }[] }[] = [];
+  const units: { key: number; block: ReportBlock; warnings?: { text: string; directionId: DirectionId }[] }[] = [];
   report.blocks.forEach((block, i) => {
     const last = units.at(-1);
     if (block.kind === 'warning' && last?.warnings) {
-      last.warnings.push({ text: block.text, agentId: block.agentId });
+      last.warnings.push({ text: block.text, directionId: block.directionId });
       return;
     }
     units.push(
       block.kind === 'warning'
-        ? { key: i, block, warnings: [{ text: block.text, agentId: block.agentId }] }
+        ? { key: i, block, warnings: [{ text: block.text, directionId: block.directionId }] }
         : { key: i, block },
     );
   });
@@ -126,7 +126,7 @@ export function ReportView({
           />
         );
       case 'warning':
-        return <WarningListBlock items={[{ text: block.text, agentId: block.agentId }]} />;
+        return <WarningListBlock items={[{ text: block.text, directionId: block.directionId }]} />;
       case 'recap':
         return <RecapBlock stats={block.stats} />;
       case 'preview':

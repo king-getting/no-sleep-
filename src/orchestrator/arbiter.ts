@@ -9,7 +9,7 @@ import type { ConflictCard, ConflictClaim, Preferences, Suggestion } from '@/typ
  * 2. 安全红线：连续多日严重缺觉等健康预警——自动升级
  * 3. 用户历史选择（本地偏好画像）
  * 4. 时间/空间可行性（顺路、来得及）
- * 5. Agent 默认权重
+ * 5. 方向 默认权重
  */
 
 /** L2 真冲突：同一 topic 上出现两方及以上主张 → 生成冲突卡，用户拍板 */
@@ -67,7 +67,7 @@ export function mergeSuggestions(suggestions: Suggestion[]): { suggestions: Sugg
           pros: ['两件事都办了', '顺路，不单独跑一趟'],
           cons: ['小憩缩短到 15 分钟'],
           impacts: [
-            { horizon: 'short', text: '下午犯困概率降低，快递也不会忘', agentId: 'life' },
+            { horizon: 'short', text: '下午犯困概率降低，快递也不会忘', directionId: 'life' },
           ],
           evidences: [...(nap.options[0]?.evidences ?? []), ...(errand.options[0]?.evidences ?? [])],
         },

@@ -1,12 +1,12 @@
 # 小山 · 开发任务分工清单
 
-> 前提：主体架构已落地（契约类型层 / 编排器 / 4 Agent / 本地数据层 / 三餐报告 UI / 编排事件流 / PWA）。
+> 前提：主体架构已落地（契约类型层 / 编排器 / 4 方向 / 本地数据层 / 三餐报告 UI / 编排事件流 / PWA）。
 > 本清单是「从架构到完整 MVP」的全部剩余工作，按 §14.1 分工：**A 管引擎（逻辑与数据），B 管体验（界面与部署）**。
 > 读码顺序：先读 `docs/report-contract.md`（**v1.2** 变更记录必读），再读 `src/types/contract.ts`，再动各自目录。
 >
 > **进度（2026-10-23 12:15）**：A1–A8 全部完成，A9 断网彩排完成、部署待账号；B1/B2/B3/B4/B5/B6/B7/B8/B9/B10 完成；剩 A9 部署、B11、README 架构图。详见文末「当前剩余」。
 >
-> **补充（2026-10-25 18:50）**：选项卡文案口径与密度重整（契约 v2.0）——`OptionCard` 增加 `when` / `note` / `fallback` / `cost.effort`；标题改为「动作 + 取舍」，pros/cons 各 ≤2 条且不重复 cost，影响必须可观察；卡片改为整卡可点的单选项（`role="radio"`），删掉每卡一个「选这个」按钮。四个 Agent 的文案已按此重写，数字统一走 `src/lib/format.ts`。
+> **补充（2026-10-25 18:50）**：选项卡文案口径与密度重整（契约 v2.0）——`OptionCard` 增加 `when` / `note` / `fallback` / `cost.effort`；标题改为「动作 + 取舍」，pros/cons 各 ≤2 条且不重复 cost，影响必须可观察；卡片改为整卡可点的单选项（`role="radio"`），删掉每卡一个「选这个」按钮。四个方向 的文案已按此重写，数字统一走 `src/lib/format.ts`。
 
 ## 协同纪律（复习 §14.2）
 
@@ -18,18 +18,18 @@
 
 ---
 
-## A · 引擎任务（`src/agents/` `src/orchestrator/` `src/data/`）
+## A · 引擎任务（`src/directions/` `src/orchestrator/` `src/data/`）
 
 ### A1. 修复冲突主张触发逻辑 ✅ 已完成（2026-10-21）
 - 最终规则（预警与主张分离，对应设计文档两条独立规则）：
   - §4.2 风险预警（稀缺）：48h 内有 DDL **且** 之前没有 ≥2h 整块空档 → warning「没有整块复习时间」；`hasFreeBlockBefore` 已修正为从 now 起算、过期时段不计
-  - §5.3 冲突主张（争夺）：48h 内有 DDL **且** 今晚（18:00–23:00）存在 ≥2h 整块空档 → 主张该空档用于复习，与健康 Agent 的「提前睡」构成 L2 真冲突
+  - §5.3 冲突主张（争夺）：48h 内有 DDL **且** 今晚（18:00–23:00）存在 ≥2h 整块空档 → 主张该空档用于复习，与健康 方向 的「提前睡」构成 L2 真冲突
 - 验收：周三 11:30 午间报告**有**冲突卡（今晚有空档 + DDL 40h 后 + 近三天缺觉三方齐备），但**无**「复习窗口紧张」假预警；21:30 晚间报告无冲突卡（今晚剩余空档 <2h，争夺战不成立）
 - ⚠️ 注意：本清单初版验收标准「周三应无冲突卡」有误——那会砍掉冲突演示，以上述最终规则为准
 
 ### A2. 编排器依据富化（evidence enrichment）✅ 已完成（2026-10-21）
 - 已实现：`src/orchestrator/enrich.ts`，汇总阶段按规则表把跨域 Finding 挂载到选项卡（新规则 = RULES 加一行）；`life.ts` 已不再 import 睡眠模块
-- 验收：`life.ts` 无跨域 import；午饭选项 B「为什么」仍显示健康 Agent 依据（由编排器挂载）
+- 验收：`life.ts` 无跨域 import；午饭选项 B「为什么」仍显示健康 方向 依据（由编排器挂载）
 
 ### A3. 课表 / 考试手动录入的数据层 ✅ 已完成（2026-10-21）
 - 已实现：Dexie v2 新增 `courses` / `exams` 表；`src/data/store/courses.ts` 提供 `listCourses/addCourse/updateCourse/deleteCourse` 与 `listExams/addExam/updateExam/deleteExam`；`src/data/queries.ts` 全部改读库（取数函数异步化，纯函数保持同步）
@@ -38,7 +38,7 @@
 
 ### A4. 睡眠手动录入接口 ✅ 已完成（2026-10-21）
 - 已实现：`upsertSleepLog(log)` / `deleteSleepLog(date)`（`src/data/store/profile.ts`），同一日期覆盖写
-- 验收：录入昨晚 7.5h 后，健康 Agent 的午间小憩建议不再出现 ✅ 已实测（小憩与 L1 合并卡消失，睡眠恢复后冲突卡按规则也不再出现）
+- 验收：录入昨晚 7.5h 后，健康 方向 的午间小憩建议不再出现 ✅ 已实测（小憩与 L1 合并卡消失，睡眠恢复后冲突卡按规则也不再出现）
 
 ### A5. 本地定时触发器 ✅ 已完成（2026-10-22）
 - 已实现：`src/lib/reportSlot.ts`（`currentSlot()` 按时段判定 trigger，`slotKey()` 做跨段/跨天比对）；`Home.tsx` 首屏按当前时段自动生成一次 + 60s 轮询，时段变化才重算
@@ -47,7 +47,7 @@
 
 ### A6. 生存模式引擎（§4.8 MVP 裁剪版）✅ 已完成（2026-10-22）
 - 已实现：`src/lib/examMode.ts`（`examWindowOf` 判 7 天窗口 + 考试日；`examReportTypeOf` 出 exam-day/exam-week）与 `src/orchestrator/exam.ts`（`EXAM_WEIGHT` 权重、`reviewSuggestionOf` 按 mastery 排复习选项、`examEveClaims` 考前一晚 A/B 主张、`buildExamResults` 合成产出、`examEveChecklist`）
-- 接线方式：编排器在 `mode === 'exam'` 时把合成结果 `push` 进结果数组并 emit 一条 `merge:applied`（「生存模式：注入考试域产出」），4 个 Agent 一行未改 —— 关掉生存模式 = 删一次调用
+- 接线方式：编排器在 `mode === 'exam'` 时把合成结果 `push` 进结果数组并 emit 一条 `merge:applied`（「生存模式：注入考试域产出」），4 个方向 一行未改 —— 关掉生存模式 = 删一次调用
 - 逃生开关：`localStorage['xiaoshan:force-normal'] === '1'`（设置页「强制关闭生存模式」）
 - 验收：示例库里的 DDL 落在窗口内 → 一打开就是「冲刺报告」，概览出现倒计时/复习窗口 ✅ 已实测（浏览器）；考后小结数据 ✅ 已由 `recap` 块承接并补了「尚未录入」文案
 
@@ -125,7 +125,7 @@
 
 ### B5. 晚间报告闭环交互（§4.6/§4.7）✅ 已完成（2026-10-22）
 - 已实现：`SuggestionGroupBlock` 头部「✓ 做了 / − 没做」→ `onMark` → `markCompliance(topic, done)`；标记后换成中性徽标「已记录 · 做了/没做」，toast 文案「只用来调整下次建议的轻重，不用于评价你」
-- 顺带修正两处 bug：`markCompliance` 计数重复（`shown` 被加两次）；健康 Agent 遵从度键 `'小憩'` → `'午间小憩'`（与 `suggestion.topic` 对齐，否则降级分支永不触发）
+- 顺带修正两处 bug：`markCompliance` 计数重复（`shown` 被加两次）；健康 方向 遵从度键 `'小憩'` → `'午间小憩'`（与 `suggestion.topic` 对齐，否则降级分支永不触发）
 - 待补：「没做」的四选一归因（起晚了/不饿/没时间/忘了）与「不再追问」开关
 - 验收：标记后遵从度画像更新 ✅（暂以 toast + 本地库核对，设置页可视化归 B7）
 
@@ -148,10 +148,10 @@
 - **一周尺度：睡眠债 / 规律性 / 本周对比（2026-10-25 追加）**
   - `queries.ts` 新增 `sleepDebt()`（每晚按 7.5h 计缺口，同时给出覆盖晚数与欠得最多的那晚）、`bedtimeRegularity()`（近 7 晚入睡时刻标准差，凌晨入睡统一 +1440 后计算，少于两晚返回 null）、`weekOverWeek()`（本周 7 晚 vs 上周 7 晚，两边都有数才给 `delta`）
   - 健康页图表下方新增一排三张卡：**睡眠债**（欠得多时标红，副标题写清是几晚按 7.5h 算）、**入睡波动**（±N 分 + 稳 / 一般 / 偏乱 / 很乱的标签与阈值说明）、**比上周**（±Xh，副标题并列本周与上周平均值；缺一边就写「上周没有记录」）
-  - 健康 Agent 新增 `health:sleep-load`（fact，一句话讲清债 / 波动 / 同比）、`health:sleep-debt-warn`（累计 ≥6h 才报）、`health:sleep-irregular`（标准差 ≥90 分钟才报）
+  - 健康 方向 新增 `health:sleep-load`（fact，一句话讲清债 / 波动 / 同比）、`health:sleep-debt-warn`（累计 ≥6h 才报）、`health:sleep-irregular`（标准差 ≥90 分钟才报）
   - 报告「今日总结」新增「睡眠债」一行，与「昨晚睡眠」「近 7 天平均」并列，三个口径各自写明
-  - 顺带修两个报告层的毛病：`RECIPES['exam-week']` 补上 `warning`（此前冲刺报告只在概览写「6 项需留意」，却没有任何区块能读到这 6 项）；警告卡归属改为「先看证据、再按 finding id 找所属 Agent」（此前无证据的警告一律显示「日程 Agent」，健康 Agent 的警告被挂到日程名下）
-  - 实测（示例数据）：睡眠债 **9.5h（近 7 晚）**、入睡波动 **±35 分**（一般）、比上周「—（上周没有记录）」；报告顶部出现「近 7 晚累计睡眠债 9.5h，欠得最多的是 2026-10-24 那晚只睡 5.5h —— 健康 Agent」，归属正确；375px 无横向溢出
+  - 顺带修两个报告层的毛病：`RECIPES['exam-week']` 补上 `warning`（此前冲刺报告只在概览写「6 项需留意」，却没有任何区块能读到这 6 项）；警告卡归属改为「先看证据、再按 finding id 找所属 方向」（此前无证据的警告一律显示「日程 方向」，健康 方向 的警告被挂到日程名下）
+  - 实测（示例数据）：睡眠债 **9.5h（近 7 晚）**、入睡波动 **±35 分**（一般）、比上周「—（上周没有记录）」；报告顶部出现「近 7 晚累计睡眠债 9.5h，欠得最多的是 2026-10-24 那晚只睡 5.5h —— 健康 方向」，归属正确；375px 无横向溢出
 - **饮食结构标签 + 预算×吃好 L2（2026-10-25 追加）**
   - `OptionCard` 增加 `nutrition?: MealNutrition`（`veg / protein / oil` 各 0–2 三级），**不引入 kcal**：食堂没有可信的热量来源，编数字比不写更糟；也不做体重/BMI 评价
   - 四个食堂窗口补 `payload.nutrition`（经济窗口 `0/1/0`、轻食 `2/2/2`、面档 `1/1/1`、便利店 `0/1/1`），数据源没标就不显示，不猜
@@ -171,15 +171,15 @@
 
 
 ### B7. 设置页 ✅ 已完成（2026-10-22）
-- 已实现：`src/pages/Settings.tsx` 六组——Agent 启停（写 `localStorage['xiaoshan:agents']` 并即时改注册表 `enabled`）、画像编辑、外观三选（跟随系统/浅色/深色）、演示旋钮（强制关闭生存模式）、LLM API Key 选填（标明当前不接模型）、数据（恢复示例 / 清除全部 → `clearAllData()` + 回 onboarding）
-- 验收：关掉健康 Agent 后报告不再含健康建议 ✅；清除数据后刷新回到 onboarding ✅（浏览器实测）
-- **权重可调（2026-10-25，契约 v1.8）**：Agent 行从「只读展示权重」改成 −/+ 步进（0.5–3，持久化 `localStorage['xiaoshan:agent-weights']`），旁边直接标出「生存模式折算 ×1.4」这类结果；`src/orchestrator/weights.ts` 让 `defaultWeight` 真正参与排序（生存模式按 `defaultWeight × 生存因子` 升/降一级，普通模式只作同优先级排序依据），`exam.ts` 里那张硬编码 `EXAM_WEIGHT` 已删除
-- **顺带修掉的真 bug**：启停与权重的恢复原在 `App` 的 `useEffect` 里，而 React 子组件 effect 先于父组件执行 → **首屏那份报告总是用默认设置生成的**（关掉的 Agent 照样出现、调过的权重不生效，要手动再点一次才算数）。现移到 `src/agents/restore.ts`，在 `registry` 模块加载时执行
+- 已实现：`src/pages/Settings.tsx` 六组——方向 启停（写 `localStorage['xiaoshan:directions']` 并即时改注册表 `enabled`）、画像编辑、外观三选（跟随系统/浅色/深色）、演示旋钮（强制关闭生存模式）、LLM API Key 选填（标明当前不接模型）、数据（恢复示例 / 清除全部 → `clearAllData()` + 回 onboarding）
+- 验收：关掉健康 方向 后报告不再含健康建议 ✅；清除数据后刷新回到 onboarding ✅（浏览器实测）
+- **权重可调（2026-10-25，契约 v1.8）**：方向 行从「只读展示权重」改成 −/+ 步进（0.5–3，持久化 `localStorage['xiaoshan:方向-weights']`），旁边直接标出「生存模式折算 ×1.4」这类结果；`src/orchestrator/weights.ts` 让 `defaultWeight` 真正参与排序（生存模式按 `defaultWeight × 生存因子` 升/降一级，普通模式只作同优先级排序依据），`exam.ts` 里那张硬编码 `EXAM_WEIGHT` 已删除
+- **顺带修掉的真 bug**：启停与权重的恢复原在 `App` 的 `useEffect` 里，而 React 子组件 effect 先于父组件执行 → **首屏那份报告总是用默认设置生成的**（关掉的方向照样出现、调过的权重不生效，要手动再点一次才算数）。现移到 `src/directions/restore.ts`，在 `registry` 模块加载时执行
 
 ### B8. 编排动画视觉升级版 ⭐ 演示抓手 ✅ 已完成（2026-10-22）
-- 已实现：`OrchestrationTimeline.tsx` 从文字流改成节点图——三步流程条（拆解任务/并行执行/汇总决策）+ 总控节点 + 4 个 Agent 节点（等待 / 执行中 ping / 完成「N 条发现 / M 条建议」）+ 冲突徽标与「冲突待裁决」节点 + L1 自动合并节点 + 「报告已生成」收尾
+- 已实现：`OrchestrationTimeline.tsx` 从文字流改成节点图——三步流程条（拆解任务/并行执行/汇总决策）+ 总控节点 + 4 个方向 节点（等待 / 执行中 ping / 完成「N 条发现 / M 条建议」）+ 冲突徽标与「冲突待裁决」节点 + L1 自动合并节点 + 「报告已生成」收尾
 - 只订阅事件流（契约 §6），未 import 引擎内部；跑动中的相位、计数、徽标全部由事件推导，引擎换实现不用改这里
-- 验收：投屏演示时 10 秒内能看懂多 Agent 协同全过程 ✅ 已实测（4/4 已汇总 → 冲突 → 合并 → 生成）
+- 验收：投屏演示时 10 秒内能看懂多 方向 协同全过程 ✅ 已实测（4/4 已汇总 → 冲突 → 合并 → 生成）
 
 ### B9. 暗色模式 ✅ 已完成（2026-10-22）
 - 已实现：`src/lib/theme.ts`（读 `xiaoshan:theme`，`system / light / dark` 三态，跟随 `prefers-color-scheme` 变化），`main.tsx` 启动时 `initTheme()`；设置页「外观」三选
@@ -218,13 +218,13 @@ A7 ──→ B2
 | B10 考后小结卡 | ✅ 已完成 | — |
 | §9 README 架构图 | ✅ 已完成（2026-10-23 21:30：Mermaid 架构图 / 目录树 / 两张截图 / 断网演示说明） | — |
 
-## 2026-10-25 补充：四个 Agent 的「只会报警」问题
+## 2026-10-25 补充：四个方向 的「只会报警」问题
 
-A 侧 Agent 此前一律只产出 finding（其中 5 条是 warning），落到用户手里时往往没有可执行的选项。这一批把它们逐条补成「能选的建议」：
+A 侧 方向 此前一律只产出 finding（其中 5 条是 warning），落到用户手里时往往没有可执行的选项。这一批把它们逐条补成「能选的建议」：
 
 | 项 | 内容 | 状态 |
 |---|---|---|
-| Agent 权重真正接线 | `defaultWeight` 从摆设变成真参数（`src/orchestrator/weights.ts`），设置页可调 0.5–3；顺带修掉「首屏报告从不用设置」的 effect 顺序 bug | ✅ PR #23 |
+| 方向 权重真正接线 | `defaultWeight` 从摆设变成真参数（`src/orchestrator/weights.ts`），设置页可调 0.5–3；顺带修掉「首屏报告从不用设置」的 effect 顺序 bug | ✅ PR #23 |
 | 日程：早八那一早 | 按最早一节课倒推起床时间，给出「食堂坐着吃 / 路上买着吃 / 不吃直接去」三档，代价与短期影响逐档不同 | ✅ PR #24 |
 | 日程：预警拆分 | `if (早八 && 连排) … else if (早八)` 会吞掉单独的早八 → 改成两条独立 finding | ✅ PR #24 |
 | L1 合并新规则 | 早上同时有「早八那一早」与「早餐吃什么」时只留前者，避免同一个早晨问两遍 | ✅ PR #24 |

@@ -87,7 +87,7 @@ npm run build && npm run preview   # 注意：dev 模式不注册 Service Worker
 3. **生存模式**：考前 7 天内自动进 exam 模式，报告切成「冲刺报告」（倒计时 / 复习窗口 / 掌握度分档），日程与健康方向权重上浮；考完 2–6 小时出「考后小结」；设置页有「强制关闭生存模式」开关兜底。
 4. **遵从度回流**：晚间点「做了 / 没做」会落库；同一主题**连续 2 次没做**，下次该建议的 priority 自动降一级，并在编排时间轴上说明原因；晚报显示本周执行率（没记录就显示「—」，不编数字）。
 5. **离线可用**：`vite-plugin-pwa` + workbox 预缓存，`navigateFallback` 让 `/week`、`/plan` 等子路由断网也能打开。
-6. **方向即插即用**：统一 `AgentModule` 接口 + 注册表，新增一个思考方向 = 加一个文件 + 注册一行；设置里按方向启停即改 `enabled` 字段。
+6. **方向即插即用**：统一 `DirectionModule` 接口 + 注册表，新增一个思考方向 = 加一个文件 + 注册一行；设置里按方向启停即改 `enabled` 字段。
 7. **事实包 → 简报**：`lib/facts.ts` 把本地数据折成带稳定 id 的事实，`lib/brief.ts` 生成结构化结论（每条挂 `factIds`），上屏前 `validateBrief` 校验引用是否真实存在、字段是否超长，**任何一条不过就整段回落模板**。生成器是 adapter，接大模型时只换实现，校验、兜底、渲染都不动。
 8. **教学周**：课程带 `weeks`（如 `[1,3,5]`），学期第一周存 `semesterStart`；周历、月历、复习排期都用它换算「这周到底上不上」，学期设错时周历会明确提示并给一键显示全部。
 
@@ -96,7 +96,7 @@ npm run build && npm run preview   # 注意：dev 模式不注册 Service Worker
 ```mermaid
 flowchart TD
   UI["页面层 pages/ · 报告 / 周历 / 复习 / 信息流 / 健康 / 设置"] --> ORC["总控编排器 orchestrator/index.ts"]
-  ORC --> EVT["事件流 events.ts<br/>跑:start → agent:start → merge:applied → report:composed"]
+  ORC --> EVT["事件流 events.ts<br/>跑:start → 方向:start → merge:applied → report:composed"]
   ORC --> A1["教务视角"]
   ORC --> A2["生活视角"]
   ORC --> A3["健康视角"]
@@ -115,7 +115,7 @@ flowchart TD
 ```
 src/
   types/contract.ts       # 报告契约唯一实现（对应 docs/report-contract.md）
-  agents/                 # 教务 / 生活 / 健康 / 日程 4 个思考方向 + registry
+  directions/                 # 教务 / 生活 / 健康 / 日程 4 个思考方向 + registry
   orchestrator/
     index.ts              # 总控：取数 → 并行跑各方向 → 决策 → 组装
     arbiter.ts            # 冲突仲裁：L1 自动合并 / L2 冲突卡
@@ -143,7 +143,7 @@ src/
     reportSlot.ts         # 当前时段与报告槽位
     theme.ts              # 暗色跟随系统
   ui/
-    reports/              # 报告区块渲染器 + 讨论纪要（AgentDebate）+ 风险面板
+    reports/              # 报告区块渲染器 + 讨论纪要（DebatePanel）+ 风险面板
     cards/                # 选项卡（含跨方向评审）/ 冲突卡
     brief/                # 今日简报卡
     outlook/              # 未来两天 / 下周预报 / 本周总结
@@ -216,7 +216,7 @@ npm run preview    # 以产物方式起服务——断网演示必须用这个�
 
 ## 文档导航
 
-- [项目设计文档](docs/CCUNER校园助手-项目设计.md) —— 产品定位、功能详设、多智能体架构与冲突仲裁、考试周生存模式、onboarding、隐私设计、品牌视觉
+- [项目设计文档](docs/CCUNER校园助手-项目设计.md) —— 产品定位、功能详设、多方向架构与冲突仲裁、考试周生存模式、onboarding、隐私设计、品牌视觉
 - [报告契约](docs/report-contract.md) —— 类型、事件、区块、生存模式与遵从度回流（v1.4，改报告前必读）
 - [开发任务清单](docs/dev-tasks.md) —— A/B 分工与完成度
 - [部署说明](docs/deploy.md) —— 静态部署步骤、部署后验收、断网彩排

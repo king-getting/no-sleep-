@@ -1,13 +1,13 @@
-import type { AgentId, MealNutrition } from '@/types/contract';
+import type { DirectionId, MealNutrition } from '@/types/contract';
 import type { ChoiceRecord } from '@/data/store/db';
 
 /**
  * 饮食总结（健康页）
  *
  * 数据来源只有一处：你在报告里点过的选项卡。点一次就落一条快照
- * （标题 / 价格 / 营养结构），这里只是把今天这些点选算成三个 Agent 的看法。
+ * （标题 / 价格 / 营养结构），这里只是把今天这些点选算成三个 方向 的看法。
  *
- * 三条评分维度分别由三个 Agent 出：
+ * 三条评分维度分别由三个 方向 出：
  *   健康 —— 结构（蔬菜 / 蛋白质 / 油）
  *   生活 —— 钱（今日花费 vs 日餐标）
  *   日程 —— 时间（有没有跳过早饭、是不是拖到很晚才吃）
@@ -25,7 +25,7 @@ export interface DietMeal {
 }
 
 export interface DietDimension {
-  agentId: AgentId;
+  directionId: DirectionId;
   label: string;
   score: number;
   reason: string;
@@ -178,9 +178,9 @@ export function buildDietSummary(records: ChoiceRecord[], budget: number): DietS
     : '早饭哪怕只是一个包子也记一笔——跳过早饭的人，中午更容易吃撑。';
 
   const dims: DietDimension[] = [
-    { agentId: 'health', label: '营养结构', score: healthScore, reason: healthReason, tip: healthTip },
-    { agentId: 'life', label: '日常花销', score: lifeScore, reason: lifeReason, tip: lifeTip },
-    { agentId: 'schedule', label: '用餐时间', score: timeScore, reason: timeReason, tip: timeTip },
+    { directionId: 'health', label: '营养结构', score: healthScore, reason: healthReason, tip: healthTip },
+    { directionId: 'life', label: '日常花销', score: lifeScore, reason: lifeReason, tip: lifeTip },
+    { directionId: 'schedule', label: '用餐时间', score: timeScore, reason: timeReason, tip: timeTip },
   ];
 
   const score = clamp(dims.reduce((s, d) => s + d.score, 0) / dims.length);

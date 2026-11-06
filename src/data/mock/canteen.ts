@@ -66,7 +66,7 @@ export const MOCK_CANTEEN_WINDOWS: RawItem[] = [
   },
 ];
 
-/** 示例天气（生活 Agent 的天气能力数据源）；标题写明「示例」——答辩会问「断网哪来的天气」 */
+/** 示例天气（生活 方向 的天气能力数据源）；标题写明「示例」——答辩会问「断网哪来的天气」 */
 export const MOCK_WEATHER: RawItem = {
   id: 'wx-today',
   type: 'weather',

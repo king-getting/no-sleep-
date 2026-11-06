@@ -1,7 +1,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AGENT_META } from '@/ui/agentMeta';
-import type { AgentId } from '@/types/contract';
+import { DIRECTION_META } from '@/ui/directionMeta';
+import type { DirectionId } from '@/types/contract';
 
 /**
  * 风险项面板（左侧栏）
@@ -9,7 +9,7 @@ import type { AgentId } from '@/types/contract';
  * 原先它在报告正文里，9 条连排会把右列顶得很长——真正要看的选项卡被推到两屏之外。
  * 挪到左栏后：右列只留「概览 + 选项卡 + 冲突 + 总结」，风险全程可见、可滚。
  */
-export function RiskPanel({ items }: { items: { text: string; agentId: AgentId }[] }) {
+export function RiskPanel({ items }: { items: { text: string; directionId: DirectionId }[] }) {
   if (items.length === 0) return null;
 
   return (
@@ -21,7 +21,7 @@ export function RiskPanel({ items }: { items: { text: string; agentId: AgentId }
       </div>
       <ul className="divide-y">
         {items.map((item, i) => {
-          const meta = AGENT_META[item.agentId];
+          const meta = DIRECTION_META[item.directionId];
           return (
             <li key={i} className="flex items-start gap-2 px-3.5 py-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/80" />

@@ -18,7 +18,7 @@ export const DEMO_PROFILE: UserProfile = {
   isDemo: true,
 };
 
-/** 偏好快问快答（§4.9 第 5 步）的示例答案，作为各 Agent 初始权重 */
+/** 偏好快问快答（§4.9 第 5 步）的示例答案，作为各 方向 初始权重 */
 export const DEMO_PREFERENCES: Preferences = {
   chronotype: 'night', // 夜猫型
   foodPriority: 'saving', // 省钱优先

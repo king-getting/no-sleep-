@@ -1,4 +1,4 @@
-import type { AgentId, OptionCard, Suggestion } from '@/types/contract';
+import type { DirectionId, OptionCard, Suggestion } from '@/types/contract';
 import type { TopicStat } from './compliance';
 import { MISSES_BEFORE_DOWNGRADE } from './compliance';
 
@@ -18,11 +18,11 @@ interface AttributedOption {
   cost: OptionCard['cost'];
   pros: string[];
   cons: string[];
-  impacts: { horizon: 'short' | 'long'; text: string; agentId: AgentId }[];
+  impacts: { horizon: 'short' | 'long'; text: string; directionId: DirectionId }[];
 }
 
-function agentOf(s: Suggestion): AgentId {
-  return s.options[0]?.evidences[0]?.agentId ?? 'schedule';
+function directionOf(s: Suggestion): DirectionId {
+  return s.options[0]?.evidences[0]?.directionId ?? 'schedule';
 }
 
 /** topic + 归因 → 更轻的选项卡（null = 走通用兜底） */
@@ -33,14 +33,14 @@ const RULES: Record<string, Record<string, AttributedOption>> = {
       cost: { money: 5, timeMin: 2 },
       pros: ['起床后两分钟解决，不占洗漱时间', '前一晚顺手放好，不考验早上的你'],
       cons: ['需要前一晚备好，当天开始用不了'],
-      impacts: [{ horizon: 'short', text: '早八不空腹，前两节课不掉状态', agentId: 'health' }],
+      impacts: [{ horizon: 'short', text: '早八不空腹，前两节课不掉状态', directionId: 'health' }],
     },
     不饿: {
       title: '打包带走，上午十点再吃',
       cost: { money: 5, timeMin: 0 },
       pros: ['不强迫没胃口的早上进食', '十点血糖低点正好补上'],
       cons: ['十点前有点饿只能忍一小会儿'],
-      impacts: [{ horizon: 'short', text: '比完全不吃稳，比硬吃舒服', agentId: 'health' }],
+      impacts: [{ horizon: 'short', text: '比完全不吃稳，比硬吃舒服', directionId: 'health' }],
     },
   },
   午间小憩: {
@@ -49,7 +49,7 @@ const RULES: Record<string, Record<string, AttributedOption>> = {
       cost: { timeMin: 3 },
       pros: ['不用睡着，闭眼就算恢复', '任何碎片时间塞得下'],
       cons: ['恢复有限，只适合救急'],
-      impacts: [{ horizon: 'short', text: '下午第一节的犯困概率降一点是一点', agentId: 'health' }],
+      impacts: [{ horizon: 'short', text: '下午第一节的犯困概率降一点是一点', directionId: 'health' }],
     },
   },
 };
@@ -61,7 +61,7 @@ function shrinkPlanOption(s: Suggestion, streak: number): AttributedOption {
     cost: { timeMin: s.options[0]?.cost.timeMin },
     pros: [`连续 ${streak} 次没做成，可能是计划定大了`, '范围砍半，完成感先回来'],
     cons: ['覆盖面变小，靠别的日子补'],
-    impacts: [{ horizon: 'long', text: '完成感回来了，计划才留得下来', agentId: 'schedule' }],
+    impacts: [{ horizon: 'long', text: '完成感回来了，计划才留得下来', directionId: 'schedule' }],
   };
 }
 
@@ -75,7 +75,7 @@ function toOptionCard(s: Suggestion, body: AttributedOption, tag: string): Optio
     impacts: body.impacts,
     evidences: [
       {
-        agentId: agentOf(s),
+        directionId: directionOf(s),
         text: `昨天你没做成，选的原因是「${tag}」——这张卡是为这个原因准备的更轻版本`,
         confidence: 2,
       },
@@ -107,7 +107,7 @@ export function applyMissReasons(
           cost: { timeMin: Math.max(5, Math.round((s.options[0]?.cost.timeMin ?? 20) / 3)) },
           pros: ['成本砍到原来的三分之一', '先让「做过」发生，再谈做好'],
           cons: ['效果打折，只适合过渡'],
-          impacts: [{ horizon: 'long', text: '小步走比反复失败更容易坚持', agentId: agentOf(s) }],
+          impacts: [{ horizon: 'long', text: '小步走比反复失败更容易坚持', directionId: directionOf(s) }],
         };
       extra.push(toOptionCard(s, body, reason));
       notes.push(`归因回流：昨天「${s.topic}」没做（${reason}）→ 已插入更轻的选项`);

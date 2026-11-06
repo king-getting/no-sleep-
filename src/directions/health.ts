@@ -17,7 +17,7 @@ import {
   weekOverWeek,
 } from '@/data/queries';
 import { dailyBudget, fmtMin } from '@/types/contract';
-import type { AgentModule, AgentResult, Finding, MealNutrition, OptionCard } from '@/types/contract';
+import type { DirectionModule, DirectionResult, Finding, MealNutrition, OptionCard } from '@/types/contract';
 
 /** 没有记录就说没有记录，不拿健康基线冒充实测；中文里「平均 没有记录」读着别扭，所以整句换掉 */
 function avg3Phrase(v: number | null): string {
@@ -25,13 +25,13 @@ function avg3Phrase(v: number | null): string {
 }
 
 /**
- * 健康 Agent：睡眠 × 课表联动
+ * 健康 方向：睡眠 × 课表联动
  * - 昨晚 <6h 且今天早八/连排 → 午间小憩选项卡
  * - 晚间 → 熬夜提醒（「现在睡能睡 X 小时」）
- * - 近三天平均 <6h → 对今晚空档提出「提前睡」主张（与日程 Agent 构成真冲突）
+ * - 近三天平均 <6h → 对今晚空档提出「提前睡」主张（与日程 方向 构成真冲突）
  * - 不服从自动降级：同类建议连续未执行 → 换更轻量版本（§4.6）
  */
-export const healthAgent: AgentModule = {
+export const healthDirection: DirectionModule = {
   id: 'health',
   name: '健康',
   version: '0.1.0',
@@ -41,8 +41,8 @@ export const healthAgent: AgentModule = {
 
   async run(ctx) {
     const findings: Finding[] = [];
-    const suggestions: AgentResult['suggestions'] = [];
-    const claims: AgentResult['conflictClaims'] = [];
+    const suggestions: DirectionResult['suggestions'] = [];
+    const claims: DirectionResult['conflictClaims'] = [];
 
     const logs = await getSleepLogs();
     const lastNight = lastNightSleep(logs, ctx.now);
@@ -65,7 +65,7 @@ export const healthAgent: AgentModule = {
       summary: `昨晚${lastNight ? `睡 ${lastNight.hours}h` : '没有记录'}，${avg3Text}，${avg7Text}；${wakeText}`,
       evidences: [
         {
-          agentId: 'health',
+          directionId: 'health',
           text:
             wake.reason === 'class'
               ? '起床时间按次日课表最早一节反推（课前 40 分钟），数据来源：本地课表'
@@ -98,7 +98,7 @@ export const healthAgent: AgentModule = {
         summary: loadParts.join('；'),
         evidences: [
           {
-            agentId: 'health',
+            directionId: 'health',
             text: `口径：每晚报 7.5h 记一次缺口；入睡时间波动是近 7 晚入睡时刻的标准差${debt ? `，只算有记录的 ${debt.covered} 晚` : ''}`,
             confidence: 3,
           },
@@ -119,7 +119,7 @@ export const healthAgent: AgentModule = {
         summary: `近 ${debt.covered} 晚累计睡眠债 ${debt.debtHours}h${worstText}`,
         evidences: [
           {
-            agentId: 'health',
+            directionId: 'health',
             text: `欠得最多的是 ${debt.worst?.date ?? '—'} 那晚 ${debt.worst?.hours ?? 0}h`,
             confidence: 3,
           },
@@ -136,7 +136,7 @@ export const healthAgent: AgentModule = {
         summary: `入睡时间波动 ±${rhythm.stdMin} 分钟，作息不太规律`,
         evidences: [
           {
-            agentId: 'health',
+            directionId: 'health',
             text: `近 ${rhythm.covered} 晚入睡时刻的标准差为 ${rhythm.stdMin} 分钟（<30 稳 / 30–60 一般 / >90 乱）`,
             confidence: 3,
           },
@@ -168,9 +168,9 @@ export const healthAgent: AgentModule = {
         pros: ['下午前两节课注意力明显回升'],
         cons: ['占用 20 分钟空档'],
         fallback: '下午第一节课大概率犯困，靠咖啡硬撑',
-        impacts: [{ horizon: 'short', text: '14:00 那节课不容易走神', agentId: 'health' }],
+        impacts: [{ horizon: 'short', text: '14:00 那节课不容易走神', directionId: 'health' }],
         evidences: [
-          { agentId: 'health', text: `昨晚${lastNight ? `睡眠 ${lastNight.hours}h` : '没有记录'} < 6h`, confidence: 3 },
+          { directionId: 'health', text: `昨晚${lastNight ? `睡眠 ${lastNight.hours}h` : '没有记录'} < 6h`, confidence: 3 },
         ],
       };
       const light: OptionCard = {
@@ -182,8 +182,8 @@ export const healthAgent: AgentModule = {
         pros: ['几乎不占时间，也不用真睡着'],
         cons: ['恢复效果弱于完整小憩'],
         fallback: '下午状态平平，但不至于趴桌上睡着',
-        impacts: [{ horizon: 'short', text: '下午状态略有改善', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: '上次的小憩建议对你太重，已自动降级为轻量版', confidence: 2 }],
+        impacts: [{ horizon: 'short', text: '下午状态略有改善', directionId: 'health' }],
+        evidences: [{ directionId: 'health', text: '上次的小憩建议对你太重，已自动降级为轻量版', confidence: 2 }],
       };
       const skip: OptionCard = {
         id: 'nap-skip',
@@ -193,8 +193,8 @@ export const healthAgent: AgentModule = {
         pros: ['多 20 分钟自习时间'],
         cons: ['下午犯困风险高'],
         fallback: '下午效率打折，晚上还得补回来',
-        impacts: [{ horizon: 'short', text: '14:00–16:00 注意力下降风险高', agentId: 'health' }],
-        evidences: [{ agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 }],
+        impacts: [{ horizon: 'short', text: '14:00–16:00 注意力下降风险高', directionId: 'health' }],
+        evidences: [{ directionId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 }],
       };
 
       suggestions.push({
@@ -238,12 +238,12 @@ export const healthAgent: AgentModule = {
                   wake.reason === 'class' && wake.firstClass
                     ? `${fmtMin(wake.firstClass.startMin)} 有 ${wake.firstClass.name}，早起状态能撑住`
                     : '明早按自己的节奏起床，不至于睡过头',
-                agentId: 'health',
+                directionId: 'health',
               },
             ],
             evidences: [
-              { agentId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 },
-              { agentId: 'health', text: `${wakeText}（按课表反推）`, confidence: 3 },
+              { directionId: 'health', text: `${avg3Phrase(avg3)}`, confidence: 3 },
+              { directionId: 'health', text: `${wakeText}（按课表反推）`, confidence: 3 },
             ],
           },
           {
@@ -255,17 +255,17 @@ export const healthAgent: AgentModule = {
             cons: [`今晚只剩 ${laterHours} 小时睡眠`],
             fallback: '明早照旧 7 点起，睡眠债继续涨',
             impacts: [
-              { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'health' },
-              { horizon: 'long', text: '缺觉累积，本周精力趋势继续走低', agentId: 'health' },
+              { horizon: 'short', text: '明早前两节课注意力下降风险高', directionId: 'health' },
+              { horizon: 'long', text: '缺觉累积，本周精力趋势继续走低', directionId: 'health' },
             ],
-            evidences: [{ agentId: 'health', text: '睡眠债已超过 3 天', confidence: 2 }],
+            evidences: [{ directionId: 'health', text: '睡眠债已超过 3 天', confidence: 2 }],
           },
         ],
       });
     }
 
     // ── 对今晚空档的「提前睡」主张（真冲突的健康方） ──
-    // 和日程 Agent 的「今晚整块拿来复习」主张同 topic → arbiter 生成 L2 卡。
+    // 和日程 方向 的「今晚整块拿来复习」主张同 topic → arbiter 生成 L2 卡。
     // 只有三个条件同时成立才开这张卡：近 3 天睡不够、今晚确实有可支配的空档、明天还要早起。
     const tonightSlot = await tonightFreeBlock(ctx.now);
     const debt7 = sleepDebt(logs, 7, ctx.now);
@@ -285,7 +285,7 @@ export const healthAgent: AgentModule = {
         side: 'health',
         plan: {
           id: 'plan-health-first',
-          agentId: 'health',
+          directionId: 'health',
           title: `健康优先：今晚 ${fmtMin(stopAt)} 收工，${fmtMin(bedtimeMin)} 睡、明早 ${fmtMin(wake.wakeMin)} 起（约 ${hoursAt23.toFixed(1)} 小时）`,
           when: `今晚 ${fmtMin(stopAt)} 收工`,
           cost: { timeMin: cutMin, effort: 1 },
@@ -303,20 +303,20 @@ export const healthAgent: AgentModule = {
               text: wake.reason === 'class' && wake.firstClass
                 ? `${fmtMin(wake.firstClass.startMin)} 那节课不至于走神`
                 : '明早起来不至于发懵',
-              agentId: 'health',
+              directionId: 'health',
             },
-            { horizon: 'long', text: debtAfter !== null ? `这周睡眠债从 ${debt7?.debtHours.toFixed(1)}h 降到约 ${debtAfter}h` : '把这周的缺口压下去', agentId: 'health' },
+            { horizon: 'long', text: debtAfter !== null ? `这周睡眠债从 ${debt7?.debtHours.toFixed(1)}h 降到约 ${debtAfter}h` : '把这周的缺口压下去', directionId: 'health' },
           ],
           evidences: [
-            { agentId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 },
-            { agentId: 'health', text: debt7 ? `近 7 晚累计睡债 ${debt7.debtHours.toFixed(1)}h` : `${wakeText}`, confidence: 2 },
-            { agentId: 'schedule', text: `今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`, confidence: 2 },
+            { directionId: 'health', text: `${avg3Phrase(avg3)}，连续不足`, confidence: 3 },
+            { directionId: 'health', text: debt7 ? `近 7 晚累计睡债 ${debt7.debtHours.toFixed(1)}h` : `${wakeText}`, confidence: 2 },
+            { directionId: 'schedule', text: `今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`, confidence: 2 },
           ],
         },
       });
     }
 
-    // 午饭的「吃好」侧（契约 §4.5）：与生活 Agent 的「省钱」侧配对成 L2。
+    // 午饭的「吃好」侧（契约 §4.5）：与生活 方向 的「省钱」侧配对成 L2。
     // 缺觉的时候更需要蛋白和蔬菜撑住下午——这不是营养学结论，是「欠觉 → 饭后更困」的常识推论，
     // 所以只在近 3 天平均 < 6.5h 时才提，睡够的日子不打扰。
     const lunchHour = ctx.now.getHours() >= 10 && ctx.now.getHours() < 14;
@@ -333,7 +333,7 @@ export const healthAgent: AgentModule = {
           side: 'balanced',
           plan: {
             id: 'lunch-balanced',
-            agentId: 'health',
+            directionId: 'health',
             title: `吃好优先：桂香园 ${fmtMoney(price)}，蔬菜和蛋白都到位`,
             note: '桂香园 · 现做，要等 15 分钟',
             when: '今天 11:40 前',
@@ -344,20 +344,20 @@ export const healthAgent: AgentModule = {
             cons: [over > 0 ? `这顿比日均餐标多 ${fmtMoney(over)}` : '贵一点，但还在今天的餐标内'],
             fallback: '继续吃油重的那家，下午第二节课容易困',
             impacts: [
-              { horizon: 'short', text: `近 3 天平均 ${avg3.toFixed(1)}h，吃完这顿不至于下午第一节就发呆`, agentId: 'health' },
-              { horizon: 'long', text: '连续几天吃到蔬菜，比靠咖啡硬撑划算', agentId: 'health' },
+              { horizon: 'short', text: `近 3 天平均 ${avg3.toFixed(1)}h，吃完这顿不至于下午第一节就发呆`, directionId: 'health' },
+              { horizon: 'long', text: '连续几天吃到蔬菜，比靠咖啡硬撑划算', directionId: 'health' },
             ],
             evidences: [
-              { agentId: 'health', text: `${avg3Phrase(avg3)}，缺觉时更需要蛋白和蔬菜`, confidence: 2 },
-              { agentId: 'health', text: `结构：${nutritionLabel(n2)}（按常识标的，不是营养学测量）`, confidence: 2 },
-              { agentId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}`, confidence: 3 },
+              { directionId: 'health', text: `${avg3Phrase(avg3)}，缺觉时更需要蛋白和蔬菜`, confidence: 2 },
+              { directionId: 'health', text: `结构：${nutritionLabel(n2)}（按常识标的，不是营养学测量）`, confidence: 2 },
+              { directionId: 'life', text: `日均餐标 ¥${daily.toFixed(0)}`, confidence: 3 },
             ],
           },
         });
       }
     }
 
-    const result: AgentResult = { agentId: 'health', findings };
+    const result: DirectionResult = { directionId: 'health', findings };
     if (suggestions.length > 0) result.suggestions = suggestions;
     if (claims.length > 0) result.conflictClaims = claims;
     return result;

@@ -9,7 +9,7 @@ import { favIds, mutedIds, muteItem, toggleFav, unmuteItem } from '@/data/store/
 import { getPreferences, getProfile } from '@/data/store/profile';
 import type { ScoredItem } from '@/data/relevance';
 import { cn } from '@/lib/utils';
-import type { AgentContext, RawItem } from '@/types/contract';
+import type { DirectionContext, RawItem } from '@/types/contract';
 
 /**
  * 首页「今日校园」信息流（dev-tasks B2 × A7）
@@ -124,7 +124,7 @@ export default function Feed() {
     setError(null);
     try {
       const [user, preferences] = await Promise.all([getProfile(), getPreferences()]);
-      const ctx: AgentContext = { user, preferences, mode: 'normal', now: new Date() };
+      const ctx: DirectionContext = { user, preferences, mode: 'normal', now: new Date() };
       // 连「与我无关」的一起拿：收藏夹要能翻回自己存过、后来又被屏蔽的条目
       const [ranked, fav, muted] = await Promise.all([queryFeed(ctx, { includeMuted: true }), favIds(), mutedIds()]);
       setItems(ranked);

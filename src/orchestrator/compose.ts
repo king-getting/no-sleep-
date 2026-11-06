@@ -9,9 +9,9 @@ import { buildOptionReviews, loadReviewData } from './reviews';
 import { examEveChecklist } from './exam';
 import { weeklyComplianceText } from './compliance';
 import type {
-  AgentContext,
-  AgentId,
-  AgentResult,
+  DirectionContext,
+  DirectionId,
+  DirectionResult,
   ConflictCard,
   OverviewItem,
   Report,
@@ -21,7 +21,7 @@ import type {
 } from '@/types/contract';
 
 /**
- * 报告组装：按配方把各 Agent 的结构化产出拼成 Report。
+ * 报告组装：按配方把各 方向 的结构化产出拼成 Report。
  * 报告 = 区块拼装，UI 只按 Schema 渲染。
  */
 
@@ -34,7 +34,7 @@ const SLOT_OF: Record<ReportType, Suggestion['slot'] | null> = {
   'exam-done': 'evening',
 };
 
-async function buildOverview(type: ReportType, results: AgentResult[], ctx: AgentContext): Promise<OverviewItem[]> {
+async function buildOverview(type: ReportType, results: DirectionResult[], ctx: DirectionContext): Promise<OverviewItem[]> {
   const findings = results.flatMap((r) => r.findings);
   const fact = (id: string) => findings.find((f) => f.id === id)?.summary ?? '—';
   const warnings = findings.filter((f) => f.type === 'warning');
@@ -92,7 +92,7 @@ async function buildOverview(type: ReportType, results: AgentResult[], ctx: Agen
   ];
 }
 
-async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: string }[]> {
+async function buildRecap(ctx: DirectionContext): Promise<{ label: string; value: string }[]> {
   const courses = await todayCourses(ctx.now);
   const logs = await getSleepLogs();
   const lastNight = lastNightSleep(logs, ctx.now);
@@ -125,7 +125,7 @@ async function buildRecap(ctx: AgentContext): Promise<{ label: string; value: st
   ];
 }
 
-async function buildPreview(ctx: AgentContext): Promise<string[]> {
+async function buildPreview(ctx: DirectionContext): Promise<string[]> {
   const dow = dayOfWeek(ctx.now);
   const tomorrowDow = ((dow % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
   const tomorrow = await coursesOfDay(tomorrowDow);
@@ -149,10 +149,10 @@ async function buildPreview(ctx: AgentContext): Promise<string[]> {
 
 export async function composeReport(
   type: ReportType,
-  results: AgentResult[],
+  results: DirectionResult[],
   suggestions: Suggestion[],
   conflicts: ConflictCard[],
-  ctx: AgentContext,
+  ctx: DirectionContext,
 ): Promise<Report> {
   const slot = SLOT_OF[type];
   const slotSuggestions = suggestions
@@ -160,11 +160,11 @@ export async function composeReport(
     .sort((a, b) => a.priority - b.priority);
   const warnings = results.flatMap((r) => r.findings).filter((f) => f.type === 'warning');
   const facts = results.flatMap((r) => r.findings);
-  // 警告卡上的「—— 健康 Agent」要认得出是谁出的：先看证据，再看它落在哪个 Agent 的结果里。
-  // 之前只认证据，没有证据的警告一律显示成「日程 Agent」，会张冠李戴。
-  const agentOfFinding = (f: (typeof facts)[number]): AgentId =>
-    f.evidences?.[0]?.agentId ??
-    results.find((r) => r.findings.some((x) => x.id === f.id))?.agentId ??
+  // 警告卡上的「—— 健康 方向」要认得出是谁出的：先看证据，再看它落在哪个 方向 的结果里。
+  // 之前只认证据，没有证据的警告一律显示成「日程 方向」，会张冠李戴。
+  const directionOfFinding = (f: (typeof facts)[number]): DirectionId =>
+    f.evidences?.[0]?.directionId ??
+    results.find((r) => r.findings.some((x) => x.id === f.id))?.directionId ??
     'schedule';
 
   const blocks: ReportBlock[] = [];
@@ -177,10 +177,10 @@ export async function composeReport(
         break;
       case 'suggestionGroup':
         for (const suggestion of slotSuggestions) {
-          // 每条选项补上「另外三个 Agent 怎么看」——它们各自只看自己那一域
+          // 每条选项补上「另外三个 方向 怎么看」——它们各自只看自己那一域
           for (const option of suggestion.options) {
             if (!option.reviews) {
-              const owner = option.impacts[0]?.agentId ?? option.evidences[0]?.agentId;
+              const owner = option.impacts[0]?.directionId ?? option.evidences[0]?.directionId;
               option.reviews = buildOptionReviews(option, owner, ctx, await ensureReviewData());
             }
           }
@@ -191,7 +191,7 @@ export async function composeReport(
         for (const conflict of conflicts) blocks.push({ kind: 'conflict', conflict });
         break;
       case 'warning':
-        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, agentId: agentOfFinding(w) });
+        for (const w of warnings) blocks.push({ kind: 'warning', text: w.summary, directionId: directionOfFinding(w) });
         break;
       case 'recap':
         blocks.push({ kind: 'recap', stats: { items: await buildRecap(ctx) } });

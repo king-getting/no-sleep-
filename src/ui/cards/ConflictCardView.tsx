@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { fmtDuration, fmtMoney } from '@/lib/format';
 import { nutritionLabel, nutritionTip } from '@/lib/nutrition';
 import { cn } from '@/lib/utils';
-import { AGENT_META } from '@/ui/agentMeta';
+import { DIRECTION_META } from '@/ui/directionMeta';
 import type { ConflictCard, ConflictPlan } from '@/types/contract';
 
 function PlanView({
@@ -21,7 +21,7 @@ function PlanView({
   dimmed?: boolean;
   onChoose?: () => void;
 }) {
-  const meta = AGENT_META[plan.agentId];
+  const meta = DIRECTION_META[plan.directionId];
   return (
     <div
       className={cn(

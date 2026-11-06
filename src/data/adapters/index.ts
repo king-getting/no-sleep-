@@ -1,4 +1,4 @@
-import type { AgentContext, DataSourceAdapter, RawItem } from '@/types/contract';
+import type { DirectionContext, DataSourceAdapter, RawItem } from '@/types/contract';
 import { MOCK_CANTEEN_WINDOWS, MOCK_WEATHER } from '@/data/mock/canteen';
 import { CCNU_NOTICES } from '@/data/mock/ccnu';
 import { MOCK_NOTICES } from '@/data/mock/notices';
@@ -11,7 +11,7 @@ import { mutedIds } from '@/data/store/feed';
  */
 
 /** 身份过滤：通知类数据按校区 / 受众标签过滤（信息流「为什么推给我」的数据基础） */
-function matchIdentity(item: RawItem, ctx: AgentContext): boolean {
+function matchIdentity(item: RawItem, ctx: DirectionContext): boolean {
   if (item.campus && item.campus !== 'both' && item.campus !== ctx.user.identity.campus) return false;
   if (item.audience && item.audience.length > 0) {
     const { level, grade, college } = ctx.user.identity;
@@ -60,7 +60,7 @@ const mockWeatherAdapter: DataSourceAdapter = {
 const adapters: DataSourceAdapter[] = [mockNoticeAdapter, mockCanteenAdapter, mockWeatherAdapter];
 
 /** 按数据类型查询所有提供该类型的 adapter，汇总结果 */
-export async function queryAdapters(type: string, ctx: AgentContext): Promise<RawItem[]> {
+export async function queryAdapters(type: string, ctx: DirectionContext): Promise<RawItem[]> {
   const matched = adapters.filter((a) => a.provides.includes(type));
   const results = await Promise.all(matched.map((a) => a.fetch(type, ctx)));
   return results.flat();
@@ -73,7 +73,7 @@ const FEED_TYPES = ['notice', 'volunteer', 'express', 'canteen-window', 'conveni
  * 信息流（B2）：四类源拉平后按「与我有多有关」排序（A7 打分），
  * 并在返回前剔除用户点过「与我无关」的条目——负反馈落库，刷新仍然生效。
  */
-export async function queryFeed(ctx: AgentContext, opts?: { includeMuted?: boolean }): Promise<ScoredItem[]> {
+export async function queryFeed(ctx: DirectionContext, opts?: { includeMuted?: boolean }): Promise<ScoredItem[]> {
   const batches = await Promise.all(FEED_TYPES.map((type) => queryAdapters(type, ctx)));
   const items = batches.flat();
   const [interest, muted] = await Promise.all([loadInterests(), mutedIds()]);

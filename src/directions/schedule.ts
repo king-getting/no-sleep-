@@ -12,13 +12,13 @@ import {
 } from '@/data/queries';
 import { getSleepLogs } from '@/data/store/profile';
 import { fmtMin } from '@/types/contract';
-import type { AgentModule, AgentResult, Finding } from '@/types/contract';
+import type { DirectionModule, DirectionResult, Finding } from '@/types/contract';
 
 /**
- * 日程 Agent：时间块切分 / 风险预警 / DDL 预警
+ * 日程 方向：时间块切分 / 风险预警 / DDL 预警
  * 风险清单：早八连排、午休被课吃掉、DDL 前没有整块复习时间。
  */
-export const scheduleAgent: AgentModule = {
+export const scheduleDirection: DirectionModule = {
   id: 'schedule',
   name: '日程',
   version: '0.1.0',
@@ -37,7 +37,7 @@ export const scheduleAgent: AgentModule = {
       topic: '时间块',
       confidence: 3,
       summary: describeBlocks(blocks),
-      evidences: [{ agentId: 'schedule', text: '切分规则：上课 / 整块空档(≥2h) / 碎片(<2h)', confidence: 3 }],
+      evidences: [{ directionId: 'schedule', text: '切分规则：上课 / 整块空档(≥2h) / 碎片(<2h)', confidence: 3 }],
     });
 
     // 早八与连排是两件独立的事，各报一条。
@@ -52,7 +52,7 @@ export const scheduleAgent: AgentModule = {
         summary: `今天有早八（${fmtMin(firstClass.startMin)} 上「${firstClass.name}」），前一晚早点收工`,
         evidences: [
           {
-            agentId: 'schedule',
+            directionId: 'schedule',
             text: `${fmtMin(firstClass.startMin)} 开始，地点「${firstClass.location}」`,
             confidence: 3,
           },
@@ -83,7 +83,7 @@ export const scheduleAgent: AgentModule = {
     // DDL 预警与冲突主张是两条独立规则：
     // ① §4.2 风险预警（稀缺）：48h 内有 DDL 且之前没有 ≥2h 整块空档 → warning
     // ② §5.3 冲突主张（争夺）：48h 内有 DDL 且今晚存在整块空档 → 主张该空档用于复习，
-    //    与健康 Agent 的「提前睡」主张构成 L2 真冲突
+    //    与健康 方向 的「提前睡」主张构成 L2 真冲突
     const urgent = await upcomingExams(ctx.now, 2);
     const nearest = urgent[0];
     const hoursLeft = nearest
@@ -97,13 +97,13 @@ export const scheduleAgent: AgentModule = {
         topic: '复习',
         confidence: 3,
         summary: `「${nearest.title}」之前没有 ≥2h 的整块复习时间，需要挪用休息时间`,
-        evidences: [{ agentId: 'schedule', text: `DDL 在 ${hoursLeft}h 后`, confidence: 3 }],
+        evidences: [{ directionId: 'schedule', text: `DDL 在 ${hoursLeft}h 后`, confidence: 3 }],
       });
     }
 
-    const result: AgentResult = { agentId: 'schedule', findings };
+    const result: DirectionResult = { directionId: 'schedule', findings };
 
-    // 日程 Agent 的第二条真建议：早八那一早的时间怎么排。
+    // 日程 方向 的第二条真建议：早八那一早的时间怎么排。
     // 原来它只会报「今天有早八」，报完就没了——预警不等于调度。
     // 这里按「课上几点开始」倒推起床时间，三个档位的差别只有一件事：愿意花多久在早饭和路上。
     if (firstClass) {
@@ -150,12 +150,12 @@ export const scheduleAgent: AgentModule = {
               : plan.cons,
           fallback: plan.id === 'early8-skip' ? '空着肚子撑到第三节课，中途很难补' : '闹钟仍按最晚那档，路上出岔子就迟到',
           impacts: [
-            { horizon: 'short' as const, text: plan.shortImpact, agentId: 'schedule' as const },
-            { horizon: 'long' as const, text: '早八这天的上午状态，多半由这一顿决定', agentId: 'health' as const },
+            { horizon: 'short' as const, text: plan.shortImpact, directionId: 'schedule' as const },
+            { horizon: 'long' as const, text: '早八这天的上午状态，多半由这一顿决定', directionId: 'health' as const },
           ],
           evidences: [
             {
-              agentId: 'schedule' as const,
+              directionId: 'schedule' as const,
               text: `${fmtMin(firstClass.startMin)} 上「${firstClass.name}」；按步行 ${WALK_MIN} 分钟、进教室留 ${CUSHION_MIN} 分钟倒推`,
               confidence: 3 as const,
             },
@@ -170,7 +170,7 @@ export const scheduleAgent: AgentModule = {
         summary: `早八那一早，从起床到进教室要留出 ${plans[0].prep + WALK_MIN + CUSHION_MIN} 到 ${plans[2].prep + WALK_MIN + CUSHION_MIN} 分钟`,
         evidences: [
           {
-            agentId: 'schedule',
+            directionId: 'schedule',
             text: '按课表里的上课时间倒推，步行按 10 分钟估',
             confidence: 2,
           },
@@ -204,7 +204,7 @@ export const scheduleAgent: AgentModule = {
           side: 'study',
           plan: {
             id: 'plan-study-first',
-            agentId: 'schedule',
+            directionId: 'schedule',
             title: `学习优先：今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 留给「${nearest.title}」`,
             cost: { timeMin: Number(blockHours) * 60 },
             pros: [
@@ -216,16 +216,16 @@ export const scheduleAgent: AgentModule = {
               avg3 !== null ? `近 3 天平均 ${avg3.toFixed(1)}h，已经欠着` : '这一周的睡眠本来就不多',
             ],
             impacts: [
-              { horizon: 'short', text: '明早前两节课注意力下降风险高', agentId: 'schedule' },
-              { horizon: 'long', text: '缺觉累积，或影响周末考试状态', agentId: 'health' },
+              { horizon: 'short', text: '明早前两节课注意力下降风险高', directionId: 'schedule' },
+              { horizon: 'long', text: '缺觉累积，或影响周末考试状态', directionId: 'health' },
             ],
             evidences: [
               {
-                agentId: 'schedule',
+                directionId: 'schedule',
                 text: `「${nearest.title}」DDL 在 ${hoursLeft}h 后；今晚 ${fmtMin(eveningFrom)}–${fmtMin(eveningTo)} 有整块空档`,
                 confidence: 2,
               },
-              ...(lastNight ? [{ agentId: 'health' as const, text: `昨晚睡 ${lastNight.hours}h`, confidence: 3 as const }] : []),
+              ...(lastNight ? [{ directionId: 'health' as const, text: `昨晚睡 ${lastNight.hours}h`, confidence: 3 as const }] : []),
             ],
           },
         },

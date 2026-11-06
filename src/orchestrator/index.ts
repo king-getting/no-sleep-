@@ -1,15 +1,15 @@
-import { getEnabledAgents } from '@/agents/registry';
+import { getEnabledDirections } from '@/directions/registry';
 import { getPreferences, getProfile } from '@/data/store/profile';
 import { upcomingExams } from '@/data/queries';
 import { examReportTypeOf, examWindowOf, justFinishedExam } from '@/lib/examMode';
-import type { AgentContext, AgentResult, Mode, Report, ReportType } from '@/types/contract';
+import type { DirectionContext, DirectionResult, Mode, Report, ReportType } from '@/types/contract';
 import { arbitrateClaims, mergeSuggestions } from './arbiter';
 import { composeReport } from './compose';
 import { collectTopicStats, downgradeByCompliance } from './compliance';
 import { enrichSuggestions } from './enrich';
 import { orchestratorEvents } from './events';
 import { buildExamDoneResults, buildExamResults } from './exam';
-import { applyAgentWeights } from './weights';
+import { applyDirectionWeights } from './weights';
 
 export type Trigger = 'morning-report' | 'noon-report' | 'evening-report' | 'user-ask';
 
@@ -46,32 +46,32 @@ class Orchestrator {
     const finished = forceNormal ? null : justFinishedExam(examItems, now);
     const mode: Mode = forceNormal || finished ? 'normal' : window.mode;
 
-    const ctx: AgentContext = { user, preferences, mode, now };
+    const ctx: DirectionContext = { user, preferences, mode, now };
 
-    // 任务拆解 → 分派给专职 Agent，并行执行（每个 Agent 完成即发布 agent:done）
-    const agents = getEnabledAgents();
+    // 任务拆解 → 分派给专职 方向，并行执行（每个 方向 完成即发布 方向:done）
+    const directions = getEnabledDirections();
     const results = await Promise.all(
-      agents.map(async (agent): Promise<AgentResult> => {
-        ev.emit({ type: 'agent:start', agentId: agent.id });
+      directions.map(async (direction): Promise<DirectionResult> => {
+        ev.emit({ type: 'direction:start', directionId: direction.id });
         try {
-          const result = await agent.run(ctx);
-          ev.emit({ type: 'agent:done', agentId: agent.id, result });
+          const result = await direction.run(ctx);
+          ev.emit({ type: 'direction:done', directionId: direction.id, result });
           return result;
         } catch (err) {
-          // 单个 Agent 失败不拖垮整轮编排
-          const fallback: AgentResult = {
-            agentId: agent.id,
+          // 单个 方向 失败不拖垮整轮编排
+          const fallback: DirectionResult = {
+            directionId: direction.id,
             findings: [
               {
-                id: `${agent.id}:error`,
+                id: `${direction.id}:error`,
                 type: 'warning',
                 topic: '系统',
                 confidence: 0,
-                summary: `${agent.name} Agent 本轮执行失败：${err instanceof Error ? err.message : String(err)}`,
+                summary: `${direction.name} 方向本轮执行失败：${err instanceof Error ? err.message : String(err)}`,
               },
             ],
           };
-          ev.emit({ type: 'agent:done', agentId: agent.id, result: fallback });
+          ev.emit({ type: 'direction:done', directionId: direction.id, result: fallback });
           return fallback;
         }
       }),
@@ -105,7 +105,7 @@ class Orchestrator {
     const merged = mergeSuggestions(results.flatMap((r) => r.suggestions ?? []));
     for (const text of merged.merges) ev.emit({ type: 'merge:applied', text });
 
-    // 依据富化：跨域依据由总控在汇总阶段挂载（Agent 之间不越域读数据）
+    // 依据富化：跨域依据由总控在汇总阶段挂载（方向 之间不越域读数据）
     const enriched = enrichSuggestions(merged.suggestions, results);
 
     // 遵从度回流（A8）：同一主题连续 2 次「没做」→ 本轮建议降一级
@@ -116,12 +116,12 @@ class Orchestrator {
       ev.emit({ type: 'merge:applied', text: `遵从度回流：${detail}` });
     }
 
-    // Agent 权重（生存模式才动 priority；普通模式只做同优先级排序）
-    const weighted = applyAgentWeights(ranked, results, agents, mode);
+    // 方向 权重（生存模式才动 priority；普通模式只做同优先级排序）
+    const weighted = applyDirectionWeights(ranked, results, directions, mode);
     const moved = weighted.rows.filter((r) => r.moved > 0);
     if (mode === 'exam' && moved.length > 0) {
       const detail = moved
-        .map((r) => `${r.agentId} ×${r.effective.toFixed(1)}${r.effective >= 1.3 ? '（上浮）' : '（降级）'}`)
+        .map((r) => `${r.directionId} ×${r.effective.toFixed(1)}${r.effective >= 1.3 ? '（上浮）' : '（降级）'}`)
         .join(' / ');
       ev.emit({ type: 'merge:applied', text: `权重调整：${detail}` });
     }

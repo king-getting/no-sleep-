@@ -4,7 +4,7 @@ import type { Suggestion } from '@/types/contract';
 /**
  * 遵从度回流（A8）
  *
- * 原始版本只服务一处：健康 Agent 里「午间小憩」连续两次没做就换成 10 分钟轻量版。
+ * 原始版本只服务一处：健康 方向 里「午间小憩」连续两次没做就换成 10 分钟轻量版。
  * 那次的判断读的是 preferences.compliance 的累计值（shown/done），
  * 既区分不出「连续」和「隔三差五」，也管不到别的主题。
  *

@@ -9,7 +9,7 @@ import { ensureSeeded, forgetConflictChoice, markCompliance, recordChoice, remem
 import type { OptionCard } from '@/types/contract';
 import { bootMode } from '@/data/store/boot';
 import { OrchestrationTimeline } from '@/ui/animation/OrchestrationTimeline';
-import { AgentDebate } from '@/ui/reports/AgentDebate';
+import { DebatePanel } from '@/ui/reports/DebatePanel';
 import { RiskPanel } from '@/ui/reports/RiskPanel';
 import { ReportView } from '@/ui/reports/ReportView';
 import OutlookSection from '@/ui/outlook/OutlookSection';
@@ -253,7 +253,7 @@ export default function Home() {
           {report ? (
             <>
               {/* 报告之前先给「这一轮是几方在争、各自否掉了什么」——折叠态只占一行 */}
-              <AgentDebate report={report} resolutions={resolutions} />
+              <DebatePanel report={report} resolutions={resolutions} />
               <ReportView
                 report={reportBody ?? report}
                 picks={picks}

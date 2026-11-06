@@ -4,7 +4,7 @@ import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, ExamItem, SleepLog, TimeBlock } from '@/types/contract';
 
 /**
- * 领域查询：Agent 与报告组装共用的只读查询。
+ * 领域查询：方向 与报告组装共用的只读查询。
  * 课表 / 考试存于本地 IndexedDB（A3 起），手动录入与教务 adapter 共用同一存储。
  */
 
