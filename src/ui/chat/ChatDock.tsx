@@ -20,6 +20,43 @@ const QUICK = [
   '我昨晚只睡了 5 个半小时',
 ];
 
+const POS_KEY = 'xiaoshan:chat-pos';
+const LONG_PRESS_MS = 380;
+const DRAG_THRESHOLD = 8;
+
+type Pos = { x: number; y: number };
+
+/** 抽屉跟着按钮走：优先放在按钮上方，放不下就放下面，左右夹进可视区 */
+function drawerBox(pos: Pos, viewport: { w: number; h: number }): React.CSSProperties {
+  const width = Math.min(viewport.w * 0.94, 392);
+  const height = Math.min(viewport.h * 0.72, 560);
+  const gap = 12;
+  const left = Math.min(Math.max(8, pos.x + 48 - width), Math.max(8, viewport.w - width - 8));
+  const above = pos.y > height + gap + 8;
+  const top = above
+    ? Math.max(8, pos.y - height - gap)
+    : Math.min(Math.max(8, pos.y + 56), Math.max(8, viewport.h - height - 8));
+  return { left, top, width, height };
+}
+
+function clampPos(p: Pos, size: { w: number; h: number }): Pos {
+  const maxX = Math.max(8, window.innerWidth - size.w - 8);
+  const maxY = Math.max(8, window.innerHeight - size.h - 8);
+  return { x: Math.min(Math.max(8, p.x), maxX), y: Math.min(Math.max(8, p.y), maxY) };
+}
+
+function readPos(): Pos | null {
+  try {
+    const raw = localStorage.getItem(POS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<Pos>;
+    if (typeof parsed?.x !== 'number' || typeof parsed?.y !== 'number') return null;
+    return { x: parsed.x, y: parsed.y };
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatDock() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -29,6 +66,117 @@ export default function ChatDock() {
   const [ready, setReady] = useState(() => isLlmReady());
   const scroller = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  /** 拖动后的位置；null = 用默认的右下角 */
+  const [pos, setPos] = useState<Pos | null>(() => readPos());
+  const [dragging, setDragging] = useState(false);
+  const [viewport, setViewport] = useState(() => ({
+    w: typeof window === 'undefined' ? 0 : window.innerWidth,
+    h: typeof window === 'undefined' ? 0 : window.innerHeight,
+  }));
+  const drag = useRef<{
+    longPress: boolean;
+    timer: number | null;
+    offsetX: number;
+    offsetY: number;
+    startedX: number;
+    startedY: number;
+    moved: boolean;
+  } | null>(null);
+  const skipClick = useRef(false);
+
+  // 窗口变了，把按钮拉回可视区（用户可能缩窗口、转屏）
+  useEffect(() => {
+    const onResize = () => {
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+      setPos((prev) => {
+        if (!prev) return prev;
+        const el = btnRef.current;
+        const size = { w: el?.offsetWidth ?? 96, h: el?.offsetHeight ?? 40 };
+        return clampPos(prev, size);
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  function clearLongPress() {
+    const d = drag.current;
+    if (d?.timer) {
+      window.clearTimeout(d.timer);
+      d.timer = null;
+    }
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    // 抓指针：不抓的话指针一离开按钮，pointermove 就发给别的元素了，拖不动
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // 某些浏览器/合成事件不支持，退化成普通点击
+    }
+    drag.current = {
+      longPress: false,
+      timer: window.setTimeout(() => {
+        if (!drag.current) return;
+        drag.current.longPress = true;
+        setDragging(true);
+      }, LONG_PRESS_MS),
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      startedX: e.clientX,
+      startedY: e.clientY,
+      moved: false,
+    };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.longPress) {
+      // 还没长按就滑开——当成滚动/误触，取消长按
+      if (Math.hypot(e.clientX - d.startedX, e.clientY - d.startedY) > DRAG_THRESHOLD) {
+        clearLongPress();
+      }
+      return;
+    }
+    e.preventDefault();
+    d.moved = true;
+    const el = btnRef.current;
+    const size = { w: el?.offsetWidth ?? 96, h: el?.offsetHeight ?? 40 };
+    setPos(clampPos({ x: e.clientX - d.offsetX, y: e.clientY - d.offsetY }, size));
+  }
+
+  function endDrag() {
+    const d = drag.current;
+    clearLongPress();
+    if (!d) return;
+    if (d.longPress) {
+      skipClick.current = true;
+      setDragging(false);
+      setPos((prev) => {
+        if (!prev) return prev;
+        try {
+          localStorage.setItem(POS_KEY, JSON.stringify(prev));
+        } catch {
+          // 存不进去就只在这次会话里生效
+        }
+        return prev;
+      });
+    }
+    drag.current = null;
+  }
+
+  // 拖动结束后浏览器还会补一次 click，别让它顺手把面板打开
+  function onClick() {
+    if (skipClick.current) {
+      skipClick.current = false;
+      return;
+    }
+    setOpen((v) => !v);
+  }
 
   // 设置页改完 Key 回来，这里要立刻知道
   useEffect(() => {
@@ -75,13 +223,22 @@ export default function ChatDock() {
   return (
     <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        style={pos ? { left: pos.x, top: pos.y } : undefined}
         className={cn(
-          'fixed right-4 bottom-20 z-30 flex items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium shadow-lg transition lg:right-6 lg:bottom-6',
+          'fixed z-30 flex touch-none select-none items-center gap-1.5 rounded-full px-3.5 py-2.5 text-xs font-medium shadow-lg',
+          dragging ? 'cursor-grabbing scale-105 ring-2 ring-primary/30 shadow-xl' : 'cursor-pointer transition',
+          pos ? '' : 'right-4 bottom-20 lg:right-6 lg:bottom-6',
           open ? 'bg-secondary text-secondary-foreground' : 'bg-primary text-primary-foreground hover:opacity-95',
         )}
         aria-expanded={open}
+        title="点一下打开对话，长按可以拖到别处"
       >
         <MessageCircle className="h-4 w-4" />
         问小山
@@ -89,8 +246,11 @@ export default function ChatDock() {
 
       {open && (
         <section
-          className="fixed right-3 bottom-32 z-30 flex w-[min(94vw,392px)] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl lg:right-6 lg:bottom-20"
-          style={{ height: 'min(72vh, 560px)' }}
+          className={cn(
+            'fixed z-30 flex flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl',
+            pos ? '' : 'right-3 bottom-32 w-[min(94vw,392px)] lg:right-6 lg:bottom-20',
+          )}
+          style={pos ? drawerBox(pos, viewport) : { height: 'min(72vh, 560px)' }}
           aria-label="和小山对话"
         >
           <header className="flex items-center gap-2 border-b px-3 py-2.5">
