@@ -5,9 +5,9 @@ import type { BlockKind, ReportType } from '@/types/contract';
  * MVP 砍功能 = 改这里的配方，不改渲染代码。
  */
 export const RECIPES: Record<ReportType, BlockKind[]> = {
-  morning: ['overview', 'suggestionGroup', 'warning'],
-  noon: ['overview', 'suggestionGroup', 'conflict', 'warning'],
-  evening: ['recap', 'suggestionGroup', 'preview', 'conflict'],
+  morning: ['overview', 'analysis', 'suggestionGroup', 'warning'],
+  noon: ['overview', 'analysis', 'suggestionGroup', 'conflict', 'warning'],
+  evening: ['recap', 'analysis', 'suggestionGroup', 'preview', 'conflict'],
   // 生存模式注入（设计文档 §4.8 MVP 裁剪版）
   'exam-day': ['overview', 'warning', 'suggestionGroup', 'checklist'],
   'exam-week': ['overview', 'warning', 'suggestionGroup', 'conflict', 'recap'],

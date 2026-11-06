@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { directionRegistry } from '@/directions/registry';
 import ModelSettings from '@/ui/settings/ModelSettings';
+import Fold from '@/ui/settings/Fold';
 import { clearAllData, getPreferences, getProfile, saveProfile } from '@/data/store/profile';
 import { clearFeedState } from '@/data/store/feed';
 import { downloadBackup, restoreBackup } from '@/data/store/backup';
@@ -260,8 +261,7 @@ export default function Settings() {
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <div className="space-y-4">
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">思考方向与权重</h2>
+      <Fold title="思考方向与权重" defaultOpen>
         <p className="mb-3 text-xs text-muted-foreground">
           关掉一个方向，报告的对应区块就整段消失，不会留空壳。权重决定同优先级时谁排在前面。
         </p>
@@ -311,10 +311,9 @@ export default function Settings() {
             </li>
           ))}
         </ul>
-      </section>
+      </Fold>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">我的画像</h2>
+      <Fold title="我的画像">
         <p className="mb-3 text-xs text-muted-foreground">
           {profile ? `${profile.identity.grade} · ${profile.identity.college}` : '尚未建档'}
         </p>
@@ -352,12 +351,11 @@ export default function Settings() {
         <Button className="mt-3" size="sm" disabled={saving || !profile} onClick={() => void saveProfileEdits()}>
           {saving ? '保存中…' : '保存'}
         </Button>
-      </section>
+      </Fold>
         </div>
 
         <div className="space-y-4">
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-3 text-sm font-semibold">外观</h2>
+      <Fold title="外观" defaultOpen>
         <div className="flex gap-2">
           {(
             [
@@ -371,10 +369,9 @@ export default function Settings() {
             </Button>
           ))}
         </div>
-      </section>
+      </Fold>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">安装到桌面</h2>
+      <Fold title="安装到桌面">
         {isStandalone() ? (
           <p className="text-xs text-muted-foreground">
             已经以独立窗口运行（从桌面图标打开），不用再装。
@@ -395,10 +392,9 @@ export default function Settings() {
             )}
           </>
         )}
-      </section>
+      </Fold>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">自动备份</h2>
+      <Fold title="自动备份">
         <p className="mb-3 text-xs text-muted-foreground">
           选一个 JSON 文件，之后数据变化会自动写回它（桌面 Chrome / Edge 支持）。
           文件放在网盘目录就等于半自动同步。手机浏览器不允许后台写文件，用下面的「导出备份」。
@@ -434,12 +430,13 @@ export default function Settings() {
             导出的 JSON 可以随时导入回来。
           </p>
         )}
-      </section>
+      </Fold>
 
-      <ModelSettings />
+      <Fold title="模型接入">
+        <ModelSettings />
+      </Fold>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">习惯画像</h2>
+      <Fold title="习惯画像">
         {traits ? (
           <>
             <p className="text-sm font-medium">
@@ -467,10 +464,9 @@ export default function Settings() {
         >
           {traits ? '重新测评' : '开始测评'}
         </Button>
-      </section>
+      </Fold>
 
-      <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">数据</h2>
+      <Fold title="数据">
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" disabled={busy} onClick={() => void exportBackup()}>
             导出备份
@@ -506,7 +502,7 @@ export default function Settings() {
           当前版本构建于 {new Date(__BUILD_TIME__).toLocaleString('zh-CN')}
           {__BUILD_TIME__ ? '（看到的时间早于预期，说明 Service Worker 还没更新，刷新一次即可）' : ''}
         </p>
-      </section>
+      </Fold>
         </div>
       </div>
     </div>

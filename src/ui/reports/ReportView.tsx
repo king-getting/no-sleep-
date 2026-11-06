@@ -34,6 +34,8 @@ function blockLabel(block: ReportBlock): string | null {
       return '今日总结';
     case 'preview':
       return '明日预告';
+    case 'analysis':
+      return '分析';
     case 'checklist':
       return block.title;
     default:
@@ -129,6 +131,29 @@ export function ReportView({
         return <WarningListBlock items={[{ text: block.text, directionId: block.directionId }]} />;
       case 'recap':
         return <RecapBlock stats={block.stats} />;
+      case 'analysis':
+        return (
+          <section className="rounded-2xl border bg-card p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">分析</h3>
+              <span className="text-[10px] text-muted-foreground">
+                {block.by === 'model' ? '模型分析 · 已校验' : '本地规则'}
+              </span>
+            </div>
+            <ul className="space-y-1.5 text-sm">
+              {block.lines.map((line, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                  <span className="min-w-0 flex-1">{line.text}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-sm">
+              <span className="font-medium">建议：</span>
+              {block.advice}
+            </p>
+          </section>
+        );
       case 'preview':
         return <PreviewBlock items={block.items} />;
       case 'checklist':

@@ -314,6 +314,12 @@ export type ReportBlock =
   | { kind: 'warning'; text: string; directionId: DirectionId }
   | { kind: 'recap'; stats: RecapStats }
   | { kind: 'preview'; items: string[] }
+  | {
+      kind: 'analysis';
+      lines: { text: string; directionId?: DirectionId }[];
+      advice: string;
+      by: 'model' | 'rules';
+    }
   // 契约 v1.2（补丁新增）：考场物品清单，仅生存模式考试日使用
   | { kind: 'checklist'; title: string; items: string[] };
 

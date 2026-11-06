@@ -2,6 +2,7 @@ import { coursesOfDayOn, todayCourses } from '@/data/queries';
 import { db } from '@/data/store/db';
 import { getSleepLogs } from '@/data/store/profile';
 import { buildDietSummary } from '@/lib/dietSummary';
+import { composeAnalysis } from '@/lib/modelAnalysis';
 import { SLEEP_NEED_HOURS, avgSleepHours, lastNightSleep, sleepDebt } from '@/data/queries';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import { RECIPES } from './recipes';
@@ -187,6 +188,16 @@ export async function composeReport(
       case 'overview':
         blocks.push({ kind: 'overview', items: await buildOverview(type, results, ctx) });
         break;
+      case 'analysis': {
+        const analysis = await composeAnalysis({
+          now: ctx.now,
+          findings: facts.map((f) => ({ id: f.id, summary: f.summary, type: f.type })),
+          suggestions: slotSuggestions.map((s) => ({ topic: s.topic, priority: s.priority })),
+          profileLine: `${ctx.user.identity.grade} · ${ctx.user.identity.college}`,
+        });
+        blocks.push({ kind: 'analysis', ...analysis });
+        break;
+      }
       case 'suggestionGroup':
         for (const suggestion of slotSuggestions) {
           // 每条选项补上「另外三个 方向 怎么看」——它们各自只看自己那一域
