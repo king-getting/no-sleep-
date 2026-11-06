@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { AlertTriangle, CalendarDays, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CalendarDays, FileSpreadsheet, Plus, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   computeTimeBlocks,
@@ -15,6 +15,7 @@ import { weekOfDate } from '@/lib/weeks';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, TimeBlock } from '@/types/contract';
 import { Button } from '@/components/ui/button';
+import CourseExcelImport from '@/ui/week/CourseExcelImport';
 import { CourseSheet } from '@/ui/week/CourseSheet';
 import { makeDraft } from '@/ui/week/draft';
 import type { CourseDraft } from '@/ui/week/CourseSheet';
@@ -143,6 +144,7 @@ export default function Week() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [week, setWeek] = useState<number | null>(null);
   const [ignoreWeeks, setIgnoreWeeks] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const now = useMemo(() => new Date(), []);
   const today = dayOfWeek(now);
   // 从报告里的「今日课程」点进来会带 ?dow=3，落地即停在那一天
@@ -276,21 +278,48 @@ export default function Week() {
               按你录入的课表切色块：{courseCount} 门次课、{freeCount} 段整块空档。报告里说「午休被吃掉」，这里同一格就是红的。
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              // 默认落在这一天第一段空档里；没有空档就放 20:00
-              const day = days.find((d) => d.dow === picked) ?? days[0];
-              const slot = day.blocks.find((b) => b.kind === 'free') ?? day.blocks.find((b) => b.kind === 'fragment');
-              const start = slot ? slot.startMin : 20 * 60;
-              openAdd(day.dow, start, Math.min(start + 100, DAY_END));
-            }}
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            加课
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setImportOpen((v) => !v)}>
+              <FileSpreadsheet className="mr-1 h-3.5 w-3.5" />
+              从 Excel 导入
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                // 默认落在这一天第一段空档里；没有空档就放 20:00
+                const day = days.find((d) => d.dow === picked) ?? days[0];
+                const slot = day.blocks.find((b) => b.kind === 'free') ?? day.blocks.find((b) => b.kind === 'fragment');
+                const start = slot ? slot.startMin : 20 * 60;
+                openAdd(day.dow, start, Math.min(start + 100, DAY_END));
+              }}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              加课
+            </Button>
+          </div>
         </div>
+
+        {importOpen && (
+          <div className="mt-3 rounded-2xl border bg-card p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">导入课表</h2>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setImportOpen(false)}
+              >
+                关闭
+              </button>
+            </div>
+            <CourseExcelImport
+              onImported={() => {
+                setImportOpen(false);
+                void load();
+              }}
+            />
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-sm border border-primary/40 bg-primary/10" />上课
