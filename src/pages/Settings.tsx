@@ -16,19 +16,19 @@ import type { AgentId, HabitTraits, UserProfile } from '@/types/contract';
  * 设置页（dev-tasks B7 + B9 的外观开关 + A6 的演示旋钮）
  *
  * 四组能力：
- *   1. Agent 逐个启停 —— 直接改注册表 enabled 并持久化，关掉健康 Agent 后下一轮报告不含健康建议
+ *   1. 思考方向逐个启停 —— 直接改注册表 enabled 并持久化，关掉健康 Agent 后下一轮报告不含健康建议
  *   2. 画像编辑 —— 餐标 / 身体基线 / 校区（身份主力在 onboarding，这里只补常用项）
  *   3. 数据 —— 恢复示例数据 / 清除全部本机数据（回到 onboarding）
- *   4. 演示旋钮 —— 强制关闭生存模式（示例考试可能正好落在 7 天内，路演需要能控）
+ *   4. 演示旋钮 —— 强制关闭生存模式（示例考试可能正好落在 7 天内，演示需要能控）
  */
 
 const FORCE_NORMAL_KEY = 'xiaoshan:force-normal';
 
 const AGENT_LABEL: Record<string, string> = {
-  academic: '教务 Agent',
-  life: '生活 Agent',
-  health: '健康 Agent',
-  schedule: '日程 Agent',
+  academic: '教务视角',
+  life: '生活视角',
+  health: '健康视角',
+  schedule: '日程视角',
 };
 
 export default function Settings() {
@@ -202,9 +202,9 @@ export default function Settings() {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <div className="space-y-4">
       <section className="rounded-2xl border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">Agent 启停与权重</h2>
+        <h2 className="mb-1 text-sm font-semibold">思考方向与权重</h2>
         <p className="mb-3 text-xs text-muted-foreground">
-          关掉一个 Agent，报告的对应区块就整段消失，不会留空壳。权重决定同优先级时谁排在前面。
+          关掉一个方向，报告的对应区块就整段消失，不会留空壳。权重决定同优先级时谁排在前面。
         </p>
         <ul className="space-y-2">
           {agentRegistry.map((a) => (

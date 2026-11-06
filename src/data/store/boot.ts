@@ -23,7 +23,7 @@ export function setBootMode(mode: BootMode): void {
   localStorage.setItem(BOOT_KEY, mode);
 }
 
-/** 换台设备 / 清缓存后回到示例态，用于路演复位 */
+/** 换台设备 / 清缓存后回到示例态，用于演示复位 */
 export function resetBootMode(): void {
   localStorage.removeItem(BOOT_KEY);
   localStorage.removeItem(AGENT_KEY);

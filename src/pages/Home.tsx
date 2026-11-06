@@ -12,7 +12,7 @@ import { ReportView } from '@/ui/reports/ReportView';
 import OutlookSection from '@/ui/outlook/OutlookSection';
 import type { Report } from '@/types/contract';
 
-/** 演示模式：手动唤出任意时段的报告（§4.9 路演刚需） */
+/** 演示模式：手动唤出任意时段的报告 */
 const TRIGGERS: { trigger: Trigger; label: string; time: string; now: () => Date }[] = [
   { trigger: 'morning-report', label: '晨间报告', time: '7:30', now: () => atTime(7, 30) },
   { trigger: 'noon-report', label: '午间报告', time: '11:30', now: () => atTime(11, 30) },

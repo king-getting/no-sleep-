@@ -157,7 +157,7 @@ export function OptionCardView({
                 <p key={`ev-${i}`} className="text-[11.5px] text-muted-foreground">
                   <span className={cn('mr-1 inline-flex items-center gap-1 font-medium', meta.color)}>
                     <span className={cn('inline-block h-1.5 w-1.5 rounded-full', meta.bg)} />
-                    {meta.name} Agent
+                    {meta.name}视角
                   </span>
                   {ev.text}
                 </p>

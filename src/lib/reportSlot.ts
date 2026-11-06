@@ -1,6 +1,6 @@
 import type { Trigger } from '@/orchestrator';
 
-/** 演示模式：把「今天的某个时刻」转成 Date，用于手动唤出任意时段的报告（§4.9 路演刚需） */
+/** 演示模式：把「今天的某个时刻」转成 Date，用于手动唤出任意时段的报告 */
 export function atTime(hour: number, minute: number, base = new Date()): Date {
   const d = new Date(base);
   d.setHours(hour, minute, 0, 0);

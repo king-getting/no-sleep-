@@ -34,7 +34,7 @@ function PlanView({
       <div className="flex items-center justify-between gap-2">
         <Badge variant="outline" className={cn('gap-1.5 font-normal', meta.color)}>
           <span className={cn('h-1.5 w-1.5 rounded-full', meta.bg)} />
-          {meta.name} Agent 主张
+          {meta.name}视角的主张
         </Badge>
         {onChoose && (
           <Button size="sm" variant={chosen ? 'default' : 'outline'} onClick={onChoose}>
@@ -124,7 +124,7 @@ export function ConflictCardView({
     <section className="rounded-2xl border border-amber-300/60 bg-amber-50/60 p-4 dark:border-amber-500/30 dark:bg-amber-950/20">
       <header className="flex flex-wrap items-center gap-2">
         <Scale className="h-4 w-4 text-amber-600" />
-        <h3 className="font-medium">两个 Agent 意见不合，你来拍板</h3>
+        <h3 className="font-medium">两个方向意见不合，你来拍板</h3>
         <Badge variant="outline" className="font-normal">{conflict.topic}</Badge>
         <Badge variant="secondary" className="font-normal">{conflict.level}</Badge>
         {conflict.preset && (

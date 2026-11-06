@@ -175,7 +175,7 @@ const SURVIVAL_FACTOR = { academic: 0.6, life: 0.5, health: 0.65, schedule: 0.7 
 // 复习建议的 topic 固定为「<考试名> 复习」，选项 mastery 越高越偏「刷题」而不是「看书」
 ```
 
-`Report.type` 与实际触发时段解耦：`mode === 'exam'` 时任何 trigger 都落到 `exam-day` / `exam-week`，标题相应变成「考试日报告」/「冲刺报告」。逃生开关是 `localStorage['xiaoshan:force-normal'] === '1'`（设置页「强制关闭生存模式」），用于路演时在普通版与冲刺版两种形态间切换。
+`Report.type` 与实际触发时段解耦：`mode === 'exam'` 时任何 trigger 都落到 `exam-day` / `exam-week`，标题相应变成「考试日报告」/「冲刺报告」。逃生开关是 `localStorage['xiaoshan:force-normal'] === '1'`（设置页「强制关闭生存模式」），用于在普通版与冲刺版两种形态间切换。
 
 ### 4.2 考后小结（v1.4 新增）
 

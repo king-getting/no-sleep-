@@ -304,7 +304,7 @@ export default function Plan() {
 
       <p className="mt-6 flex items-center gap-1.5 text-xs text-muted-foreground">
         <TriangleAlert className="h-3.5 w-3.5" />
-        草案只排到 22:30，不占上课时间也不占午饭；考前夜会被健康 Agent 拦一次，而不是默默让你熬。
+        草案只排到 22:30，不占上课时间也不占午饭；考前夜会被健康视角拦一次，而不是默默让你熬。
       </p>
 
       <Link to="/week" className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">

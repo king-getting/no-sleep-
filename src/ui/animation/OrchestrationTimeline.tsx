@@ -31,7 +31,7 @@ type AgentState = {
 
 /**
  * 编排动画（契约 §6 / 任务 B8）：
- * 订阅编排事件流，渲染「总控拆任务 → 4 个 Agent 并行 → 冲突/合并 → 汇总」全过程。
+ * 订阅编排事件流，渲染「总控拆任务 → 4 个方向并行 → 冲突/合并 → 汇总」全过程。
  * 只认识事件流，对引擎实现零依赖——A 侧换实现，这里不用改。
  */
 export function OrchestrationTimeline() {
@@ -112,7 +112,7 @@ export function OrchestrationTimeline() {
       </div>
 
       {events.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">触发一张报告，看 4 个 Agent 如何协同。</p>
+        <p className="mt-3 text-sm text-muted-foreground">触发一张报告，看 4 个方向如何协同。</p>
       ) : (
         <>
           {/* 三步流程条：8 秒读懂「在干什么、走到哪一步」 */}
@@ -152,7 +152,7 @@ export function OrchestrationTimeline() {
               rail
             />
 
-            {/* 4 个 Agent 并行 */}
+            {/* 4 个方向并行 */}
             {AGENT_IDS.map((id) => {
               const meta = AGENT_META[id];
               const state = view.agentStates.get(id)!;
@@ -165,7 +165,7 @@ export function OrchestrationTimeline() {
                   icon={<meta.icon className="h-3.5 w-3.5" />}
                   tone={state.status === 'waiting' ? 'idle' : 'agent'}
                   colorClass={meta.color}
-                  title={`${meta.name} Agent`}
+                  title={`${meta.name}视角`}
                   detail={
                     state.status === 'waiting'
                       ? '等待分派'

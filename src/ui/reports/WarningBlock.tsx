@@ -10,7 +10,7 @@ export function WarningBlock({ text, agentId }: { text: string; agentId: AgentId
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
       <p>
         {text}
-        <span className={cn('ml-2 text-xs', meta.color)}>—— {meta.name} Agent</span>
+        <span className={cn('ml-2 text-xs', meta.color)}>—— {meta.name}视角</span>
       </p>
     </div>
   );
