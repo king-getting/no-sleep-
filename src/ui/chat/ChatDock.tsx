@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowUp, Loader2, MessageCircle, Settings2, Sparkles, X } from 'lucide-react';
 import { askXiaoshan, describeLlmError, type ChatTurn } from '@/agent/chat';
+import { appendChat, clearChat, loadChat } from '@/data/store/chat';
 import { isLlmReady, loadLlmSettings } from '@/lib/llmSettings';
 import { cn } from '@/lib/utils';
 
@@ -190,6 +191,17 @@ export default function ChatDock() {
     };
   }, []);
 
+  // 打开时把上次的对话捞回来：这就是所谓的「记忆」——存在本机，不上传
+  useEffect(() => {
+    let alive = true;
+    void loadChat(60).then((rows) => {
+      if (alive && rows.length > 0) setTurns(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const el = scroller.current;
@@ -208,7 +220,9 @@ export default function ChatDock() {
     abortRef.current = controller;
     try {
       const reply = await askXiaoshan(nextTurns, question, { signal: controller.signal });
-      setTurns((prev) => [...prev, { role: 'assistant', text: reply.text, actions: reply.actions }]);
+      const assistantTurn: ChatTurn = { role: 'assistant', text: reply.text, actions: reply.actions };
+      setTurns((prev) => [...prev, assistantTurn]);
+      void appendChat(assistantTurn);
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') return;
       setTurns((prev) => [
@@ -273,6 +287,18 @@ export default function ChatDock() {
               aria-label="去设置里配置模型"
             >
               <Settings2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!window.confirm('清空和小山的对话记录？只删这台设备上的，不影响课表和睡眠。')) return;
+                setTurns([]);
+                void clearChat();
+              }}
+              className="rounded-md px-1.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label="清空对话"
+            >
+              清空
             </button>
             <button
               type="button"

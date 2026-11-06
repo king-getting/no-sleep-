@@ -30,6 +30,7 @@ const TABLES = [
   'feedFav',
   'reviewBlocks',
   'missReasons',
+  'chat',
 ] as const;
 
 type TableName = (typeof TABLES)[number];

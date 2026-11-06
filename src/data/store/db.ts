@@ -76,6 +76,7 @@ export const db = new Dexie('xiaoshan') as Dexie & {
   reviewBlocks: EntityTable<ReviewBlockRecord, 'id'>;
   missReasons: EntityTable<MissReasonRecord, 'id'>;
   meta: EntityTable<{ key: string; value: unknown }, 'key'>;
+  chat: EntityTable<{ id?: number; role: 'user' | 'assistant'; text: string; actions?: { name: string; summary: string; ok: boolean }[]; error?: string; at: number }, 'id'>;
 };
 
 db.version(1).stores({
@@ -111,4 +112,9 @@ db.version(5).stores({
 // v6：本机元数据（自动备份的文件句柄等；不进备份文件本身）
 db.version(6).stores({
   meta: 'key',
+});
+
+// v7：和小山的对话记忆（只在本机，用来下次还记得）
+db.version(7).stores({
+  chat: '++id, at',
 });
