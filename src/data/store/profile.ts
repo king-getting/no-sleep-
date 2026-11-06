@@ -1,4 +1,5 @@
 import { db } from './db';
+import type { ChoiceRecord } from './db';
 import { bootMode } from './boot';
 import { MOCK_COURSES, buildMockExams } from '@/data/mock/courses';
 import { DEMO_PREFERENCES, DEMO_PROFILE } from '@/data/mock/profile';
@@ -86,8 +87,20 @@ export async function deleteSleepLog(date: string): Promise<void> {
 }
 
 /** 记录一次选项卡点选（表达意图，不是执行确认） */
-export async function recordChoice(suggestionId: string, optionId: string, topic: string): Promise<void> {
-  await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString() });
+export async function recordChoice(
+  suggestionId: string,
+  optionId: string,
+  topic: string,
+  meta?: string,
+): Promise<void> {
+  await db.choices.add({ suggestionId, optionId, topic, at: new Date().toISOString(), meta });
+}
+
+/** 今天点选过的选项（饮食总结据此回看吃了什么） */
+export async function listChoicesToday(): Promise<ChoiceRecord[]> {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return db.choices.where('at').aboveOrEqual(start.toISOString()).toArray();
 }
 
 /** 取消刚才那次点选：删掉对应的选择记录，别让「点错了」污染偏好学习 */

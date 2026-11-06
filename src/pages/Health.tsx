@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Area, Bar, CartesianGrid, Cell, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BedDouble, Moon, Plus, Trash2 } from 'lucide-react';
+import { BedDouble, Moon, Plus, Trash2, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { bedtimeRegularity, sleepDebt, weekOverWeek } from '@/data/queries';
-import { deleteSleepLog, getSleepLogs, upsertSleepLog } from '@/data/store/profile';
+import { deleteSleepLog, getProfile, getSleepLogs, listChoicesToday, upsertSleepLog } from '@/data/store/profile';
+import { buildDietSummary, type DietSummary } from '@/lib/dietSummary';
+import { AGENT_META } from '@/ui/agentMeta';
 import type { SleepLog } from '@/types/contract';
 
 /**
@@ -58,16 +60,39 @@ export default function Health() {
   const [hours, setHours] = useState('7');
   const [bed, setBed] = useState('23:30');
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const now = useMemo(() => new Date(), []);
 
   async function reload() {
-    setLogs(await getSleepLogs());
+    try {
+      setLogs(await getSleepLogs());
+      setLoadError(null);
+    } catch (e) {
+      // 读失败原本会永远停在「正在读本机记录…」
+      console.error('[小山] 读取睡眠记录失败：', e);
+      setLoadError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   useEffect(() => {
     void reload();
   }, []);
+
+  if (loadError && !logs) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-16 text-center">
+        <p className="font-medium">睡眠记录没能读出来</p>
+        <p className="mt-1 text-sm text-muted-foreground">记录存在本机，重试一次通常就好。</p>
+        <pre className="mt-3 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-lg border bg-card p-2 text-left font-mono text-[11px] text-muted-foreground">
+          {loadError}
+        </pre>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          重新加载
+        </Button>
+      </div>
+    );
+  }
 
   if (!logs) {
     return <p className="p-10 text-center text-sm text-muted-foreground">正在读本机记录…</p>;
@@ -128,15 +153,24 @@ export default function Health() {
       toast.success(`${date} 已记 ${h} 小时`, {
         description: '这条只存在本机。它会影响明早报告里的睡眠判断。',
       });
+    } catch (e) {
+      // 写失败不能静默：按钮恢复原样、用户以为存了，是最糟的一种「成功」
+      console.error('[小山] 记录睡眠失败：', e);
+      toast.error('这条没存进本机', { description: '检查浏览器是否允许本机存储后再试一次。' });
     } finally {
       setSaving(false);
     }
   }
 
   async function remove(key: string) {
-    await deleteSleepLog(key);
-    await reload();
-    toast('已删除这条记录');
+    try {
+      await deleteSleepLog(key);
+      await reload();
+      toast('已删除这条记录');
+    } catch (e) {
+      console.error('[小山] 删除睡眠记录失败：', e);
+      toast.error('这条没能删掉，请重试');
+    }
   }
 
   return (
@@ -382,6 +416,9 @@ export default function Health() {
         )}
       </section>
 
+      {/* ── 饮食总结 ── */}
+      <DietSection />
+
       {/* ── 明细 ── */}
       <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 text-sm font-medium">这一周的记录</h2>
@@ -426,5 +463,104 @@ export default function Health() {
       </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 饮食总结：把你今天在报告里点过的饭点选，算成三个 Agent 的看法
+ *
+ * 为什么不自己猜你今天吃了什么：小山不拍照片、也不接外卖账号。
+ * 唯一的真实信号是「你点过哪张选项卡」，所以这里只统计点过的，
+ * 没点就明说没点——空态比编造的一顿饭诚实。
+ */
+function DietSection() {
+  const [diet, setDiet] = useState<DietSummary | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [records, user] = await Promise.all([listChoicesToday(), getProfile()]);
+        if (!alive) return;
+        setDiet(buildDietSummary(records, user.mealBudgetMonthly ? Math.round((user.mealBudgetMonthly / 30) * 10) / 10 : 0));
+      } catch {
+        if (alive) setDiet(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!diet) return null;
+
+  if (diet.isEmpty) {
+    return (
+      <section className="rounded-xl border bg-card p-4">
+        <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+          <UtensilsCrossed className="h-4 w-4" />
+          今天吃了什么
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          还没点过任何一顿。去「报告」里点一张午饭/晚饭的选项卡，这里就会按你实际点的算分——不拍照片、不接外卖账号。
+        </p>
+      </section>
+    );
+  }
+
+  const tone =
+    diet.gradeTone === 'good' ? 'text-emerald-600 dark:text-emerald-400'
+      : diet.gradeTone === 'ok' ? 'text-amber-600 dark:text-amber-400'
+        : 'text-destructive';
+
+  return (
+    <section className="rounded-xl border bg-card p-4">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium">
+          <UtensilsCrossed className="h-4 w-4" />
+          今天吃了什么
+        </h2>
+        <div className="text-right">
+          <p className={`text-2xl font-semibold leading-none tabular-nums ${tone}`}>
+            {diet.score}
+            <span className="ml-1 text-xs font-normal text-muted-foreground">/ 100</span>
+          </p>
+          <p className={`mt-0.5 text-[11px] ${tone}`}>{diet.grade}</p>
+        </div>
+      </div>
+
+      <ul className="mb-3 flex flex-wrap gap-1.5">
+        {diet.meals.map((m, i) => (
+          <li key={`${m.topic}-${i}`} className="rounded-full border bg-secondary/40 px-2 py-0.5 text-[11px]">
+            <span className="text-muted-foreground">{m.topic}</span> · {m.title}
+            {m.price !== undefined && <span className="ml-1 tabular-nums text-muted-foreground">¥{m.price}</span>}
+          </li>
+        ))}
+      </ul>
+
+      <ul className="space-y-2">
+        {diet.dims.map((d) => {
+          const meta = AGENT_META[d.agentId];
+          const bar = d.score >= 85 ? 'bg-emerald-500' : d.score >= 65 ? 'bg-amber-500' : 'bg-destructive';
+          return (
+            <li key={d.agentId} className="rounded-lg border bg-background/60 p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-medium">{d.label}</span>
+                <span className="text-[11px] text-muted-foreground">{meta?.name}</span>
+                <span className="ml-auto text-[12px] tabular-nums text-muted-foreground">{d.score}</span>
+              </div>
+              <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div className={`h-full rounded-full ${bar}`} style={{ width: `${d.score}%` }} />
+              </div>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">为什么：{d.reason}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed">
+                <span className="text-foreground/80">下一步：</span>
+                {d.tip}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
