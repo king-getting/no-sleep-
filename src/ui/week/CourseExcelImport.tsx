@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { addCourse } from '@/data/store/courses';
 import { db } from '@/data/store/db';
 import { fmtMin } from '@/types/contract';
 import { newId, parseCourseExcel } from '@/lib/courseExcel';
@@ -55,8 +54,20 @@ export default function CourseExcelImport({
       // 先清空再写：导入是「换一份课表」，不是往旧课表上叠。
       // 之前是逐条 add，同一个文件导两次就会得到双份课程，报告里「今天几节课」直接翻倍。
       const before = await db.courses.count();
-      await db.courses.clear();
-      for (const c of parsed.courses) await addCourse({ ...c, id: newId() });
+      if (
+        before > 0 &&
+        !window.confirm(
+          `将用这 ${parsed.courses.length} 门课替换本机现有的 ${before} 门课。\n\n手动加过的课、改过的时间也会一起被替换，确定继续？`,
+        )
+      ) {
+        return;
+      }
+      const rows = parsed.courses.map((c) => ({ ...c, id: newId() }));
+      // 事务里清空 + 写入：中途出错整体回滚，不会出现「旧的删了、新的没写进去」
+      await db.transaction('rw', db.courses, async () => {
+        await db.courses.clear();
+        await db.courses.bulkPut(rows);
+      });
       // 写完立刻回读：写失败或写错表时，这里能第一时间露出来
       const total = await db.courses.count();
       toast.success(`课表已替换为 ${total} 门课`, {
