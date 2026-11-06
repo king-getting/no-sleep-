@@ -1,4 +1,4 @@
-import { coursesOfDay, todayCourses } from '@/data/queries';
+import { coursesOfDayOn, todayCourses } from '@/data/queries';
 import { db } from '@/data/store/db';
 import { getSleepLogs } from '@/data/store/profile';
 import { buildDietSummary } from '@/lib/dietSummary';
@@ -128,7 +128,9 @@ async function buildRecap(ctx: DirectionContext): Promise<{ label: string; value
 async function buildPreview(ctx: DirectionContext): Promise<string[]> {
   const dow = dayOfWeek(ctx.now);
   const tomorrowDow = ((dow % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  const tomorrow = await coursesOfDay(tomorrowDow);
+  const tomorrowDate = new Date(ctx.now);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrow = await coursesOfDayOn(tomorrowDow, tomorrowDate);
   const items: string[] = [];
 
   if (tomorrow.length === 0) {

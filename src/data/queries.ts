@@ -1,5 +1,6 @@
 import { db } from '@/data/store/db';
-import { ensureSeeded } from '@/data/store/profile';
+import { ensureSeeded, getPreferences } from '@/data/store/profile';
+import { courseOccursOn } from '@/lib/weeks';
 import { dayOfWeek, fmtMin } from '@/types/contract';
 import type { Course, ExamItem, SleepLog, TimeBlock } from '@/types/contract';
 
@@ -10,8 +11,21 @@ import type { Course, ExamItem, SleepLog, TimeBlock } from '@/types/contract';
 
 // ── 取数（异步，读库）────────────────────────────────────────
 
+/**
+ * 某一天的课（按教学周过滤）
+ *
+ * 报告里的「今日课程 / 上午回顾」必须用这个，不能直接用 coursesOfDay：
+ * 后者只按星期几取，会把 1–8 周这种已经结课的课算进来。
+ */
+export async function coursesOfDayOn(dow: 1 | 2 | 3 | 4 | 5 | 6 | 7, date: Date): Promise<Course[]> {
+  await ensureSeeded();
+  const rows = await db.courses.where('dayOfWeek').equals(dow).sortBy('startMin');
+  const prefs = await getPreferences().catch(() => null);
+  return rows.filter((c) => courseOccursOn(c, date, prefs?.semesterStart));
+}
+
 export async function todayCourses(now: Date): Promise<Course[]> {
-  return coursesOfDay(dayOfWeek(now));
+  return coursesOfDayOn(dayOfWeek(now), now);
 }
 
 export async function coursesOfDay(dow: 1 | 2 | 3 | 4 | 5 | 6 | 7): Promise<Course[]> {
@@ -138,8 +152,8 @@ export async function wakePlanOf(now: Date): Promise<WakePlan> {
   const dayOffset: 0 | 1 = now.getHours() < 5 ? 0 : 1;
   const target = new Date(now);
   target.setDate(target.getDate() + dayOffset);
-  const courses = await coursesOfDay(dayOfWeek(target));
-  const first = courses[0]; // coursesOfDay 已按 startMin 排序
+  const courses = await coursesOfDayOn(dayOfWeek(target), target);
+  const first = courses[0]; // 已按 startMin 排序
   if (first) {
     const wakeMin = Math.max(6 * 60, Math.floor((first.startMin - 40) / 5) * 5);
     return { wakeMin, reason: 'class', firstClass: first, dayOffset };
@@ -275,7 +289,9 @@ export async function hasFreeBlockBefore(now: Date, deadline: Date): Promise<boo
   const dow = dayOfWeek(now);
   for (const offset of [0, 1]) {
     const d = ((((dow - 1 + offset) % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7);
-    for (const b of computeTimeBlocks(await coursesOfDay(d))) {
+    const day = new Date(now);
+    day.setDate(day.getDate() + offset);
+    for (const b of computeTimeBlocks(await coursesOfDayOn(d, day))) {
       if (b.kind !== 'free') continue;
       const start = blockDate(now, offset, b.startMin);
       const end = blockDate(now, offset, b.endMin);

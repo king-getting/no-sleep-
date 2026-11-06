@@ -1,4 +1,4 @@
-import { avgSleepHours, computeTimeBlocks, coursesOfDay, describeBlocks, lastNightSleep } from '@/data/queries';
+import { avgSleepHours, computeTimeBlocks, coursesOfDayOn, describeBlocks, lastNightSleep } from '@/data/queries';
 import { getSleepLogs } from '@/data/store/profile';
 import { dayOfWeek } from '@/types/contract';
 import type {
@@ -165,7 +165,7 @@ export async function buildExamResults(ctx: DirectionContext, w: ExamWindow): Pr
   const avg7 = avgSleepHours(logs, 7, now);
   const lastNight = lastNightSleep(logs, now)?.hours ?? 0;
 
-  const blocks = describeBlocks(computeTimeBlocks(await coursesOfDay(dayOfWeek(now))));
+  const blocks = describeBlocks(computeTimeBlocks(await coursesOfDayOn(dayOfWeek(now), now)));
 
   const findings: Finding[] = [
     {
