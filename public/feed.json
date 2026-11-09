@@ -62,6 +62,16 @@
     "url": "https://jwc.ccnu.edu.cn/info/1102/28591.htm"
   },
   {
+    "id": "notice-29361",
+    "type": "notice",
+    "title": "关于举办华中师范大学2026年创新创业训练营（秋季营）的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/29361.htm"
+  },
+  {
     "id": "notice-29351",
     "type": "notice",
     "title": "关于开展教风学风考风建设月活动的通知",
@@ -142,16 +152,6 @@
     "url": "https://jwc.ccnu.edu.cn/info/1102/29181.htm"
   },
   {
-    "id": "notice-29171",
-    "type": "notice",
-    "title": "关于做好2026年教学型教授职称评审工作的通知",
-    "tags": [
-      "通知"
-    ],
-    "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1103/29171.htm"
-  },
-  {
     "id": "notice-29331",
     "type": "notice",
     "title": "教育部专家组对我校特殊教育、心理学专业开展师范类专业第二级认证考查",
@@ -230,5 +230,15 @@
     ],
     "source": "本科生院 · 教务快讯",
     "url": "https://jwc.ccnu.edu.cn/info/1052/28831.htm"
+  },
+  {
+    "id": "notice-29171",
+    "type": "notice",
+    "title": "关于做好2026年教学型教授职称评审工作的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1103/29171.htm"
   }
 ]
