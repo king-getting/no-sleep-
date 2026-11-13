@@ -32,34 +32,14 @@
     "url": "https://jwc.ccnu.edu.cn/info/1103/29191.htm"
   },
   {
-    "id": "notice-28891",
+    "id": "notice-29391",
     "type": "notice",
-    "title": "【助管招聘】华中师范大学本科生院助管招聘通知",
+    "title": "关于举办华中师范大学首届（2026年）大学生AIGC教学应用竞赛的通知",
     "tags": [
       "通知"
     ],
     "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1102/28891.htm"
-  },
-  {
-    "id": "notice-28601",
-    "type": "notice",
-    "title": "关于选修2026-2027学年第一学期课程的通知",
-    "tags": [
-      "通知"
-    ],
-    "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1102/28601.htm"
-  },
-  {
-    "id": "notice-28591",
-    "type": "notice",
-    "title": "关于2025级本科生申请免修大学英语课程的通知",
-    "tags": [
-      "通知"
-    ],
-    "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1102/28591.htm"
+    "url": "https://jwc.ccnu.edu.cn/info/1102/29391.htm"
   },
   {
     "id": "notice-29361",
@@ -152,14 +132,34 @@
     "url": "https://jwc.ccnu.edu.cn/info/1102/29181.htm"
   },
   {
-    "id": "notice-29331",
+    "id": "notice-29171",
     "type": "notice",
-    "title": "教育部专家组对我校特殊教育、心理学专业开展师范类专业第二级认证考查",
+    "title": "关于做好2026年教学型教授职称评审工作的通知",
     "tags": [
       "通知"
     ],
-    "source": "本科生院 · 教务快讯",
-    "url": "https://jwc.ccnu.edu.cn/info/1052/29331.htm"
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1103/29171.htm"
+  },
+  {
+    "id": "notice-29151",
+    "type": "notice",
+    "title": "关于2025级本科生修读《劳动教育》课程的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/29151.htm"
+  },
+  {
+    "id": "notice-29161",
+    "type": "notice",
+    "title": "关于公布2026—2027学年第一学期微专业补报名录取名单的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/29161.htm"
   },
   {
     "id": "notice-29321",
@@ -232,6 +232,46 @@
     "url": "https://jwc.ccnu.edu.cn/info/1052/29381.htm"
   },
   {
+    "id": "notice-29331",
+    "type": "notice",
+    "title": "教育部专家组对我校特殊教育、心理学专业开展师范类专业第二级认证考查",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 教务快讯",
+    "url": "https://jwc.ccnu.edu.cn/info/1052/29331.htm"
+  },
+  {
+    "id": "notice-28891",
+    "type": "notice",
+    "title": "【助管招聘】华中师范大学本科生院助管招聘通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/28891.htm"
+  },
+  {
+    "id": "notice-28601",
+    "type": "notice",
+    "title": "关于选修2026-2027学年第一学期课程的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/28601.htm"
+  },
+  {
+    "id": "notice-28591",
+    "type": "notice",
+    "title": "关于2025级本科生申请免修大学英语课程的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1102/28591.htm"
+  },
+  {
     "id": "notice-28831",
     "type": "notice",
     "title": "我校老师荣获第六届全国高校教师教学创新大赛二等奖",
@@ -240,15 +280,5 @@
     ],
     "source": "本科生院 · 教务快讯",
     "url": "https://jwc.ccnu.edu.cn/info/1052/28831.htm"
-  },
-  {
-    "id": "notice-29171",
-    "type": "notice",
-    "title": "关于做好2026年教学型教授职称评审工作的通知",
-    "tags": [
-      "通知"
-    ],
-    "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1103/29171.htm"
   }
 ]
