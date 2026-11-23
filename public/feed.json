@@ -22,6 +22,17 @@
     "publishedAt": "2027-01-09"
   },
   {
+    "id": "notice-29431",
+    "type": "notice",
+    "title": "关于做好2026年秋季学期大类培养分流工作的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1103/29431.htm",
+    "publishedAt": "2026-12-03"
+  },
+  {
     "id": "notice-29261",
     "type": "notice",
     "title": "关于开展2026级新生学籍电子注册信息自查工作的通知",
@@ -154,16 +165,6 @@
     "url": "https://jwc.ccnu.edu.cn/info/1103/29211.htm"
   },
   {
-    "id": "notice-29201",
-    "type": "notice",
-    "title": "关于2026-2027学年第一学期组织新进教师参加集中教学培训的通知",
-    "tags": [
-      "通知"
-    ],
-    "source": "本科生院 · 通知公告",
-    "url": "https://jwc.ccnu.edu.cn/info/1103/29201.htm"
-  },
-  {
     "id": "notice-29321",
     "type": "notice",
     "title": "探索未来教育家成长新路径！华师第十二届教学节开幕！",
@@ -242,6 +243,16 @@
     ],
     "source": "本科生院 · 教务快讯",
     "url": "https://jwc.ccnu.edu.cn/info/1052/29331.htm"
+  },
+  {
+    "id": "notice-29201",
+    "type": "notice",
+    "title": "关于2026-2027学年第一学期组织新进教师参加集中教学培训的通知",
+    "tags": [
+      "通知"
+    ],
+    "source": "本科生院 · 通知公告",
+    "url": "https://jwc.ccnu.edu.cn/info/1103/29201.htm"
   },
   {
     "id": "notice-29181",
